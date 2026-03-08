@@ -1,17 +1,17 @@
 version: 2.1
 
 orbs:
-  aws-cli: circleci/aws-cli@4.0
+  oidc: myhelix/oidc@1
 
 jobs:
   integration-test:
     docker:
       - image: cimg/node:20.11
+    environment:
+      AWS_DEFAULT_REGION: us-east-1
     steps:
       - checkout
-      - aws-cli/setup:
-          role_arn: ${AWS_ROLE_ARN}   # set in CircleCI project env vars
-          region: us-east-1
+      - oidc/auth
 
       # Fetch credentials from Secrets Manager and export as env vars
       - run:
