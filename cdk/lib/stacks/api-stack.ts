@@ -34,7 +34,7 @@ export class ApiStack extends cdk.Stack {
       environment: {
         VECTOR_BUCKET_NAME: vectorBucketName,
         EMBEDDING_MODEL_ID: "amazon.titan-embed-text-v2:0",
-        METADATA_MODEL_ID: "anthropic.claude-3-haiku-20240307-v1:0",
+        METADATA_MODEL_ID: "us.anthropic.claude-haiku-4-5-20251001-v1:0",
       },
       bundling: {
         externalModules: ["@aws-sdk/*"],
@@ -67,8 +67,14 @@ export class ApiStack extends cdk.Stack {
       new iam.PolicyStatement({
         actions: ["bedrock:InvokeModel"],
         resources: [
+          // Titan embed — standard foundation model (no cross-region profile needed)
           `arn:aws:bedrock:${this.region}::foundation-model/amazon.titan-embed-text-v2:0`,
-          `arn:aws:bedrock:${this.region}::foundation-model/anthropic.claude-3-haiku-20240307-v1:0`,
+          // Haiku 4.5 — must use cross-region inference profile
+          `arn:aws:bedrock:${this.region}:${this.account}:inference-profile/us.anthropic.claude-haiku-4-5-20251001-v1:0`,
+          // Underlying foundation models the profile routes to
+          `arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0`,
+          `arn:aws:bedrock:us-east-2::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0`,
+          `arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0`,
         ],
       })
     );
