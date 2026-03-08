@@ -4,153 +4,120 @@ One database that every AI you use shares as persistent memory. Claude, ChatGPT,
 
 ```
 Claude Code ──┐
-Claude Desktop ┼── MCP ──→ Your Backend ──→ Vector Store
-ChatGPT ───────┤                                ↕
-Gemini CLI ────┘                          Embeddings + Classification
+Claude Desktop ┼── MCP ──→ API Gateway + Lambda ──→ S3 Vectors
+ChatGPT ───────┤                    ↕
+Gemini CLI ────┘                  Bedrock
+                             (embed + classify)
 ```
 
-Two deployment paths:
-- **Supabase** (free tier) — Supabase Edge Functions + pgvector + OpenRouter. Zero cost to start.
-- **AWS Enterprise** — Lambda + S3 Vectors + Bedrock + Cognito. Fully serverless, org-level sharing, IAM auth.
+**AWS Enterprise deployment** — Lambda + S3 Vectors + Bedrock + Cognito. Fully serverless, org-level sharing, Cognito JWT auth.
 
 ## What You Get
 
 - **Semantic search** — Find thoughts by meaning ("career changes" matches "Sarah is leaving her job")
 - **Capture from anywhere** — Any connected AI can save thoughts directly
+- **Private + shared scopes** — Keep thoughts to yourself or share org-wide
 - **Memory migration** — Pull memories out of ChatGPT, Claude, and Gemini into one shared brain
 - **Skills for each AI** — Pre-built instructions that teach each client how to use the brain
 
-## The Demo
-
-1. Connect your AIs to the brain
-2. Migrate your ChatGPT memories into it
-3. Open Claude and ask about something you just migrated
-4. It works. One brain, every AI.
-
 ## Cost
-
-**Supabase path:**
-
-| Service | Cost |
-|---------|------|
-| Supabase (free tier) | $0 |
-| OpenRouter (embeddings + classification) | ~$0.10–0.30/month |
-
-**AWS Enterprise path:**
 
 | Service | Cost |
 |---------|------|
 | S3 Vectors | Pay-per-use (pennies/month for personal use) |
 | Lambda + API Gateway | Pay-per-request |
-| Bedrock (Titan embeddings + Haiku metadata) | ~$0.10–0.50/month |
+| Bedrock (Titan Embed v2 + Haiku metadata) | ~$0.10–0.50/month |
 | Cognito | Free tier covers 50K MAU |
 
 ---
 
-## Setup (15 minutes)
+## Deploy (15 minutes)
 
-### 1. Create Accounts
+### Prerequisites
 
-- **[Supabase](https://supabase.com)** — Sign up, create a new project, note the **Project Ref** from the dashboard URL
-- **[OpenRouter](https://openrouter.ai)** — Sign up, create an API key, add $5 in credits (lasts months)
+- AWS account with CDK bootstrapped (`npx cdk bootstrap`)
+- Node.js 20+
+- Bedrock model access enabled: **Titan Embed Text v2** and **Claude Haiku 4.5** (cross-region inference profile)
 
-![Create a new Supabase project](supabase-new-project.png)
-
-![Supabase project dashboard](supabase-project-dashboard.png)
-
-
-### 2. Install Prerequisites
-
-You need a package manager to install the Supabase CLI. If you already have one, skip to the CLI install.
-
-**Mac — Install Homebrew** (if you don't have it):
-```bash
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-```
-After it finishes, follow the instructions it prints to add Homebrew to your PATH. Then close and reopen Terminal.
-
-**Windows — Install Scoop** (if you don't have it):
-```powershell
-Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-Invoke-RestMethod -Uri https://get.scoop.sh | Invoke-Expression
-```
-
-Now install the Supabase CLI:
+### 1. Clone and deploy
 
 ```bash
-# Mac
-brew install supabase/tap/supabase
-
-# Windows
-scoop bucket add supabase https://github.com/supabase/scoop-bucket.git
-scoop install supabase
-
-# Linux
-npm install -g supabase
+git clone https://github.com/myhelix/openbrain.git
+cd openbrain/cdk
+npm install
+npx cdk deploy --all
 ```
 
-Verify it works:
+This creates three stacks:
+
+| Stack | What it creates |
+|-------|----------------|
+| `EnterpriseBrainVectors` | S3 vector bucket + `shared` index |
+| `EnterpriseBrainAuth` | Cognito user pool (org email domain enforcement) |
+| `EnterpriseBrainApi` | API Gateway (JWT) + Lambda MCP server |
+
+The API URL is printed at the end of the deploy.
+
+### 2. Create a user
+
 ```bash
-supabase --version
+aws cognito-idp admin-create-user \
+  --user-pool-id YOUR_POOL_ID \
+  --username you@yourorg.com \
+  --temporary-password TempPass1!
+
+aws cognito-idp admin-set-user-password \
+  --user-pool-id YOUR_POOL_ID \
+  --username you@yourorg.com \
+  --password YourPassword1! \
+  --permanent
 ```
 
-### 3. Clone and Run Setup
+### 3. Connect Your AIs
+
+Get a token:
 
 ```bash
-git clone https://github.com/blanxlait/openbrain.git
-cd openbrain
-chmod +x setup.sh
-./setup.sh
+aws cognito-idp initiate-auth \
+  --auth-flow USER_PASSWORD_AUTH \
+  --client-id YOUR_CLI_CLIENT_ID \
+  --auth-parameters USERNAME=you@yourorg.com,PASSWORD=YourPassword1!
 ```
 
-The script prompts for your Supabase Project Ref and OpenRouter API key, then:
-- Links to your Supabase project
-- Creates the database (table, vector search, security policies)
-- Deploys the MCP server Edge Function
-- Generates an MCP access key
-- Prints everything you need to connect
-
-### 4. Connect Your AIs
-
-The setup script prints your MCP Connection URL and access key. Use them below.
-
-#### Claude Desktop
-
-1. Settings → Connectors → **Add custom connector**
-2. Name: `Open Brain`
-3. URL: paste your MCP Connection URL (the one with `?key=...`)
-4. Add the skill: copy `skills/claude-desktop.md` into Project Instructions
+Use the `IdToken` as a Bearer token in all MCP client configs.
 
 #### Claude Code
 
 ```bash
 claude mcp add --transport http open-brain \
-  https://YOUR_PROJECT_REF.supabase.co/functions/v1/open-brain-mcp \
-  --header "x-brain-key: YOUR_MCP_ACCESS_KEY"
+  https://YOUR_API_ID.execute-api.us-east-1.amazonaws.com/mcp \
+  --header "Authorization: Bearer YOUR_ID_TOKEN"
 ```
 
-> The skill loads automatically from the `CLAUDE.md` in this repo when you run Claude Code from the `openbrain/` directory.
+> The skill loads automatically from `CLAUDE.md` when you run Claude Code from this directory.
+
+#### Claude Desktop
+
+1. Settings → Connectors → **Add custom connector**
+2. Name: `Open Brain`
+3. URL: `https://YOUR_API_ID.execute-api.us-east-1.amazonaws.com/mcp`
+4. Auth: Bearer token → paste your `IdToken`
+5. Paste `skills/claude-desktop.md` into Project Instructions
 
 #### ChatGPT (paid plans)
 
 1. Settings → Apps & Connectors → Advanced settings → **Developer Mode ON**
 2. Settings → Apps & Connectors → **Create**
-3. Name: `Open Brain`, URL: paste your MCP Connection URL, Auth: None
-4. Copy `skills/chatgpt-instructions.md` into Custom Instructions or create a Custom GPT
-
-> Note: Developer Mode disables ChatGPT's built-in Memory. Your Open Brain replaces it — and works across every AI.
+3. Name: `Open Brain`, URL: your API URL, Auth: Bearer token
+4. Copy `skills/chatgpt-instructions.md` into Custom Instructions or a Custom GPT
 
 #### Gemini CLI
 
 ```bash
 gemini mcp add -t http open-brain \
-  https://YOUR_PROJECT_REF.supabase.co/functions/v1/open-brain-mcp \
-  -H "x-brain-key: YOUR_MCP_ACCESS_KEY"
+  https://YOUR_API_ID.execute-api.us-east-1.amazonaws.com/mcp \
+  -H "Authorization: Bearer YOUR_ID_TOKEN"
 ```
-
-> The skill loads automatically from the `GEMINI.md` in this repo when you run Gemini CLI from the `openbrain/` directory.
->
-> Gemini web doesn't support custom MCP connectors yet. Use the CLI, or see `skills/gemini-gem.md` for a Gem that helps format thoughts for capture via another client.
 
 #### Other MCP Clients (Cursor, VS Code, Windsurf)
 
@@ -161,197 +128,37 @@ gemini mcp add -t http open-brain \
       "command": "npx",
       "args": [
         "mcp-remote",
-        "https://YOUR_PROJECT_REF.supabase.co/functions/v1/open-brain-mcp",
+        "https://YOUR_API_ID.execute-api.us-east-1.amazonaws.com/mcp",
         "--header",
-        "x-brain-key:${BRAIN_KEY}"
+        "Authorization: Bearer ${BRAIN_TOKEN}"
       ],
       "env": {
-        "BRAIN_KEY": "your-access-key"
+        "BRAIN_TOKEN": "your-id-token"
       }
     }
   }
 }
 ```
 
-### 5. Migrate Your Memories
-
-Migration is powered by [Nate B. Jones' migration prompts](https://nateb.jones.com) (available on his Substack). This is the first thing to do after connecting. Each skill includes migration instructions, but here's the overview:
-
-**From ChatGPT:**
-1. Go to Settings → Personalization → Memory → Manage
-2. Copy all your memories
-3. Paste them into a connected AI (Claude Code, Claude Desktop, or ChatGPT itself)
-4. Tell the AI: *"Migrate these memories into my Open Brain — capture each one individually"*
-
-**From Claude Desktop:**
-1. Go to Settings → Memories
-2. Copy your memories
-3. Paste into a connected conversation
-4. *"Capture each of these as separate thoughts in my brain"*
-
-**From Claude Code:**
-1. Your memories are in `~/.claude/memory/` and project `CLAUDE.md` files
-2. Tell Claude Code: *"Read my memory files and migrate each piece of knowledge into Open Brain"*
-
-**From Gmail:**
-
-The repo includes a parser that analyzes your Gmail mbox export for contacts, communication patterns, services, and email history.
-
-**Step 1: Export your Gmail**
-
-1. Go to [takeout.google.com](https://takeout.google.com) → click **"Deselect all"**
-2. Check **"Mail"** → choose **MBOX format**
-3. Create export → download zip → extract the `.mbox` file
-
-**Step 2: Parse with the migration script**
-
-```bash
-python3 migrations/gmail-export.py ~/Downloads/"All mail Including Spam and Trash.mbox"
-```
-
-This creates `gmail-export.json` with your top contacts, organization groupings, services/subscriptions, and email volume over time. Spam is filtered automatically.
-
-**Step 3: Review and capture**
-
-```bash
-python3 migrations/gmail-export.py gmail-export.json --capture \
-  --mcp-url https://YOUR_PROJECT_REF.supabase.co/functions/v1/open-brain-mcp \
-  --mcp-key YOUR_MCP_ACCESS_KEY
-```
-
-**From Gemini (conversation history via Google Takeout):**
-Gemini doesn't store discrete memories like ChatGPT or Claude, but you can export your full conversation history. **Important:** don't export "Gemini" directly — that only gives you Gems. You need "My Activity."
-
-**Step 1: Export from Google Takeout**
-
-1. Go to [takeout.google.com](https://takeout.google.com) and click **"Deselect all"**
-2. Scroll down to **"My Activity"** and check that box
-3. Click the button inside that row that says **"All activity data included"**
-4. In the pop-up, click **"Deselect all"** again, then scroll and check **ONLY "Gemini Apps"** (or "Gemini") → Click OK
-5. Click "Next step" → "Create export"
-6. Google emails you a `.zip`. Unzip it and find: `Takeout/My Activity/Gemini Apps/MyActivity.html`
-
-**Step 2: Parse with the migration script**
-
-The repo includes a parser that extracts all your Gemini conversations into a reviewable JSON file:
-
-```bash
-python3 migrations/gemini-takeout.py ~/Downloads/Takeout/My\ Activity/Gemini\ Apps/MyActivity.html
-```
-
-This creates `gemini-export.json` with every prompt and response, dated and organized chronologically.
-
-**Step 3: Review and capture**
-
-Open `gemini-export.json` and remove any entries you don't want in your brain (debugging sessions, one-off questions, etc.). Then capture the rest:
-
-```bash
-python3 migrations/gemini-takeout.py gemini-export.json --capture \
-  --mcp-url https://YOUR_PROJECT_REF.supabase.co/functions/v1/open-brain-mcp \
-  --mcp-key YOUR_MCP_ACCESS_KEY
-```
-
-> **Tip:** You can also open `MyActivity.html` in a browser and use Ctrl+F/Cmd+F to search for specific topics before deciding what to keep.
-
-If you have custom instructions (Settings → Personal Intelligence → Instructions for Gemini), copy those into a connected AI and capture them too.
-
-**From Spotify:**
-
-The repo includes a parser that extracts your listening profile, library, and playlists into reviewable thoughts.
-
-**Step 1: Export your data**
-
-1. Go to [spotify.com/account](https://spotify.com/account) → Privacy settings → **Download your data**
-2. Request **"Account data"** (NOT "Extended streaming history" — that takes 30 days)
-3. Wait ~1 week for the email, download the zip
-
-**Step 2: Parse with the migration script**
-
-```bash
-python3 migrations/spotify-export.py ~/Downloads/my_spotify_data.zip
-```
-
-This creates `spotify-export.json` with your top artists, most-played tracks, listening time, saved library, and playlists.
-
-**Step 3: Review and capture**
-
-Open `spotify-export.json` and remove entries you don't want in your brain. Then capture the rest:
-
-```bash
-python3 migrations/spotify-export.py spotify-export.json --capture \
-  --mcp-url https://YOUR_PROJECT_REF.supabase.co/functions/v1/open-brain-mcp \
-  --mcp-key YOUR_MCP_ACCESS_KEY
-```
-
-**From other personal data exports (Amazon, Google Maps, etc.):**
-Most services let you export your data. The brain can store anything — preferences, purchase history patterns, favorite places. The process is the same:
-
-1. Export your data from the service (usually in Settings → Privacy → Download your data)
-2. Review the export for things worth remembering (preferences, patterns, favorites)
-3. Paste the relevant parts into a connected AI and capture them
-
-Examples:
-- **Amazon** — Purchase patterns, product preferences → *"I prefer brand X for coffee, usually reorder every 3 weeks"*
-- **Google Maps** — Favorite places, travel patterns → *"My go-to restaurants are X, Y, Z in downtown"*
-
 ---
 
-## Enterprise Setup (AWS)
-
-For teams or orgs that want IAM auth, private/shared scoping, and no external dependencies.
-
-### Prerequisites
-
-- AWS account with CDK bootstrapped
-- Node.js 20+
-- Bedrock model access enabled (Titan Embed v2, Claude 3 Haiku)
-
-### Deploy
-
-```bash
-cd cdk
-npm install
-npx cdk deploy --all
-```
-
-This creates three stacks:
-- **EnterpriseBrainVectors** — S3 vector bucket with a shared index
-- **EnterpriseBrainAuth** — Cognito user pool (email sign-in)
-- **EnterpriseBrainApi** — API Gateway + Lambda MCP server
-
-### Architecture
+## Architecture
 
 ```
 Client ──→ API Gateway (JWT auth) ──→ Lambda ──→ S3 Vectors
                                         ↕
                                       Bedrock
-                                   (embed + classify)
+                                (Titan embed + Haiku classify)
 ```
 
 **Vector storage:** One S3 vector bucket with index-per-scope design:
-- `private-{userId}` — created on-demand at first capture
-- `shared` — org-wide, anyone can read/write
+- `private-{userId}` — created on-demand at first capture, only you can see it
+- `shared` — org-wide, anyone in the user pool can read/write
 
 **Scoping:** Each tool accepts a `scope` parameter:
 - `private` (default) — your thoughts only
 - `shared` — org-wide shared thoughts
 - `all` — both private and shared, merged
-
-### Connect
-
-After deploy, the API URL is output. Register users via Cognito, then connect MCP clients using the API URL with a JWT bearer token.
-
----
-
-### 6. Test It
-
-After migrating from one AI, open a **different** one and ask about something you just migrated.
-
-For example, if you migrated ChatGPT memories that included "prefers TypeScript over JavaScript":
-- Open Claude Desktop and ask: *"What are my programming language preferences?"*
-- It should find the migrated memory via semantic search.
-
-That's the proof: one brain, every AI.
 
 ---
 
@@ -364,9 +171,36 @@ That's the proof: one brain, every AI.
 | `stats` | Overview — total thoughts, types, topics, people |
 | `capture_thought` | Save a thought from any connected AI |
 
+---
+
+## Migrate Your Memories
+
+After connecting, migrate your existing memories into the brain. Each skill includes migration instructions. Here's the overview:
+
+**From ChatGPT:**
+1. Settings → Personalization → Memory → Manage → copy all memories
+2. Paste into a connected AI and say: *"Migrate these into my Open Brain — capture each one individually"*
+
+**From Claude Desktop:**
+1. Settings → Memories → copy
+2. Paste into a connected conversation: *"Capture each of these as separate thoughts in my brain"*
+
+**From Claude Code:**
+Tell Claude Code: *"Read my memory files (`~/.claude/memory/`) and migrate each piece of knowledge into Open Brain"*
+
+**From Gemini (via Google Takeout):**
+1. takeout.google.com → Deselect all → My Activity → All activity data included → deselect all → check Gemini Apps only → Create export
+2. Open `Takeout/My Activity/Gemini Apps/MyActivity.html` in a browser
+3. Paste relevant conversations into a connected AI for capture
+
+**From personal data (Spotify, Amazon, etc.):**
+Export data from the service, review for useful patterns, paste the relevant parts into a connected AI and capture them.
+
+---
+
 ## Skills
 
-Pre-built instructions for each AI client that teach it to search before answering, capture proactively, and handle memory migration.
+Pre-built instructions for each AI client — teach it to search before answering, capture proactively, and handle memory migration.
 
 | File | For | How to Use |
 |------|-----|------------|
@@ -376,96 +210,92 @@ Pre-built instructions for each AI client that teach it to search before answeri
 | `skills/chatgpt-instructions.md` | ChatGPT | Custom GPT or Custom Instructions |
 | `skills/gemini-gem.md` | Gemini Web | Create a Gem (no MCP support yet) |
 
-## Optional: Slack Capture
+---
 
-Want a Slack channel for quick-capture without opening an AI? The setup script offers to configure this automatically. For manual setup or troubleshooting, see [`slack/SETUP.md`](slack/SETUP.md).
+## Optional Add-ons
 
-## Optional: Google Meet Ingestion (AWS Enterprise)
+### Slack Capture
 
-Automatically capture Gemini-generated meeting summaries into your brain as shared thoughts. Uses a Google Apps Script that watches Gmail for meeting note emails, extracts the summary, scrubs PII/PHI, and calls the MCP endpoint. See [`google-meet/README.md`](google-meet/README.md).
+A Slack channel for quick-capture without opening an AI. See [`slack/SETUP.md`](slack/SETUP.md).
+
+### Google Meet Ingestion
+
+Automatically captures Gemini-generated meeting summaries as shared thoughts. Uses a Google Apps Script that watches Gmail for meeting note emails, extracts the summary, scrubs PII/PHI, and calls the MCP endpoint. See [`google-meet/README.md`](google-meet/README.md).
+
+---
 
 ## Troubleshooting
 
-**MCP server won't connect / "failed" status** — Most likely a key mismatch. Running `setup.sh` again (or answering "yes" to regenerate the key) updates the Supabase secret but does **not** update your AI client configs. Compare the key in your client config against the one in `.setup-state` (or the setup script output). They must match. To fix: either update the key in your client config, or re-run the `claude mcp add` / connector setup command with the current key.
-
-**401 errors** — Same root cause as above — access key mismatch. Run `supabase secrets list` and compare with your client config. Header must be `x-brain-key` (lowercase, with dash).
+**401 errors** — Token expired. Cognito tokens last 8 hours (CLI client) or 1 hour (web client). Re-authenticate and update your client config.
 
 **No search results** — Capture or migrate some thoughts first. Try: *"search with threshold 0.3"* for broader results.
 
-**Slow first response** — Cold start. The Edge Function wakes up in a few seconds; subsequent calls are faster.
+**Bedrock `AccessDeniedException` with cross-region model** — Cross-region inference profiles (e.g. `us.anthropic.claude-haiku-4-5-20251001-v1:0`) require the IAM policy to grant access to both the inference profile ARN *and* the underlying foundation model ARNs in each routable region. The profile ARN alone is not sufficient. See `cdk/lib/stacks/api-stack.ts` for the required ARN set.
 
-**Edge Function logs** — Supabase dashboard → Edge Functions → `open-brain-mcp` → Logs
+**S3 Vectors permission errors** — IAM resource ARNs for S3 Vectors use `bucket/` prefix, NOT `vector-bucket/`. Check the policy in `api-stack.ts` if you see `AccessDeniedException` on `s3vectors:*` actions.
+
+**Lambda logs** — CloudWatch → Log groups → `/aws/lambda/EnterpriseBrainApi-McpHandler*`
+
+---
 
 ## Project Structure
 
 ```
 openbrain/
-├── supabase/                       # Supabase deployment path
-│   ├── config.toml
-│   ├── migrations/
-│   │   └── 20260306000000_initial_schema.sql
-│   └── functions/
-│       └── open-brain-mcp/
-│           ├── index.ts            # MCP server (Edge Function)
-│           └── deno.json
-├── cdk/                            # AWS Enterprise deployment path
+├── cdk/                            # CDK infrastructure
 │   ├── bin/
 │   │   └── enterprise-brain.ts     # CDK app entry point
 │   └── lib/stacks/
 │       ├── vector-storage-stack.ts  # S3 vector bucket + shared index
 │       ├── auth-stack.ts           # Cognito user pool
 │       └── api-stack.ts            # API Gateway + Lambda
-├── lambda/                         # Lambda function (enterprise path)
+├── lambda/                         # Lambda MCP server
 │   └── src/
 │       ├── index.ts                # MCP protocol handler
 │       ├── types.ts
-│       ├── auth/context.ts         # JWT auth
+│       ├── auth/context.ts         # JWT context extraction
 │       ├── handlers/               # search, browse, capture, stats
 │       └── services/
 │           ├── vectors.ts          # S3 Vectors client
-│           ├── embeddings.ts       # Bedrock Titan
-│           └── metadata.ts         # Bedrock Claude Haiku
+│           ├── embeddings.ts       # Bedrock Titan Embed v2
+│           └── metadata.ts         # Bedrock Claude Haiku 4.5
+├── tests/                          # Integration test suite (vitest)
+│   ├── integration/
+│   └── run.sh
+├── .circleci/
+│   └── config.yml                  # CI pipeline
 ├── CLAUDE.md                       # Claude Code skill (auto-loaded)
 ├── GEMINI.md                       # Gemini CLI skill (auto-loaded)
 ├── skills/
-│   ├── claude-code.md
 │   ├── claude-desktop.md
 │   ├── chatgpt-instructions.md
 │   └── gemini-gem.md
-├── migrations/                     # Data migration scripts
-│   ├── gemini-takeout.py
-│   ├── gmail-export.py
-│   └── spotify-export.py
-├── google-meet/                    # Optional Google Meet ingestion (AWS Enterprise)
+├── google-meet/                    # Optional Google Meet ingestion
 │   ├── Code.gs
 │   ├── Auth.gs
 │   ├── Scrubber.gs
-│   ├── appsscript.json
 │   └── README.md
-├── slack/                          # Optional Slack capture add-on
-│   ├── ingest-thought/
-│   │   └── index.ts
-│   └── SETUP.md
-├── setup.sh                        # Interactive setup (Supabase path)
-└── README.md
+└── slack/                          # Optional Slack capture
+    ├── ingest-thought/
+    └── SETUP.md
 ```
 
 ## Swapping Models
 
-**Supabase path:** Edit the model strings in `supabase/functions/open-brain-mcp/index.ts` and redeploy:
+Edit the model IDs in `cdk/lib/stacks/api-stack.ts` (environment variables) and redeploy:
 
 ```bash
-supabase functions deploy open-brain-mcp --no-verify-jwt
+cd cdk && npx cdk deploy EnterpriseBrainApi
 ```
 
-Browse models at [openrouter.ai/models](https://openrouter.ai/models). Keep embedding dimensions at 1536 unless you also update the migration.
+Current models:
+- **Embeddings:** `amazon.titan-embed-text-v2:0` (1024 dimensions, cosine similarity)
+- **Metadata:** `us.anthropic.claude-haiku-4-5-20251001-v1:0` (cross-region inference profile)
 
-**AWS Enterprise path:** Edit the model IDs in `cdk/lib/stacks/api-stack.ts` (environment variables) and redeploy with `npx cdk deploy --all`. The current setup uses Bedrock Titan Embed v2 (1024 dimensions) and Claude 3 Haiku for metadata extraction.
-
-## Credits
-
-Based on [Nate B. Jones'](https://nateb.jones.com) Open Brain concept — *"Your Second Brain Is Closed. Your AI Can't Use It. Here's the Fix."*
+If you change the embedding model, delete and recreate the vector indexes — dimension changes are not backward-compatible.
 
 ---
 
-Built by [blanxlait](https://github.com/blanxlait)
+## Credits
+
+Based on [Nate B. Jones'](https://nateb.jones.com) Open Brain concept.
