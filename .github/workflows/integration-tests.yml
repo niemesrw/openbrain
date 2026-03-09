@@ -1,8 +1,7 @@
 name: Integration Tests
 
 on:
-  push:
-    branches: [main]
+  workflow_dispatch: # Manual-only until /openbrain/ci/credentials secret is provisioned (see #4)
 
 permissions:
   contents: read
