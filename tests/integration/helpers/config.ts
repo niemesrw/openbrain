@@ -5,7 +5,7 @@
  *        OPENBRAIN_CLIENT_ID as environment variables (sourced from Secrets Manager
  *        by the CI job before running tests).
  *
- * Local: Set AWS_PROFILE=platdev-developer. Config is fetched automatically
+ * Local: Set AWS_PROFILE=management-admin. Config is fetched automatically
  *        from /openbrain/ci/credentials in Secrets Manager.
  */
 

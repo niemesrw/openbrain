@@ -11,8 +11,8 @@ export class AuthStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
-    // Enforce @helix.com email domain at sign-up time.
-    // This trigger also runs for federated sign-ins (Duo SAML/OIDC), providing
+    // Enforce @blanxlait.com email domain at sign-up time.
+    // This trigger also runs for federated sign-ins (Google OIDC), providing
     // a consistent domain gate before and after federation is added.
     const preSignUpFn = new lambda.Function(this, "PreSignUpFn", {
       runtime: lambda.Runtime.NODEJS_20_X,
@@ -21,8 +21,8 @@ export class AuthStack extends cdk.Stack {
         [
           "exports.handler = async (event) => {",
           "  const email = (event.request.userAttributes.email || '').toLowerCase();",
-          "  if (!email.endsWith('@helix.com')) {",
-          "    throw new Error('Only @helix.com accounts are permitted.');",
+          "  if (!email.endsWith('@blanxlait.com')) {",
+          "    throw new Error('Only @blanxlait.com accounts are permitted.');",
           "  }",
           "  return event;",
           "};",
@@ -32,7 +32,7 @@ export class AuthStack extends cdk.Stack {
 
     this.userPool = new cognito.UserPool(this, "BrainUserPool", {
       userPoolName: "enterprise-brain-users",
-      // Self sign-up is disabled: accounts are admin-created or provisioned via Duo federation.
+      // Self sign-up is disabled: accounts are admin-created or provisioned via Google federation.
       selfSignUpEnabled: false,
       signInAliases: { email: true },
       autoVerify: { email: true },
@@ -41,7 +41,7 @@ export class AuthStack extends cdk.Stack {
       },
       customAttributes: {
         // Used for team-scoped thought sharing.
-        // When Duo federation is configured, map this from the SAML group/team assertion.
+        // When Google federation is configured, map this from the OIDC group/team claim.
         team_id: new cognito.StringAttribute({ mutable: true }),
       },
       passwordPolicy: {
@@ -57,18 +57,26 @@ export class AuthStack extends cdk.Stack {
       },
     });
 
-    // TODO: Add Duo federation when ready.
-    // new cognito.UserPoolIdentityProviderSaml(this, "DuoSaml", {
+    // TODO: Add Google federation when ready.
+    // 1. Create an OAuth 2.0 Client ID in Google Cloud Console
+    //    (APIs & Services → Credentials → OAuth client ID → Web application).
+    //    Set the authorized redirect URI to:
+    //    https://<your-cognito-domain>.auth.<region>.amazoncognito.com/oauth2/idpresponse
+    //
+    // 2. Uncomment and fill in your Google client ID and secret:
+    // const googleProvider = new cognito.UserPoolIdentityProviderGoogle(this, "Google", {
     //   userPool: this.userPool,
-    //   name: "Duo",
-    //   metadata: cognito.UserPoolIdentityProviderSamlMetadata.url("https://..."),
+    //   clientId: "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com",
+    //   clientSecretValue: cdk.SecretValue.secretsManager("openbrain/google-oauth-secret"),
+    //   scopes: ["openid", "email", "profile"],
     //   attributeMapping: {
-    //     email: cognito.ProviderAttribute.other("mail"),
-    //     custom: { "custom:team_id": cognito.ProviderAttribute.other("team") },
+    //     email: cognito.ProviderAttribute.GOOGLE_EMAIL,
+    //     fullname: cognito.ProviderAttribute.GOOGLE_NAME,
     //   },
     // });
-    // Also add the IdP to both app clients' supportedIdentityProviders and
-    // enable a hosted UI domain for the SAML redirect flow.
+    //
+    // 3. Add hosted UI domain and update app clients' supportedIdentityProviders
+    //    to include cognito.UserPoolClientIdentityProvider.GOOGLE.
 
     const readAttributes = new cognito.ClientAttributes()
       .withStandardAttributes({ email: true, emailVerified: true })

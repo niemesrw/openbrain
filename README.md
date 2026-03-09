@@ -42,7 +42,7 @@ Gemini CLI ────┘                  Bedrock
 ### 1. Clone and deploy
 
 ```bash
-git clone https://github.com/myhelix/openbrain.git
+git clone https://github.com/blanxlait/openbrain.git
 cd openbrain/cdk
 npm install
 npx cdk deploy --all
@@ -262,8 +262,9 @@ openbrain/
 ├── tests/                          # Integration test suite (vitest)
 │   ├── integration/
 │   └── run.sh
-├── .circleci/
-│   └── config.yml                  # CI pipeline
+├── .github/
+│   └── workflows/
+│       └── integration-tests.yml   # CI pipeline (GitHub Actions)
 ├── CLAUDE.md                       # Claude Code skill (auto-loaded)
 ├── GEMINI.md                       # Gemini CLI skill (auto-loaded)
 ├── skills/
