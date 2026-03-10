@@ -38,15 +38,9 @@ Gemini CLI ────┘                OpenRouter
 
 Zero coding, free tier, perfect for personal use and building agents on top of shared memory.
 
-**Follow the complete step-by-step guide:** [`openbrain-guide.md`](openbrain-guide.md)
+The Supabase path is based entirely on [Nate B. Jones'](https://www.youtube.com/@DoingAIDifferently) original Open Brain concept. He created the architecture, the setup guide, and the MCP server design. **For the complete step-by-step Supabase setup, follow Nate's guide on his [Substack](https://natesnewsletter.substack.com/).** The video walkthrough is [here](https://www.youtube.com/watch?v=2JiMmye2ezg).
 
-### Quick overview
-
-1. Create a Supabase project
-2. Run the SQL migrations to set up pgvector tables
-3. Deploy the Edge Function (`supabase/functions/open-brain-mcp`)
-4. Get an OpenRouter API key for embeddings
-5. Connect your AIs via MCP
+The `supabase/` directory in this repo contains the Edge Function and migrations referenced in his guide.
 
 ### Connect Your AIs (Supabase)
 
@@ -340,4 +334,4 @@ openbrain/
 
 ## Credits
 
-Based on [Nate B. Jones'](https://www.youtube.com/watch?v=2JiMmye2ezg) Open Brain concept from his [YouTube channel](https://www.youtube.com/@DoingAIDifferently).
+The Open Brain concept, Supabase architecture, and MCP server design are the work of [Nate B. Jones](https://www.youtube.com/@DoingAIDifferently). His [original video](https://www.youtube.com/watch?v=2JiMmye2ezg) and [Substack newsletter](https://natesnewsletter.substack.com/) walk through the full setup and philosophy. The AWS enterprise path in this repo is a derivative that swaps the infrastructure layer for serverless AWS services (S3 Vectors, Bedrock, Cognito) while keeping the same core idea: one brain, every AI.
