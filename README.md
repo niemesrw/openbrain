@@ -2,6 +2,90 @@
 
 One database that every AI you use shares as persistent memory. Claude, ChatGPT, Gemini, Cursor — one brain, all of them.
 
+## What You Get
+
+- **Semantic search** — Find thoughts by meaning ("career changes" matches "Sarah is leaving her job")
+- **Capture from anywhere** — Any connected AI can save thoughts directly
+- **Memory migration** — Pull memories out of ChatGPT, Claude, and Gemini into one shared brain
+- **Skills for each AI** — Pre-built instructions that teach each client how to use the brain
+
+## Choose Your Path
+
+| | Supabase (Personal) | AWS (Enterprise) |
+|---|---|---|
+| **Best for** | Individuals, hobbyists, agent builders | Teams, orgs, production workloads |
+| **Setup time** | ~45 minutes, no coding | ~15 minutes, requires CDK |
+| **Cost** | Free tier | Pay-per-use (~$0.10-0.50/mo) |
+| **Auth** | API key (brain key) | Cognito JWT |
+| **Vector storage** | pgvector (Postgres) | S3 Vectors |
+| **Embeddings** | OpenRouter (any model) | Bedrock Titan Embed v2 |
+| **Scoping** | Single user | Private + shared (org-wide) |
+| **MCP transport** | HTTP | HTTP |
+
+Both paths expose the same MCP tools and work with the same AI clients.
+
+---
+
+## Path A: Supabase (Personal)
+
+```
+Claude Code ──┐
+Claude Desktop ┼── MCP ──→ Supabase Edge Function ──→ pgvector
+ChatGPT ───────┤                    ↕
+Gemini CLI ────┘                OpenRouter
+                           (embed + classify)
+```
+
+Zero coding, free tier, perfect for personal use and building agents on top of shared memory.
+
+**Follow the complete step-by-step guide:** [`openbrain-guide.md`](openbrain-guide.md)
+
+### Quick overview
+
+1. Create a Supabase project
+2. Run the SQL migrations to set up pgvector tables
+3. Deploy the Edge Function (`supabase/functions/open-brain-mcp`)
+4. Get an OpenRouter API key for embeddings
+5. Connect your AIs via MCP
+
+### Connect Your AIs (Supabase)
+
+#### Claude Code
+
+```bash
+claude mcp add --transport http open-brain \
+  https://YOUR_PROJECT.supabase.co/functions/v1/open-brain-mcp \
+  --header "x-brain-key: YOUR_BRAIN_KEY"
+```
+
+#### Claude Agent SDK
+
+Pass MCP config directly in `query()` options — child processes don't inherit MCP from the parent:
+
+```typescript
+const response = query({
+  prompt: "Search my brain for...",
+  options: {
+    mcpServers: {
+      "open-brain": {
+        type: "http",
+        url: process.env.OPEN_BRAIN_URL,
+        headers: { "x-brain-key": process.env.OPEN_BRAIN_KEY },
+      },
+    },
+    allowedTools: ["mcp__open-brain__search_thoughts", "mcp__open-brain__capture_thought"],
+  },
+});
+```
+
+#### Other clients
+
+Same as AWS path below, but use your Supabase function URL and `x-brain-key` header instead of Bearer token.
+
+---
+
+## Path B: AWS (Enterprise)
+
 ```
 Claude Code ──┐
 Claude Desktop ┼── MCP ──→ API Gateway + Lambda ──→ S3 Vectors
@@ -12,15 +96,7 @@ Gemini CLI ────┘                  Bedrock
 
 **AWS Enterprise deployment** — Lambda + S3 Vectors + Bedrock + Cognito. Fully serverless, org-level sharing, Cognito JWT auth.
 
-## What You Get
-
-- **Semantic search** — Find thoughts by meaning ("career changes" matches "Sarah is leaving her job")
-- **Capture from anywhere** — Any connected AI can save thoughts directly
-- **Private + shared scopes** — Keep thoughts to yourself or share org-wide
-- **Memory migration** — Pull memories out of ChatGPT, Claude, and Gemini into one shared brain
-- **Skills for each AI** — Pre-built instructions that teach each client how to use the brain
-
-## Cost
+### Cost
 
 | Service | Cost |
 |---------|------|
@@ -28,10 +104,6 @@ Gemini CLI ────┘                  Bedrock
 | Lambda + API Gateway | Pay-per-request |
 | Bedrock (Titan Embed v2 + Haiku metadata) | ~$0.10–0.50/month |
 | Cognito | Free tier covers 50K MAU |
-
----
-
-## Deploy (15 minutes)
 
 ### Prerequisites
 
@@ -42,7 +114,7 @@ Gemini CLI ────┘                  Bedrock
 ### 1. Clone and deploy
 
 ```bash
-git clone https://github.com/blanxlait/openbrain.git
+git clone https://github.com/niemesrw/openbrain.git
 cd openbrain/cdk
 npm install
 npx cdk deploy --all
@@ -94,8 +166,6 @@ claude mcp add --transport http open-brain \
   --header "Authorization: Bearer YOUR_ID_TOKEN"
 ```
 
-> The skill loads automatically from `CLAUDE.md` when you run Claude Code from this directory.
-
 #### Claude Desktop
 
 1. Settings → Connectors → **Add custom connector**
@@ -140,16 +210,7 @@ gemini mcp add -t http open-brain \
 }
 ```
 
----
-
-## Architecture
-
-```
-Client ──→ API Gateway (JWT auth) ──→ Lambda ──→ S3 Vectors
-                                        ↕
-                                      Bedrock
-                                (Titan embed + Haiku classify)
-```
+### AWS Architecture
 
 **Vector storage:** One S3 vector bucket with index-per-scope design:
 - `private-{userId}` — created on-demand at first capture, only you can see it
@@ -163,6 +224,8 @@ Client ──→ API Gateway (JWT auth) ──→ Lambda ──→ S3 Vectors
 ---
 
 ## MCP Tools
+
+Both paths expose the same tools:
 
 | Tool | Description |
 |------|-------------|
@@ -193,9 +256,6 @@ Tell Claude Code: *"Read my memory files (`~/.claude/memory/`) and migrate each 
 2. Open `Takeout/My Activity/Gemini Apps/MyActivity.html` in a browser
 3. Paste relevant conversations into a connected AI for capture
 
-**From personal data (Spotify, Amazon, etc.):**
-Export data from the service, review for useful patterns, paste the relevant parts into a connected AI and capture them.
-
 ---
 
 ## Skills
@@ -220,19 +280,25 @@ A Slack channel for quick-capture without opening an AI. See [`slack/SETUP.md`](
 
 ### Google Meet Ingestion
 
-Automatically captures Gemini-generated meeting summaries as shared thoughts. Uses a Google Apps Script that watches Gmail for meeting note emails, extracts the summary, scrubs PII/PHI, and calls the MCP endpoint. See [`google-meet/README.md`](google-meet/README.md).
+Automatically captures Gemini-generated meeting summaries as shared thoughts. See [`google-meet/README.md`](google-meet/README.md).
 
 ---
 
 ## Troubleshooting
 
+### Supabase
+
+**No search results** — Capture some thoughts first. Check that your Edge Function is deployed and the brain key matches.
+
+**Edge Function errors** — Check Supabase dashboard → Edge Functions → Logs.
+
+### AWS
+
 **401 errors** — Token expired. Cognito tokens last 8 hours (CLI client) or 1 hour (web client). Re-authenticate and update your client config.
 
-**No search results** — Capture or migrate some thoughts first. Try: *"search with threshold 0.3"* for broader results.
+**Bedrock `AccessDeniedException` with cross-region model** — Cross-region inference profiles require the IAM policy to grant access to both the inference profile ARN *and* the underlying foundation model ARNs in each routable region. See `cdk/lib/stacks/api-stack.ts` for the required ARN set.
 
-**Bedrock `AccessDeniedException` with cross-region model** — Cross-region inference profiles (e.g. `us.anthropic.claude-haiku-4-5-20251001-v1:0`) require the IAM policy to grant access to both the inference profile ARN *and* the underlying foundation model ARNs in each routable region. The profile ARN alone is not sufficient. See `cdk/lib/stacks/api-stack.ts` for the required ARN set.
-
-**S3 Vectors permission errors** — IAM resource ARNs for S3 Vectors use `bucket/` prefix, NOT `vector-bucket/`. Check the policy in `api-stack.ts` if you see `AccessDeniedException` on `s3vectors:*` actions.
+**S3 Vectors permission errors** — IAM resource ARNs for S3 Vectors use `bucket/` prefix, NOT `vector-bucket/`. Check the policy in `api-stack.ts`.
 
 **Lambda logs** — CloudWatch → Log groups → `/aws/lambda/EnterpriseBrainApi-McpHandler*`
 
@@ -242,61 +308,36 @@ Automatically captures Gemini-generated meeting summaries as shared thoughts. Us
 
 ```
 openbrain/
-├── cdk/                            # CDK infrastructure
+├── supabase/                       # Supabase (Personal) deployment
+│   ├── functions/
+│   │   └── open-brain-mcp/         # Edge Function MCP server
+│   ├── migrations/                 # SQL migrations (pgvector setup)
+│   └── config.toml
+├── cdk/                            # AWS (Enterprise) deployment
 │   ├── bin/
-│   │   └── enterprise-brain.ts     # CDK app entry point
+│   │   └── enterprise-brain.ts
 │   └── lib/stacks/
 │       ├── vector-storage-stack.ts  # S3 vector bucket + shared index
 │       ├── auth-stack.ts           # Cognito user pool
 │       └── api-stack.ts            # API Gateway + Lambda
-├── lambda/                         # Lambda MCP server
+├── lambda/                         # AWS Lambda MCP server
 │   └── src/
 │       ├── index.ts                # MCP protocol handler
-│       ├── types.ts
 │       ├── auth/context.ts         # JWT context extraction
 │       ├── handlers/               # search, browse, capture, stats
 │       └── services/
 │           ├── vectors.ts          # S3 Vectors client
 │           ├── embeddings.ts       # Bedrock Titan Embed v2
 │           └── metadata.ts         # Bedrock Claude Haiku 4.5
-├── tests/                          # Integration test suite (vitest)
-│   ├── integration/
-│   └── run.sh
-├── .github/
-│   └── workflows/
-│       └── integration-tests.yml   # CI pipeline (GitHub Actions)
-├── CLAUDE.md                       # Claude Code skill (auto-loaded)
-├── GEMINI.md                       # Gemini CLI skill (auto-loaded)
-├── skills/
-│   ├── claude-desktop.md
-│   ├── chatgpt-instructions.md
-│   └── gemini-gem.md
-├── google-meet/                    # Optional Google Meet ingestion
-│   ├── Code.gs
-│   ├── Auth.gs
-│   ├── Scrubber.gs
-│   └── README.md
-└── slack/                          # Optional Slack capture
-    ├── ingest-thought/
-    └── SETUP.md
+├── openbrain-guide.md              # Complete Supabase setup guide
+├── skills/                         # AI client instructions
+├── google-meet/                    # Optional: Google Meet ingestion
+├── slack/                          # Optional: Slack capture channel
+└── tests/                          # Integration tests (vitest)
 ```
-
-## Swapping Models
-
-Edit the model IDs in `cdk/lib/stacks/api-stack.ts` (environment variables) and redeploy:
-
-```bash
-cd cdk && npx cdk deploy EnterpriseBrainApi
-```
-
-Current models:
-- **Embeddings:** `amazon.titan-embed-text-v2:0` (1024 dimensions, cosine similarity)
-- **Metadata:** `us.anthropic.claude-haiku-4-5-20251001-v1:0` (cross-region inference profile)
-
-If you change the embedding model, delete and recreate the vector indexes — dimension changes are not backward-compatible.
 
 ---
 
 ## Credits
 
-Based on [Nate B. Jones'](https://nateb.jones.com) Open Brain concept.
+Based on [Nate B. Jones'](https://www.youtube.com/watch?v=2JiMmye2ezg) Open Brain concept from his [YouTube channel](https://www.youtube.com/@DoingAIDifferently).
