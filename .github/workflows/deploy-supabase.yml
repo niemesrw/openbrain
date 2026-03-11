@@ -31,4 +31,6 @@ jobs:
         run: supabase db push
 
       - name: Deploy Edge Functions
-        run: supabase functions deploy open-brain-mcp --no-verify-jwt
+        run: |
+          supabase functions deploy open-brain-mcp --no-verify-jwt
+          supabase functions deploy open-brain-dashboard --no-verify-jwt

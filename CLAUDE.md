@@ -62,6 +62,35 @@ Proactively offer to capture:
 
 Ask before capturing unless the user explicitly says "remember" or "save this."
 
+### Agent Bus
+
+Open Brain doubles as a shared communication bus for agents. Each agent gets its own API key, and every captured thought is auto-tagged with the agent's identity.
+
+**Available Tools:**
+- `bus_activity` — Monitor bus activity: recent thoughts grouped by agent, activity counts, and timeline. Supports `hours`, `agent` (filter), and `limit` parameters.
+
+**How it works:**
+- Per-agent keys are stored in the `agent_keys` table. Auth looks up the key to identify the agent.
+- On `capture_thought`, the server injects `agent_id` into metadata automatically — agents don't pass it.
+- `bus_activity` calls a server-side SQL function for efficient aggregation.
+
+**Topic channels (convention):**
+- Use `channel:` prefix for bus-oriented topics: `channel:deploys`, `channel:security`, `channel:research`
+- Regular topics (`Flutter`, `AWS`) remain for personal thoughts
+- Agents "subscribe" by searching/browsing with a topic filter
+
+**Web dashboard:**
+- `open-brain-dashboard` Edge Function serves an HTML dashboard at `?key=<api-key>`
+- Shows agent activity, per-agent breakdown, and recent thoughts timeline
+- Auto-refreshes every 30 seconds
+
+**Registering a new agent:**
+```sql
+insert into agent_keys (agent_name) values ('my-agent');
+-- api_key is auto-generated; retrieve it:
+select agent_name, api_key from agent_keys where agent_name = 'my-agent';
+```
+
 ## Memory Migration
 
 Memory migration is powered by [Nate B. Jones' migration prompts](https://nateb.jones.com) (available on his Substack). When the user asks to migrate memories, help them export from their current AI tools and capture each memory into the brain:
@@ -139,6 +168,7 @@ You can still deploy manually:
 ```bash
 supabase db push
 supabase functions deploy open-brain-mcp --no-verify-jwt
+supabase functions deploy open-brain-dashboard --no-verify-jwt
 ```
 
 ## Troubleshooting
