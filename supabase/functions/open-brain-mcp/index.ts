@@ -176,21 +176,17 @@ async function handleBrowseRecent(args: Record<string, unknown>): Promise<string
 }
 
 async function handleStats(): Promise<string> {
-  const { data, error } = await supabase.from("thoughts").select("metadata, created_at");
+  const { data, error } = await supabase.rpc("stats_summary");
 
   if (error) return `Error: ${error.message}`;
 
-  const total = data?.length || 0;
-  const types: Record<string, number> = {};
-  const topics: Record<string, number> = {};
-  const people: Record<string, number> = {};
-
-  for (const row of data || []) {
-    const m = row.metadata as Record<string, unknown>;
-    if (m?.type) types[m.type as string] = (types[m.type as string] || 0) + 1;
-    for (const topic of (m?.topics as string[]) || []) topics[topic] = (topics[topic] || 0) + 1;
-    for (const person of (m?.people as string[]) || []) people[person] = (people[person] || 0) + 1;
-  }
+  const stats = data as {
+    total: number;
+    earliest: string;
+    types: Record<string, number>;
+    topics: Record<string, number>;
+    people: Record<string, number>;
+  };
 
   const sortDesc = (obj: Record<string, number>) =>
     Object.entries(obj)
@@ -198,16 +194,16 @@ async function handleStats(): Promise<string> {
       .map(([k, v]) => `  ${k}: ${v}`)
       .join("\n");
 
-  const earliest = data?.length
-    ? new Date(data.reduce((min, r) => (r.created_at < min ? r.created_at : min), data[0].created_at)).toLocaleDateString()
+  const earliest = stats.earliest
+    ? new Date(stats.earliest).toLocaleDateString()
     : "N/A";
 
   return [
-    `Total thoughts: ${total}`,
+    `Total thoughts: ${stats.total}`,
     `Since: ${earliest}`,
-    `\nBy type:\n${sortDesc(types)}`,
-    `\nTop topics:\n${sortDesc(topics)}`,
-    Object.keys(people).length ? `\nPeople mentioned:\n${sortDesc(people)}` : "",
+    `\nBy type:\n${sortDesc(stats.types)}`,
+    `\nTop topics:\n${sortDesc(stats.topics)}`,
+    Object.keys(stats.people).length ? `\nPeople mentioned:\n${sortDesc(stats.people)}` : "",
   ]
     .filter(Boolean)
     .join("\n");
