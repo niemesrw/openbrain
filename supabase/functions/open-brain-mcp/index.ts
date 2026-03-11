@@ -3,7 +3,6 @@ import { createClient } from "@supabase/supabase-js";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const OPENROUTER_API_KEY = Deno.env.get("OPENROUTER_API_KEY")!;
-const MCP_ACCESS_KEY = Deno.env.get("MCP_ACCESS_KEY")!;
 
 const OPENROUTER_BASE = "https://openrouter.ai/api/v1";
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -112,6 +111,18 @@ const TOOLS = [
       required: ["text"],
     },
   },
+  {
+    name: "bus_activity",
+    description: "Monitor agent bus activity. Shows recent thoughts grouped by agent, activity counts, and timeline.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        hours: { type: "number", description: "Hours to look back (default 24)", default: 24 },
+        agent: { type: "string", description: "Filter to a specific agent name" },
+        limit: { type: "number", description: "Max recent thoughts to return", default: 20 },
+      },
+    },
+  },
 ];
 
 // --- Tool handlers ---
@@ -209,10 +220,11 @@ async function handleStats(): Promise<string> {
     .join("\n");
 }
 
-async function handleCaptureThought(args: Record<string, unknown>): Promise<string> {
+async function handleCaptureThought(args: Record<string, unknown>, agentName: string): Promise<string> {
   const text = args.text as string;
 
   const [embedding, metadata] = await Promise.all([generateEmbedding(text), extractMetadata(text)]);
+  (metadata as Record<string, unknown>).agent_id = agentName;
 
   const { error } = await supabase.from("thoughts").insert({
     content: text,
@@ -223,7 +235,7 @@ async function handleCaptureThought(args: Record<string, unknown>): Promise<stri
   if (error) return `Error saving: ${error.message}`;
 
   const meta = metadata as Record<string, unknown>;
-  let confirmation = `Captured as ${meta.type}`;
+  let confirmation = `Captured as ${meta.type} (agent: ${agentName})`;
   if (Array.isArray(meta.topics) && meta.topics.length > 0)
     confirmation += ` — ${meta.topics.join(", ")}`;
   if (Array.isArray(meta.people) && meta.people.length > 0)
@@ -234,13 +246,60 @@ async function handleCaptureThought(args: Record<string, unknown>): Promise<stri
   return confirmation;
 }
 
+async function handleBusActivity(args: Record<string, unknown>): Promise<string> {
+  const hours = (args.hours as number) ?? 24;
+  const agent = args.agent as string | undefined;
+  const limit = (args.limit as number) ?? 20;
+
+  const { data, error } = await supabase.rpc("bus_activity", {
+    hours_back: hours,
+    agent_filter: agent || null,
+    result_limit: limit,
+  });
+
+  if (error) return `Error: ${error.message}`;
+
+  const activity = data as {
+    summary: { total_thoughts: number; active_agents: number; hours: number };
+    by_agent: { agent: string; thought_count: number; last_active: string }[];
+    recent: { content: string; agent: string; type: string; topics: string[]; created_at: string }[];
+  };
+
+  const lines: string[] = [];
+  lines.push(`Bus activity (last ${activity.summary.hours}h): ${activity.summary.total_thoughts} thoughts, ${activity.summary.active_agents} active agents`);
+
+  if (activity.by_agent.length > 0) {
+    lines.push("\nBy agent:");
+    for (const a of activity.by_agent) {
+      lines.push(`  ${a.agent || "unknown"}: ${a.thought_count} thoughts (last: ${new Date(a.last_active).toLocaleString()})`);
+    }
+  }
+
+  if (activity.recent.length > 0) {
+    lines.push("\nRecent:");
+    for (const t of activity.recent) {
+      lines.push(`  [${new Date(t.created_at).toLocaleString()}] ${t.agent || "unknown"} (${t.type}): ${t.content.slice(0, 100)}${t.content.length > 100 ? "..." : ""}`);
+    }
+  }
+
+  return lines.join("\n");
+}
+
 // --- Auth ---
 
-function authenticate(req: Request): boolean {
+async function authenticate(req: Request): Promise<string | null> {
   const url = new URL(req.url);
-  const keyFromQuery = url.searchParams.get("key");
-  const keyFromHeader = req.headers.get("x-brain-key");
-  return (keyFromQuery || keyFromHeader) === MCP_ACCESS_KEY;
+  const key = url.searchParams.get("key") || req.headers.get("x-brain-key");
+  if (!key) return null;
+
+  const { data, error } = await supabase
+    .from("agent_keys")
+    .select("agent_name")
+    .eq("api_key", key)
+    .single();
+
+  if (error || !data) return null;
+  return data.agent_name;
 }
 
 // --- JSON-RPC helpers ---
@@ -276,7 +335,8 @@ Deno.serve(async (req) => {
     return jsonrpcError(null, -32600, "Method not allowed", 405);
   }
 
-  if (!authenticate(req)) {
+  const agentName = await authenticate(req);
+  if (!agentName) {
     return jsonrpcError(null, -32600, "Unauthorized", 401);
   }
 
@@ -320,7 +380,10 @@ Deno.serve(async (req) => {
           resultText = await handleStats();
           break;
         case "capture_thought":
-          resultText = await handleCaptureThought(args);
+          resultText = await handleCaptureThought(args, agentName);
+          break;
+        case "bus_activity":
+          resultText = await handleBusActivity(args);
           break;
         default:
           return jsonrpcError(id, -32601, `Unknown tool: ${toolName}`);
