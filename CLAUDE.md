@@ -106,7 +106,7 @@ After migration, suggest the user test by asking a different AI client about som
 
 ### Supabase Path
 
-The repo uses a single migration file (`20260306000000_initial_schema.sql`) that contains the complete schema. New users get a clean setup with one migration.
+Migrations are in `supabase/migrations/`. The initial schema is in `20260306000000_initial_schema.sql`. Additional migrations add server-side functions (e.g. `stats_summary()` for aggregation without PostgREST row limits).
 
 ### AWS Enterprise Path
 
@@ -118,6 +118,28 @@ Uses S3 Vectors with an index-per-scope design. The `shared` index is created by
 - `scope: "all"` — queries both indexes, merges results
 
 **Deploy:** `cd cdk && npx cdk deploy --all`
+
+## CI/CD
+
+### Supabase Deploy (`.github/workflows/deploy-supabase.yml`)
+
+Runs automatically on push to `main` when files change in `supabase/migrations/` or `supabase/functions/`. Pushes migrations and deploys Edge Functions using the Supabase CLI.
+
+**Required GitHub secrets:**
+- `SUPABASE_ACCESS_TOKEN` — Personal access token from [supabase.com/dashboard/account/tokens](https://supabase.com/dashboard/account/tokens)
+- `SUPABASE_PROJECT_REF` — Supabase project reference ID
+
+### Integration Tests (`.github/workflows/integration-tests.yml`)
+
+Manual-only (`workflow_dispatch`). Uses OIDC to AWS management account to fetch test credentials from Secrets Manager, then runs the integration test suite in `tests/`.
+
+### Local Deploy
+
+You can still deploy manually:
+```bash
+supabase db push
+supabase functions deploy open-brain-mcp --no-verify-jwt
+```
 
 ## Troubleshooting
 
