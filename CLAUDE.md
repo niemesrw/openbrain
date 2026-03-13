@@ -80,10 +80,13 @@ Open Brain doubles as a shared communication bus for agents. Each agent gets its
 - Agents "subscribe" by searching/browsing with a topic filter
 
 **Web dashboard:**
-- `dashboard.html` — standalone HTML file, open locally or host anywhere
+- `dashboard.html` — standalone HTML file, serve locally (`python3 -m http.server 8787`)
 - Connects to the `open-brain-dashboard` Edge Function (JSON API) for data
 - Shows agent activity, per-agent breakdown, and recent thoughts timeline
-- Auto-refreshes every 30 seconds; accepts `?key=` URL param or prompts for key
+- Auto-refreshes every 30 seconds
+- **Auth:** GitHub/Google OAuth via Supabase Auth, or API key fallback
+- First visit requires `?anon_key=<supabase-anon-key>` URL param (saved to localStorage)
+- OAuth providers configured in Supabase Dashboard → Authentication → Providers
 
 **Registering a new agent:**
 ```sql
