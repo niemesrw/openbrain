@@ -1,97 +1,131 @@
-import { useState, useEffect, useCallback } from "react";
-import { callTool } from "../lib/api";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { searchThoughts, browseRecent, getStats } from "../lib/brain-api";
+import type { Thought, BrainStats } from "../lib/brain-types";
+import { SearchBar } from "../components/SearchBar";
+import { FilterChips } from "../components/FilterChips";
+import { ThoughtCard } from "../components/ThoughtCard";
+import { StatsBar } from "../components/StatsBar";
+import { AgentSection } from "../components/AgentSection";
 
 export function DashboardPage() {
-  const [agents, setAgents] = useState("");
-  const [newAgentName, setNewAgentName] = useState("");
-  const [createResult, setCreateResult] = useState("");
+  const [stats, setStats] = useState<BrainStats | null>(null);
+  const [thoughts, setThoughts] = useState<Thought[]>([]);
   const [loading, setLoading] = useState(false);
-  const [stats, setStats] = useState("");
-
-  const loadAgents = useCallback(async () => {
-    try {
-      const result = await callTool("list_agents");
-      setAgents(result);
-    } catch (e: any) {
-      setAgents(`Error: ${e.message}`);
-    }
-  }, []);
-
-  const loadStats = useCallback(async () => {
-    try {
-      const result = await callTool("stats");
-      setStats(result);
-    } catch (e: any) {
-      setStats(`Error: ${e.message}`);
-    }
-  }, []);
+  const [activeType, setActiveType] = useState<string | null>(null);
+  const [activeTopic, setActiveTopic] = useState<string | null>(null);
+  const [query, setQuery] = useState<string | null>(null);
+  const [limit, setLimit] = useState(20);
+  const [hasMore, setHasMore] = useState(false);
+  const mountedRef = useRef(true);
 
   useEffect(() => {
-    loadAgents();
-    loadStats();
-  }, [loadAgents, loadStats]);
+    return () => { mountedRef.current = false; };
+  }, []);
 
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newAgentName.trim()) return;
+  // Load stats once
+  useEffect(() => {
+    getStats().then((s) => {
+      if (mountedRef.current) setStats(s);
+    }).catch(() => {});
+  }, []);
+
+  // Load thoughts when filters/query change
+  const loadThoughts = useCallback(async () => {
     setLoading(true);
-    setCreateResult("");
     try {
-      const result = await callTool("create_agent", {
-        name: newAgentName.trim(),
-      });
-      setCreateResult(result);
-      setNewAgentName("");
-      loadAgents();
-    } catch (e: any) {
-      setCreateResult(`Error: ${e.message}`);
+      const filters = {
+        type: activeType || undefined,
+        topic: activeTopic || undefined,
+        limit: limit + 1, // fetch one extra to detect "has more"
+      };
+
+      let results: Thought[];
+      if (query) {
+        results = await searchThoughts(query, filters);
+      } else {
+        results = await browseRecent(filters);
+      }
+
+      if (mountedRef.current) {
+        setHasMore(results.length > limit);
+        setThoughts(results.slice(0, limit));
+      }
+    } catch {
+      if (mountedRef.current) setThoughts([]);
     } finally {
-      setLoading(false);
+      if (mountedRef.current) setLoading(false);
     }
+  }, [query, activeType, activeTopic, limit]);
+
+  useEffect(() => {
+    loadThoughts();
+  }, [loadThoughts]);
+
+  const handleSearch = (q: string) => {
+    setLimit(20);
+    setQuery(q);
   };
 
+  const handleClearSearch = () => {
+    setLimit(20);
+    setQuery(null);
+  };
+
+  const handleTypeChange = (type: string | null) => {
+    setLimit(20);
+    setActiveType(type);
+  };
+
+  const handleTopicChange = (topic: string | null) => {
+    setLimit(20);
+    setActiveTopic(topic);
+  };
+
+  const handleTypeClick = (type: string) => {
+    setLimit(20);
+    setActiveType((prev) => (prev === type ? null : type));
+  };
+
+  const topTopics = stats
+    ? Object.entries(stats.topics)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 15)
+        .map(([t]) => t)
+    : [];
+
   return (
-    <div className="space-y-8">
-      <h1 className="text-2xl font-bold">Dashboard</h1>
+    <div className="space-y-5">
+      <StatsBar stats={stats} onTypeClick={handleTypeClick} />
+      <SearchBar onSearch={handleSearch} onClear={handleClearSearch} loading={loading} />
+      <FilterChips
+        activeType={activeType}
+        activeTopic={activeTopic}
+        topTopics={topTopics}
+        onTypeChange={handleTypeChange}
+        onTopicChange={handleTopicChange}
+      />
 
-      <section>
-        <h2 className="text-lg font-semibold mb-3">Brain Stats</h2>
-        <pre className="bg-gray-900 rounded p-4 text-sm text-gray-300 whitespace-pre-wrap">
-          {stats || "Loading..."}
-        </pre>
-      </section>
-
-      <section>
-        <h2 className="text-lg font-semibold mb-3">Your Agents</h2>
-        <pre className="bg-gray-900 rounded p-4 text-sm text-gray-300 whitespace-pre-wrap">
-          {agents || "Loading..."}
-        </pre>
-      </section>
-
-      <section>
-        <h2 className="text-lg font-semibold mb-3">Create Agent</h2>
-        <form onSubmit={handleCreate} className="flex gap-2">
-          <input
-            type="text"
-            value={newAgentName}
-            onChange={(e) => setNewAgentName(e.target.value)}
-            placeholder="Agent name (e.g. claude-code)"
-            className="flex-1 bg-gray-900 border border-gray-700 rounded px-3 py-2 text-white"
-          />
-          <button
-            type="submit"
-            disabled={loading}
-            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-500 disabled:opacity-50"
-          >
-            {loading ? "Creating..." : "Create"}
-          </button>
-        </form>
-        {createResult && (
-          <pre className="bg-gray-900 rounded p-4 mt-3 text-sm text-green-300 whitespace-pre-wrap">
-            {createResult}
-          </pre>
+      <div className="space-y-3">
+        {!loading && thoughts.length === 0 && (
+          <p className="text-gray-500 text-center py-8">
+            {query ? "No matching thoughts found." : "No thoughts yet."}
+          </p>
         )}
-      </section>
+        {thoughts.map((t, i) => (
+          <ThoughtCard key={`${t.created_at}-${i}`} thought={t} />
+        ))}
+      </div>
+
+      {hasMore && (
+        <button
+          onClick={() => setLimit((l) => l + 20)}
+          className="w-full py-2 text-sm text-gray-400 hover:text-gray-200 border border-gray-800 rounded-lg"
+        >
+          Load more
+        </button>
+      )}
+
+      <AgentSection />
     </div>
   );
 }

@@ -20,7 +20,7 @@ export function Layout() {
           {user ? (
             <>
               <Link to="/dashboard" className="text-gray-300 hover:text-white">
-                Dashboard
+                Brain
               </Link>
               <Link to="/feed" className="text-gray-300 hover:text-white">
                 Feed

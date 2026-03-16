@@ -38,6 +38,7 @@ export interface SearchArgs {
   type?: string;
   topic?: string;
   scope?: "private" | "shared" | "all";
+  _format?: "json";
 }
 
 export interface BrowseArgs {
@@ -45,6 +46,11 @@ export interface BrowseArgs {
   type?: string;
   topic?: string;
   scope?: "private" | "shared" | "all";
+  _format?: "json";
+}
+
+export interface StatsArgs {
+  _format?: "json";
 }
 
 export interface CaptureArgs {
@@ -74,4 +80,9 @@ export interface BusActivityArgs {
   hours?: number;
   agent?: string;
   limit?: number;
+  _format?: "json";
+}
+
+export interface ListAgentsArgs {
+  _format?: "json";
 }
