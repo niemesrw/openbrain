@@ -1,13 +1,22 @@
 import { callTool } from "./api";
 import type { Thought, BrainStats, BusActivity, Agent } from "./brain-types";
 
-function parseJson<T>(text: string): T {
-  return JSON.parse(text) as T;
+type Scope = "private" | "shared" | "all";
+
+function parseJson<T>(toolName: string, text: string): T {
+  if (text.startsWith("Error:")) {
+    throw new Error(`${toolName}: ${text}`);
+  }
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new Error(`${toolName}: unexpected response format`);
+  }
 }
 
 export async function searchThoughts(
   query: string,
-  filters?: { type?: string; topic?: string; scope?: string; limit?: number }
+  filters?: { type?: string; topic?: string; scope?: Scope; limit?: number }
 ): Promise<Thought[]> {
   const result = await callTool("search_thoughts", {
     query,
@@ -16,11 +25,11 @@ export async function searchThoughts(
     ...filters,
     _format: "json",
   });
-  return parseJson<{ thoughts: Thought[] }>(result).thoughts;
+  return parseJson<{ thoughts: Thought[] }>("search_thoughts", result).thoughts;
 }
 
 export async function browseRecent(
-  filters?: { type?: string; topic?: string; scope?: string; limit?: number }
+  filters?: { type?: string; topic?: string; scope?: Scope; limit?: number }
 ): Promise<Thought[]> {
   const result = await callTool("browse_recent", {
     scope: "all",
@@ -28,12 +37,12 @@ export async function browseRecent(
     ...filters,
     _format: "json",
   });
-  return parseJson<{ thoughts: Thought[] }>(result).thoughts;
+  return parseJson<{ thoughts: Thought[] }>("browse_recent", result).thoughts;
 }
 
 export async function getStats(): Promise<BrainStats> {
   const result = await callTool("stats", { _format: "json" });
-  return parseJson<BrainStats>(result);
+  return parseJson<BrainStats>("stats", result);
 }
 
 export async function getBusActivity(params?: {
@@ -45,12 +54,12 @@ export async function getBusActivity(params?: {
     ...params,
     _format: "json",
   });
-  return parseJson<BusActivity>(result);
+  return parseJson<BusActivity>("bus_activity", result);
 }
 
 export async function listAgents(): Promise<Agent[]> {
   const result = await callTool("list_agents", { _format: "json" });
-  return parseJson<{ agents: Agent[] }>(result).agents;
+  return parseJson<{ agents: Agent[] }>("list_agents", result).agents;
 }
 
 export async function createAgent(name: string): Promise<string> {

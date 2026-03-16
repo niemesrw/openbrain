@@ -1,6 +1,14 @@
 import { resolveIndexes, listAllVectors } from "../services/vectors";
 import type { BrowseArgs, UserContext } from "../types";
 
+function safeParseArray(value: unknown): string[] {
+  if (Array.isArray(value)) return value;
+  if (typeof value === "string" && value) {
+    try { const parsed = JSON.parse(value); if (Array.isArray(parsed)) return parsed; } catch {}
+  }
+  return [];
+}
+
 export async function handleBrowseRecent(
   args: BrowseArgs,
   user: UserContext
@@ -48,8 +56,8 @@ export async function handleBrowseRecent(
           type: m.type || "unknown",
           topics: Array.isArray(m.topics) ? m.topics : [],
           people: Array.isArray(m.people) ? m.people : [],
-          action_items: m.action_items || "",
-          dates_mentioned: m.dates_mentioned || "",
+          action_items: safeParseArray(m.action_items),
+          dates_mentioned: safeParseArray(m.dates_mentioned),
           created_at: m.created_at || null,
           scope: indexScope,
         };

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { searchThoughts, browseRecent, getStats } from "../lib/brain-api";
 import type { Thought, BrainStats } from "../lib/brain-types";
 import { SearchBar } from "../components/SearchBar";
@@ -16,50 +16,43 @@ export function DashboardPage() {
   const [query, setQuery] = useState<string | null>(null);
   const [limit, setLimit] = useState(20);
   const [hasMore, setHasMore] = useState(false);
-  const mountedRef = useRef(true);
-
-  useEffect(() => {
-    return () => { mountedRef.current = false; };
-  }, []);
+  const requestIdRef = useRef(0);
 
   // Load stats once
   useEffect(() => {
-    getStats().then((s) => {
-      if (mountedRef.current) setStats(s);
-    }).catch(() => {});
+    getStats().then(setStats).catch(() => {});
   }, []);
 
   // Load thoughts when filters/query change
-  const loadThoughts = useCallback(async () => {
+  useEffect(() => {
+    const id = ++requestIdRef.current;
     setLoading(true);
-    try {
-      const filters = {
-        type: activeType || undefined,
-        topic: activeTopic || undefined,
-        limit: limit + 1, // fetch one extra to detect "has more"
-      };
 
-      let results: Thought[];
-      if (query) {
-        results = await searchThoughts(query, filters);
-      } else {
-        results = await browseRecent(filters);
-      }
+    const filters = {
+      type: activeType || undefined,
+      topic: activeTopic || undefined,
+      limit: limit + 1,
+    };
 
-      if (mountedRef.current) {
+    const promise = query
+      ? searchThoughts(query, filters)
+      : browseRecent(filters);
+
+    promise
+      .then((results) => {
+        if (id !== requestIdRef.current) return;
         setHasMore(results.length > limit);
         setThoughts(results.slice(0, limit));
-      }
-    } catch {
-      if (mountedRef.current) setThoughts([]);
-    } finally {
-      if (mountedRef.current) setLoading(false);
-    }
+      })
+      .catch(() => {
+        if (id !== requestIdRef.current) return;
+        setThoughts([]);
+      })
+      .finally(() => {
+        if (id !== requestIdRef.current) return;
+        setLoading(false);
+      });
   }, [query, activeType, activeTopic, limit]);
-
-  useEffect(() => {
-    loadThoughts();
-  }, [loadThoughts]);
 
   const handleSearch = (q: string) => {
     setLimit(20);

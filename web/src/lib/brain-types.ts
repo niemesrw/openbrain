@@ -3,8 +3,8 @@ export interface Thought {
   type: string;
   topics: string[];
   people: string[];
-  action_items: string;
-  dates_mentioned: string;
+  action_items: string[];
+  dates_mentioned: string[];
   created_at: number | null;
   similarity?: number;
   scope: "private" | "shared";
