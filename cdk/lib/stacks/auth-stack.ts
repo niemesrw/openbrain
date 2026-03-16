@@ -32,17 +32,6 @@ export class AuthStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
 
-    const readAttributes = new cognito.ClientAttributes()
-      .withStandardAttributes({
-        email: true,
-        emailVerified: true,
-        preferredUsername: true,
-      })
-      .withCustomAttributes("team_id");
-
-    const writeAttributes = new cognito.ClientAttributes()
-      .withStandardAttributes({ preferredUsername: true });
-
     // Web client (browser SPA)
     this.webClient = this.userPool.addClient("WebClient", {
       userPoolClientName: "brain-web",
@@ -53,8 +42,6 @@ export class AuthStack extends cdk.Stack {
       accessTokenValidity: cdk.Duration.hours(1),
       idTokenValidity: cdk.Duration.hours(1),
       refreshTokenValidity: cdk.Duration.days(30),
-      readAttributes,
-      writeAttributes,
     });
 
     // CLI client — longer token lifetime for dev use
@@ -68,8 +55,6 @@ export class AuthStack extends cdk.Stack {
       accessTokenValidity: cdk.Duration.hours(8),
       idTokenValidity: cdk.Duration.hours(8),
       refreshTokenValidity: cdk.Duration.days(90),
-      readAttributes,
-      writeAttributes,
     });
 
     new cdk.CfnOutput(this, "UserPoolId", {
