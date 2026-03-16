@@ -184,7 +184,7 @@ In the left sidebar: **Settings** (gear icon) → **API**. Copy these into your 
 
 OpenRouter is a universal AI API gateway — one account gives you access to every major model. We're using it for embeddings and lightweight LLM metadata extraction.
 
-> **Why OpenRouter instead of OpenAI directly?** One account, one key, one billing relationship — and it future-proofs you for Claude, Gemini, or any other model later.
+> **Why OpenRouter instead of OpenAI directly?** One account, one key, one billing relationship — and it future-proofs you for Claude, Gemini, or any other model later. (This flexibility applies mainly to the LLM used for metadata extraction. If you swap your embedding model, you'll need to re-embed existing thoughts — see "Swapping Models Later" below.)
 
 1. Go to [openrouter.ai](https://openrouter.ai) and sign up
 2. Go to [openrouter.ai/keys](https://openrouter.ai/keys)
@@ -609,7 +609,10 @@ The embedding is what makes retrieval powerful. "Sarah's thinking about leaving"
 
 ## Swapping Models Later
 
-Because you're using OpenRouter, you can swap models by editing the model strings in the Edge Function code and redeploying. Browse available models at openrouter.ai/models. Just make sure embedding dimensions match (1536 for the current setup).
+Because you're using OpenRouter, you can swap models by editing the model strings in the Edge Function code and redeploying. Browse available models at openrouter.ai/models. But the two model types have very different swap costs:
+
+- **LLM (metadata extraction):** Freely swappable. Change the model string, redeploy, done. Your existing data is unaffected because the LLM output (structured metadata) is model-independent.
+- **Embedding model:** Swappable, but requires re-embedding all existing thoughts. Embeddings from different models live in incompatible vector spaces — even models with the same dimensions (e.g. two different 1536-d models) produce vectors that can't be meaningfully compared. If you switch embedding models, you'll need a one-time migration: query all rows, re-generate embeddings with the new model, and update them in place.
 
 ---
 
