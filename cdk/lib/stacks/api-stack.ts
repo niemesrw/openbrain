@@ -133,7 +133,7 @@ export class ApiStack extends cdk.Stack {
         responseTypes: [
           apigwv2Authorizers.HttpLambdaResponseType.SIMPLE,
         ],
-        identitySource: [],
+        identitySource: [], // Intentionally empty to support either JWT-only or API-key-only requests, and to avoid API Gateway requiring multiple identity headers (which would also affect cache key behavior if caching is re-enabled).
         resultsCacheTtl: cdk.Duration.seconds(0),
       }
     );
