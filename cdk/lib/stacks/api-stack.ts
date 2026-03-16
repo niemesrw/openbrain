@@ -133,10 +133,7 @@ export class ApiStack extends cdk.Stack {
         responseTypes: [
           apigwv2Authorizers.HttpLambdaResponseType.SIMPLE,
         ],
-        identitySource: [
-          "$request.header.Authorization",
-          "$request.header.x-api-key",
-        ],
+        identitySource: [],
         resultsCacheTtl: cdk.Duration.seconds(0),
       }
     );
