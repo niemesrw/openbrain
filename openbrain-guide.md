@@ -611,7 +611,7 @@ The embedding is what makes retrieval powerful. "Sarah's thinking about leaving"
 
 Because you're using OpenRouter, you can swap models by editing the model strings in the Edge Function code and redeploying. Browse available models at openrouter.ai/models. But the two model types have very different swap costs:
 
-- **LLM (metadata extraction):** Freely swappable. Change the model string, redeploy, done. Your existing data is unaffected because the LLM output (structured metadata) is model-independent.
+- **LLM (metadata extraction):** Freely swappable. Change the model string, redeploy, done. Your existing rows stay exactly as they were — no migration needed. Just note that a different model (or prompt) can produce slightly different metadata for new captures, which can affect how future thoughts are tagged and filtered.
 - **Embedding model:** Swappable, but requires re-embedding all existing thoughts. Embeddings from different models live in incompatible vector spaces — even models with the same dimensions (e.g. two different 1536-d models) produce vectors that can't be meaningfully compared. If you switch embedding models, you'll need a one-time migration: query all rows, re-generate embeddings with the new model, and update them in place.
 
   In this starter, your Supabase table uses `vector(1536)` for the `embedding` column, and the HNSW index plus the `match_thoughts` function are built on that dimension. That means:
