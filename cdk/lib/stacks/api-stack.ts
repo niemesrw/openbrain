@@ -13,7 +13,8 @@ import * as path from "path";
 interface ApiStackProps extends cdk.StackProps {
   vectorBucketName: string;
   userPool: cognito.UserPool;
-  userPoolClients: cognito.UserPoolClient[];
+  webClient: cognito.UserPoolClient;
+  cliClient: cognito.UserPoolClient;
   agentKeysTable: dynamodb.Table;
   usersTable: dynamodb.Table;
 }
@@ -28,7 +29,8 @@ export class ApiStack extends cdk.Stack {
     const {
       vectorBucketName,
       userPool,
-      userPoolClients,
+      webClient,
+      cliClient,
       agentKeysTable,
       usersTable,
     } = props;
@@ -111,8 +113,8 @@ export class ApiStack extends cdk.Stack {
         USER_POOL_ID: userPool.userPoolId,
         REGION: this.region,
         AGENT_KEYS_TABLE: agentKeysTable.tableName,
-        CLI_CLIENT_ID: userPoolClients[1].userPoolClientId,
-        WEB_CLIENT_ID: userPoolClients[0].userPoolClientId,
+        CLI_CLIENT_ID: cliClient.userPoolClientId,
+        WEB_CLIENT_ID: webClient.userPoolClientId,
       },
       bundling: {
         minify: true,

@@ -4,7 +4,7 @@ import {
   ConfirmSignUpCommand,
   InitiateAuthCommand,
 } from "@aws-sdk/client-cognito-identity-provider";
-import * as inquirer from "inquirer";
+import inquirer from "inquirer";
 import { saveCredentials } from "../lib/config";
 import { callTool } from "../lib/api";
 import { printSuccess, printError, printInfo } from "../lib/display";
@@ -18,7 +18,7 @@ interface SignupOptions {
 }
 
 export async function signup(options: SignupOptions): Promise<void> {
-  const answers = await inquirer.default.prompt([
+  const answers = await inquirer.prompt([
     { name: "email", message: "Email:", type: "input" },
     { name: "password", message: "Password:", type: "password" },
     { name: "displayName", message: "Display name:", type: "input" },
@@ -56,7 +56,7 @@ export async function signup(options: SignupOptions): Promise<void> {
   }
 
   // Verify
-  const { code } = await inquirer.default.prompt([
+  const { code } = await inquirer.prompt([
     { name: "code", message: "Verification code:", type: "input" },
   ]);
 

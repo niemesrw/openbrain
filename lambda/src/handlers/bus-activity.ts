@@ -12,6 +12,9 @@ export async function handleBusActivity(
 
   const cutoff = Date.now() - hours * 60 * 60 * 1000;
 
+  // NOTE: Full index scan — fine for early-stage use. At scale (10K+ shared
+  // thoughts), replace with a DynamoDB table keyed on created_at for efficient
+  // time-range queries without scanning the entire vector index.
   const vectors = await listAllVectors("shared");
 
   // Filter to recent + optional agent filter

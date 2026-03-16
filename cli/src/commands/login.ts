@@ -2,7 +2,7 @@ import {
   CognitoIdentityProviderClient,
   InitiateAuthCommand,
 } from "@aws-sdk/client-cognito-identity-provider";
-import * as inquirer from "inquirer";
+import inquirer from "inquirer";
 import { loadCredentials, saveCredentials } from "../lib/config";
 import { printSuccess, printError } from "../lib/display";
 
@@ -21,7 +21,7 @@ export async function login(options: LoginOptions): Promise<void> {
   let password = options.password;
 
   if (!email || !password) {
-    const answers = await inquirer.default.prompt([
+    const answers = await inquirer.prompt([
       ...(!email ? [{ name: "email", message: "Email:", type: "input" }] : []),
       ...(!password
         ? [{ name: "password", message: "Password:", type: "password" }]

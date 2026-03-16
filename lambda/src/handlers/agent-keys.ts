@@ -98,5 +98,5 @@ export async function handleRevokeAgent(
     })
   );
 
-  return `Agent "${args.name}" revoked. Its API key will no longer work.`;
+  return `Agent "${args.name}" revoked. Its API key will stop working shortly.`;
 }

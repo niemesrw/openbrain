@@ -1,4 +1,4 @@
-import { getAccessToken, getApiUrl } from "./auth";
+import { getIdToken, getApiUrl } from "./auth";
 
 interface McpResponse {
   jsonrpc: "2.0";
@@ -14,7 +14,7 @@ export async function callTool(
   toolName: string,
   args: Record<string, unknown> = {}
 ): Promise<string> {
-  const token = await getAccessToken();
+  const token = await getIdToken();
   const apiUrl = getApiUrl();
 
   const res = await fetch(`${apiUrl}/mcp`, {

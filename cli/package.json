@@ -13,12 +13,13 @@
   "dependencies": {
     "@aws-sdk/client-cognito-identity-provider": "^3.750.0",
     "commander": "^13.0.0",
-    "inquirer": "^12.0.0"
+    "inquirer": "^9.0.0"
   },
   "devDependencies": {
-    "typescript": "~5.7.0",
+    "@types/inquirer": "^9.0.9",
     "@types/node": "^22.0.0",
-    "ts-node": "^10.9.2"
+    "ts-node": "^10.9.2",
+    "typescript": "~5.7.0"
   },
   "engines": {
     "node": ">=18"

@@ -6,9 +6,16 @@ import {
   CognitoUserSession,
 } from "amazon-cognito-identity-js";
 
-const API_URL = import.meta.env.VITE_API_URL || "";
-const USER_POOL_ID = import.meta.env.VITE_USER_POOL_ID || "";
-const WEB_CLIENT_ID = import.meta.env.VITE_WEB_CLIENT_ID || "";
+const API_URL = import.meta.env.VITE_API_URL;
+const USER_POOL_ID = import.meta.env.VITE_USER_POOL_ID;
+const WEB_CLIENT_ID = import.meta.env.VITE_WEB_CLIENT_ID;
+
+if (!API_URL || !USER_POOL_ID || !WEB_CLIENT_ID) {
+  throw new Error(
+    "Missing required env vars: VITE_API_URL, VITE_USER_POOL_ID, VITE_WEB_CLIENT_ID. " +
+      "Create a web/.env file with these values."
+  );
+}
 
 const userPool = new CognitoUserPool({
   UserPoolId: USER_POOL_ID,
@@ -34,9 +41,9 @@ export function getSession(): Promise<CognitoUserSession> {
   });
 }
 
-export async function getAccessToken(): Promise<string> {
+export async function getIdToken(): Promise<string> {
   const session = await getSession();
-  return session.getAccessToken().getJwtToken();
+  return session.getIdToken().getJwtToken();
 }
 
 export function signUp(

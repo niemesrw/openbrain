@@ -20,7 +20,8 @@ const api = new ApiStack(app, "EnterpriseBrainApi", {
   env,
   vectorBucketName: vectors.vectorBucketName,
   userPool: auth.userPool,
-  userPoolClients: [auth.webClient, auth.cliClient],
+  webClient: auth.webClient,
+  cliClient: auth.cliClient,
   agentKeysTable: data.agentKeysTable,
   usersTable: data.usersTable,
 });

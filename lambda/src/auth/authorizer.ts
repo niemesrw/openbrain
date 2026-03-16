@@ -13,10 +13,10 @@ const AGENT_KEYS_TABLE = process.env.AGENT_KEYS_TABLE!;
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
-// Verifier supports multiple client IDs (web + CLI)
+// Verify ID tokens (not access tokens) so we get preferred_username claim
 const jwtVerifier = CognitoJwtVerifier.create({
   userPoolId: USER_POOL_ID,
-  tokenUse: "access",
+  tokenUse: "id",
   clientId: [CLI_CLIENT_ID, WEB_CLIENT_ID],
 });
 

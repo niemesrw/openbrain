@@ -27,7 +27,7 @@ export async function callTool(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${creds.accessToken}`,
+      Authorization: `Bearer ${creds.idToken}`,
     },
     body,
   });
