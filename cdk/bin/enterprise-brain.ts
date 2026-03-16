@@ -2,7 +2,9 @@
 import * as cdk from "aws-cdk-lib";
 import { VectorStorageStack } from "../lib/stacks/vector-storage-stack";
 import { AuthStack } from "../lib/stacks/auth-stack";
+import { DataStack } from "../lib/stacks/data-stack";
 import { ApiStack } from "../lib/stacks/api-stack";
+import { WebStack } from "../lib/stacks/web-stack";
 
 const app = new cdk.App();
 
@@ -13,12 +15,21 @@ const env = {
 
 const vectors = new VectorStorageStack(app, "EnterpriseBrainVectors", { env });
 const auth = new AuthStack(app, "EnterpriseBrainAuth", { env });
+const data = new DataStack(app, "EnterpriseBrainData", { env });
 const api = new ApiStack(app, "EnterpriseBrainApi", {
   env,
   vectorBucketName: vectors.vectorBucketName,
   userPool: auth.userPool,
   userPoolClients: [auth.webClient, auth.cliClient],
+  agentKeysTable: data.agentKeysTable,
+  usersTable: data.usersTable,
 });
 
 api.addDependency(vectors);
 api.addDependency(auth);
+api.addDependency(data);
+
+// Web SPA — build web/ first, then deploy
+// Only instantiate when web/dist/ exists (after `cd web && npm run build`)
+const web = new WebStack(app, "EnterpriseBrainWeb", { env });
+web.addDependency(api);

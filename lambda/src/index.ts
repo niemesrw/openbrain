@@ -1,5 +1,4 @@
 import type {
-  APIGatewayProxyEventV2WithJWTAuthorizer,
   APIGatewayProxyEventV2,
   APIGatewayProxyResultV2,
 } from "aws-lambda";
@@ -8,6 +7,12 @@ import { handleSearchThoughts } from "./handlers/search-thoughts";
 import { handleBrowseRecent } from "./handlers/browse-recent";
 import { handleStats } from "./handlers/stats";
 import { handleCaptureThought } from "./handlers/capture-thought";
+import {
+  handleCreateAgent,
+  handleListAgents,
+  handleRevokeAgent,
+} from "./handlers/agent-keys";
+import { handleBusActivity } from "./handlers/bus-activity";
 import type { McpRequest, UserContext } from "./types";
 
 // --- Tool definitions ---
@@ -44,7 +49,7 @@ const TOOLS = [
         scope: {
           type: "string",
           description:
-            "Scope: private (default, your thoughts only), shared (org-wide), all (both)",
+            "Scope: private (default, your thoughts only), shared (public feed), all (both)",
           default: "private",
         },
       },
@@ -71,8 +76,7 @@ const TOOLS = [
         topic: { type: "string", description: "Filter by topic" },
         scope: {
           type: "string",
-          description:
-            "Scope: private (default), shared, all",
+          description: "Scope: private (default), shared (public feed), all",
           default: "private",
         },
       },
@@ -95,11 +99,71 @@ const TOOLS = [
         scope: {
           type: "string",
           description:
-            "Scope: private (default, only you can see it), shared (visible to the whole org)",
+            "Scope: private (default, only you can see it), shared (visible on the public feed)",
           default: "private",
         },
       },
       required: ["text"],
+    },
+  },
+  {
+    name: "create_agent",
+    description:
+      "Create an API key for an AI agent. Returns the key and MCP config snippets for Claude Code, Claude Desktop, etc.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        name: {
+          type: "string",
+          description:
+            "Agent name (alphanumeric, hyphens, underscores). e.g. 'claude-code', 'chatgpt'",
+        },
+      },
+      required: ["name"],
+    },
+  },
+  {
+    name: "list_agents",
+    description: "List all your registered AI agents and their creation dates.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "revoke_agent",
+    description:
+      "Revoke an agent's API key. The key will immediately stop working.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        name: {
+          type: "string",
+          description: "The agent name to revoke",
+        },
+      },
+      required: ["name"],
+    },
+  },
+  {
+    name: "bus_activity",
+    description:
+      "Monitor the public feed — recent shared thoughts grouped by contributor, activity counts, and timeline.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        hours: {
+          type: "number",
+          description: "Look back this many hours (default 24)",
+          default: 24,
+        },
+        agent: {
+          type: "string",
+          description: "Filter to a specific agent name",
+        },
+        limit: {
+          type: "number",
+          description: "Max thoughts to return (default 50)",
+          default: 50,
+        },
+      },
     },
   },
 ];
@@ -137,7 +201,7 @@ function jsonrpcError(
 // --- Lambda handler ---
 
 export async function handler(
-  event: APIGatewayProxyEventV2WithJWTAuthorizer | APIGatewayProxyEventV2
+  event: APIGatewayProxyEventV2
 ): Promise<APIGatewayProxyResultV2> {
   const method = event.requestContext.http.method;
 
@@ -146,7 +210,7 @@ export async function handler(
     return {
       statusCode: 200,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "ok", name: "enterprise-brain-mcp" }),
+      body: JSON.stringify({ status: "ok", name: "open-brain-mcp" }),
     };
   }
 
@@ -154,12 +218,10 @@ export async function handler(
     return jsonrpcError(null, -32600, "Method not allowed", 405);
   }
 
-  // Extract user from JWT (set by API Gateway authorizer)
+  // Extract user from custom authorizer context
   let user: UserContext;
   try {
-    user = extractUserContext(
-      event as APIGatewayProxyEventV2WithJWTAuthorizer
-    );
+    user = extractUserContext(event);
   } catch {
     return jsonrpcError(null, -32600, "Unauthorized", 401);
   }
@@ -172,7 +234,7 @@ export async function handler(
     return jsonrpcResponse(id ?? null, {
       protocolVersion: "2025-03-26",
       capabilities: { tools: {} },
-      serverInfo: { name: "enterprise-brain", version: "1.0.0" },
+      serverInfo: { name: "open-brain", version: "2.0.0" },
     });
   }
 
@@ -205,6 +267,18 @@ export async function handler(
           break;
         case "capture_thought":
           resultText = await handleCaptureThought(args as any, user);
+          break;
+        case "create_agent":
+          resultText = await handleCreateAgent(args as any, user);
+          break;
+        case "list_agents":
+          resultText = await handleListAgents(user);
+          break;
+        case "revoke_agent":
+          resultText = await handleRevokeAgent(args as any, user);
+          break;
+        case "bus_activity":
+          resultText = await handleBusActivity(args as any, user);
           break;
         default:
           return jsonrpcError(id ?? null, -32601, `Unknown tool: ${toolName}`);

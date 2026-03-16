@@ -64,6 +64,8 @@ export interface VectorMetadata {
   content?: string;
   action_items?: string;
   dates_mentioned?: string;
+  display_name?: string;
+  agent_id?: string;
 }
 
 export async function queryVectors(

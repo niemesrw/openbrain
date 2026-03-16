@@ -5,6 +5,7 @@ import * as apigwv2 from "aws-cdk-lib/aws-apigatewayv2";
 import * as apigwv2Integrations from "aws-cdk-lib/aws-apigatewayv2-integrations";
 import * as apigwv2Authorizers from "aws-cdk-lib/aws-apigatewayv2-authorizers";
 import * as cognito from "aws-cdk-lib/aws-cognito";
+import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import * as iam from "aws-cdk-lib/aws-iam";
 import { Construct } from "constructs";
 import * as path from "path";
@@ -13,6 +14,8 @@ interface ApiStackProps extends cdk.StackProps {
   vectorBucketName: string;
   userPool: cognito.UserPool;
   userPoolClients: cognito.UserPoolClient[];
+  agentKeysTable: dynamodb.Table;
+  usersTable: dynamodb.Table;
 }
 
 export class ApiStack extends cdk.Stack {
@@ -22,9 +25,15 @@ export class ApiStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: ApiStackProps) {
     super(scope, id, props);
 
-    const { vectorBucketName, userPool, userPoolClients } = props;
+    const {
+      vectorBucketName,
+      userPool,
+      userPoolClients,
+      agentKeysTable,
+      usersTable,
+    } = props;
 
-    // Lambda function
+    // Main MCP handler Lambda
     this.handler = new lambdaNode.NodejsFunction(this, "McpHandler", {
       runtime: lambda.Runtime.NODEJS_20_X,
       entry: path.join(__dirname, "..", "..", "..", "lambda", "src", "index.ts"),
@@ -35,6 +44,8 @@ export class ApiStack extends cdk.Stack {
         VECTOR_BUCKET_NAME: vectorBucketName,
         EMBEDDING_MODEL_ID: "amazon.titan-embed-text-v2:0",
         METADATA_MODEL_ID: "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+        AGENT_KEYS_TABLE: agentKeysTable.tableName,
+        USERS_TABLE: usersTable.tableName,
       },
       bundling: {
         externalModules: ["@aws-sdk/*"],
@@ -67,11 +78,8 @@ export class ApiStack extends cdk.Stack {
       new iam.PolicyStatement({
         actions: ["bedrock:InvokeModel"],
         resources: [
-          // Titan embed — standard foundation model (no cross-region profile needed)
           `arn:aws:bedrock:${this.region}::foundation-model/amazon.titan-embed-text-v2:0`,
-          // Haiku 4.5 — must use cross-region inference profile
           `arn:aws:bedrock:${this.region}:${this.account}:inference-profile/us.anthropic.claude-haiku-4-5-20251001-v1:0`,
-          // Underlying foundation models the profile routes to
           `arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0`,
           `arn:aws:bedrock:us-east-2::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0`,
           `arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0`,
@@ -79,23 +87,65 @@ export class ApiStack extends cdk.Stack {
       })
     );
 
-    // JWT authorizer
-    const authorizer = new apigwv2Authorizers.HttpJwtAuthorizer(
-      "CognitoAuthorizer",
-      `https://cognito-idp.${this.region}.amazonaws.com/${userPool.userPoolId}`,
+    // DynamoDB permissions for main handler
+    agentKeysTable.grantReadWriteData(this.handler);
+    usersTable.grantReadData(this.handler);
+
+    // Custom Lambda authorizer (supports both JWT and API key)
+    const authorizerFn = new lambdaNode.NodejsFunction(this, "AuthorizerFn", {
+      runtime: lambda.Runtime.NODEJS_20_X,
+      entry: path.join(
+        __dirname,
+        "..",
+        "..",
+        "..",
+        "lambda",
+        "src",
+        "auth",
+        "authorizer.ts"
+      ),
+      handler: "handler",
+      memorySize: 256,
+      timeout: cdk.Duration.seconds(10),
+      environment: {
+        USER_POOL_ID: userPool.userPoolId,
+        REGION: this.region,
+        AGENT_KEYS_TABLE: agentKeysTable.tableName,
+        CLI_CLIENT_ID: userPoolClients[1].userPoolClientId,
+        WEB_CLIENT_ID: userPoolClients[0].userPoolClientId,
+      },
+      bundling: {
+        minify: true,
+        sourceMap: true,
+      },
+    });
+
+    // Authorizer needs to read agent keys for API key validation
+    agentKeysTable.grantReadData(authorizerFn);
+
+    const authorizer = new apigwv2Authorizers.HttpLambdaAuthorizer(
+      "BrainAuthorizer",
+      authorizerFn,
       {
-        jwtAudience: userPoolClients.map((c) => c.userPoolClientId),
-        identitySource: ["$request.header.Authorization"],
+        authorizerName: "brain-custom-authorizer",
+        responseTypes: [
+          apigwv2Authorizers.HttpLambdaResponseType.SIMPLE,
+        ],
+        identitySource: [
+          "$request.header.Authorization",
+          "$request.header.x-api-key",
+        ],
+        resultsCacheTtl: cdk.Duration.seconds(0),
       }
     );
 
     // HTTP API
     this.api = new apigwv2.HttpApi(this, "BrainApi", {
-      apiName: "enterprise-brain-mcp",
+      apiName: "open-brain-mcp",
       corsPreflight: {
         allowOrigins: ["*"],
         allowMethods: [apigwv2.CorsHttpMethod.POST, apigwv2.CorsHttpMethod.GET],
-        allowHeaders: ["Content-Type", "Authorization"],
+        allowHeaders: ["Content-Type", "Authorization", "x-api-key"],
       },
     });
 
