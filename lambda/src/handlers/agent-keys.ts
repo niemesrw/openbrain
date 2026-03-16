@@ -6,7 +6,7 @@ import {
   QueryCommand,
   DeleteCommand,
 } from "@aws-sdk/lib-dynamodb";
-import type { CreateAgentArgs, RevokeAgentArgs, UserContext } from "../types";
+import type { CreateAgentArgs, ListAgentsArgs, RevokeAgentArgs, UserContext } from "../types";
 
 const AGENT_KEYS_TABLE = process.env.AGENT_KEYS_TABLE!;
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
@@ -64,7 +64,7 @@ export async function handleCreateAgent(
   ].join("\n");
 }
 
-export async function handleListAgents(user: UserContext): Promise<string> {
+export async function handleListAgents(args: ListAgentsArgs, user: UserContext): Promise<string> {
   const result = await ddb.send(
     new QueryCommand({
       TableName: AGENT_KEYS_TABLE,
@@ -74,6 +74,16 @@ export async function handleListAgents(user: UserContext): Promise<string> {
   );
 
   const items = result.Items ?? [];
+
+  if (args._format === "json") {
+    return JSON.stringify({
+      agents: items.map((item) => ({
+        name: item.agentName,
+        createdAt: item.createdAt,
+      })),
+    });
+  }
+
   if (items.length === 0) {
     return "No agents registered. Use create_agent to create one.";
   }

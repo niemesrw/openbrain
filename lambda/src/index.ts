@@ -263,7 +263,7 @@ export async function handler(
           resultText = await handleBrowseRecent(args as any, user);
           break;
         case "stats":
-          resultText = await handleStats(user);
+          resultText = await handleStats(args as any, user);
           break;
         case "capture_thought":
           resultText = await handleCaptureThought(args as any, user);
@@ -272,7 +272,7 @@ export async function handler(
           resultText = await handleCreateAgent(args as any, user);
           break;
         case "list_agents":
-          resultText = await handleListAgents(user);
+          resultText = await handleListAgents(args as any, user);
           break;
         case "revoke_agent":
           resultText = await handleRevokeAgent(args as any, user);

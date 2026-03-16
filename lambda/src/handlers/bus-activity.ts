@@ -9,6 +9,7 @@ export async function handleBusActivity(
   const hours = args.hours ?? 24;
   const limit = args.limit ?? 50;
   const agentFilter = args.agent;
+  const _format = args._format;
 
   const cutoff = Date.now() - hours * 60 * 60 * 1000;
 
@@ -30,10 +31,6 @@ export async function handleBusActivity(
 
   recent = recent.slice(0, limit);
 
-  if (recent.length === 0) {
-    return `No shared activity in the last ${hours} hour(s).`;
-  }
-
   // Group by user/agent
   const byActor = new Map<string, { count: number; latest: number }>();
   for (const v of recent) {
@@ -48,6 +45,43 @@ export async function handleBusActivity(
     existing.count++;
     existing.latest = Math.max(existing.latest, m.created_at ?? 0);
     byActor.set(actor, existing);
+  }
+
+  if (recent.length === 0) {
+    if (_format === "json") {
+      return JSON.stringify({
+        summary: { total: 0, hours },
+        by_agent: [],
+        recent: [],
+      });
+    }
+    return `No shared activity in the last ${hours} hour(s).`;
+  }
+
+  if (_format === "json") {
+    return JSON.stringify({
+      summary: { total: recent.length, hours },
+      by_agent: Array.from(byActor.entries()).map(([actor, stats]) => ({
+        agent: actor,
+        count: stats.count,
+        last_active: new Date(stats.latest).toISOString(),
+      })),
+      recent: recent.slice(0, 10).map((v) => {
+        const m = v.metadata as VectorMetadata & {
+          display_name?: string;
+          agent_id?: string;
+        };
+        return {
+          content: (m.content || "").slice(0, 200),
+          agent: m.agent_id
+            ? `${m.display_name || "?"}/${m.agent_id}`
+            : m.display_name || "anonymous",
+          type: m.type || "unknown",
+          topics: Array.isArray(m.topics) ? m.topics : [],
+          created_at: m.created_at ? new Date(m.created_at).toISOString() : null,
+        };
+      }),
+    });
   }
 
   const lines: string[] = [

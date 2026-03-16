@@ -1,7 +1,7 @@
 import { resolveIndexes, listAllVectors } from "../services/vectors";
-import type { UserContext } from "../types";
+import type { StatsArgs, UserContext } from "../types";
 
-export async function handleStats(user: UserContext): Promise<string> {
+export async function handleStats(args: StatsArgs, user: UserContext): Promise<string> {
   // Get all thoughts from private + shared indexes
   const indexes = resolveIndexes(user.userId, "all");
   const results = await Promise.all(indexes.map((idx) => listAllVectors(idx)));
@@ -23,6 +23,16 @@ export async function handleStats(user: UserContext): Promise<string> {
       for (const p of m.people) people[p] = (people[p] || 0) + 1;
     }
     if (m.created_at && m.created_at < earliest) earliest = m.created_at;
+  }
+
+  if (args._format === "json") {
+    return JSON.stringify({
+      total,
+      earliest: earliest < Infinity ? earliest : null,
+      types,
+      topics,
+      people,
+    });
   }
 
   const sortDesc = (obj: Record<string, number>) =>
