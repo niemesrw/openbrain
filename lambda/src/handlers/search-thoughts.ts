@@ -64,6 +64,7 @@ export async function handleSearchThoughts(
         const similarity = Math.round((1 - (v.distance ?? 2) / 2) * 100);
         const indexScope = v._indexName.startsWith("private-") ? "private" : "shared";
         return {
+          id: v.key,
           content: m.content || "",
           type: m.type || "unknown",
           topics: Array.isArray(m.topics) ? m.topics : [],

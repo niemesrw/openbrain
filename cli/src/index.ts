@@ -10,6 +10,8 @@ import { capture } from "./commands/capture";
 import { recent } from "./commands/recent";
 import { stats } from "./commands/stats";
 import { activity } from "./commands/activity";
+import { editThought } from "./commands/edit";
+import { deleteThought } from "./commands/delete";
 
 const program = new Command();
 
@@ -87,5 +89,18 @@ program
   .option("--limit <n>", "Max thoughts to return", "50")
   .option("--agent <name>", "Filter to a specific agent")
   .action((options) => activity(options));
+
+program
+  .command("edit <id> <text>")
+  .description("Update an existing thought by ID")
+  .option("--scope <scope>", "private or shared", "private")
+  .action((id, text, options) => editThought(id, text, options));
+
+program
+  .command("delete <id>")
+  .description("Delete a thought by ID")
+  .option("--scope <scope>", "private or shared", "private")
+  .option("-y, --yes", "Skip confirmation prompt")
+  .action((id, options) => deleteThought(id, options));
 
 program.parse();

@@ -1,4 +1,5 @@
 export interface Thought {
+  id?: string;
   content: string;
   type: string;
   topics: string[];

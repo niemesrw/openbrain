@@ -112,6 +112,29 @@ const TOOLS = [
     },
   },
   {
+    name: "update_thought",
+    description: "Update an existing thought by ID. Re-embeds the new text and refreshes metadata.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string", description: "The UUID of the thought to update" },
+        text: { type: "string", description: "The new text content for the thought" },
+      },
+      required: ["id", "text"],
+    },
+  },
+  {
+    name: "delete_thought",
+    description: "Delete a thought by ID.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string", description: "The UUID of the thought to delete" },
+      },
+      required: ["id"],
+    },
+  },
+  {
     name: "bus_activity",
     description: "Monitor agent bus activity. Shows recent thoughts grouped by agent, activity counts, and timeline.",
     inputSchema: {
@@ -218,6 +241,37 @@ async function handleStats(): Promise<string> {
   ]
     .filter(Boolean)
     .join("\n");
+}
+
+async function handleUpdateThought(args: Record<string, unknown>): Promise<string> {
+  const id = args.id as string;
+  const text = args.text as string;
+
+  const [embedding, metadata] = await Promise.all([generateEmbedding(text), extractMetadata(text)]);
+
+  const { error } = await supabase
+    .from("thoughts")
+    .update({ content: text, embedding, metadata })
+    .eq("id", id);
+
+  if (error) return `Error updating: ${error.message}`;
+
+  const meta = metadata as Record<string, unknown>;
+  let confirmation = `Updated as ${meta.type}`;
+  if (Array.isArray(meta.topics) && meta.topics.length > 0)
+    confirmation += ` — ${meta.topics.join(", ")}`;
+
+  return confirmation;
+}
+
+async function handleDeleteThought(args: Record<string, unknown>): Promise<string> {
+  const id = args.id as string;
+
+  const { error } = await supabase.from("thoughts").delete().eq("id", id);
+
+  if (error) return `Error deleting: ${error.message}`;
+
+  return `Deleted thought ${id}`;
 }
 
 async function handleCaptureThought(args: Record<string, unknown>, agentName: string): Promise<string> {
@@ -381,6 +435,12 @@ Deno.serve(async (req) => {
           break;
         case "capture_thought":
           resultText = await handleCaptureThought(args, agentName);
+          break;
+        case "update_thought":
+          resultText = await handleUpdateThought(args);
+          break;
+        case "delete_thought":
+          resultText = await handleDeleteThought(args);
           break;
         case "bus_activity":
           resultText = await handleBusActivity(args);

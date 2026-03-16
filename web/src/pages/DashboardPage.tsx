@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { searchThoughts, browseRecent, getStats } from "../lib/brain-api";
+import { searchThoughts, browseRecent, getStats, updateThought, deleteThought } from "../lib/brain-api";
 import type { Thought, BrainStats } from "../lib/brain-types";
 import { SearchBar } from "../components/SearchBar";
 import { FilterChips } from "../components/FilterChips";
@@ -79,6 +79,18 @@ export function DashboardPage() {
     setActiveType((prev) => (prev === type ? null : type));
   };
 
+  const handleEditThought = async (id: string, text: string, scope: "private" | "shared") => {
+    await updateThought(id, text, scope);
+    setThoughts((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, content: text } : t))
+    );
+  };
+
+  const handleDeleteThought = async (id: string, scope: "private" | "shared") => {
+    await deleteThought(id, scope);
+    setThoughts((prev) => prev.filter((t) => t.id !== id));
+  };
+
   const topTopics = stats
     ? Object.entries(stats.topics)
         .sort((a, b) => b[1] - a[1])
@@ -105,7 +117,12 @@ export function DashboardPage() {
           </p>
         )}
         {thoughts.map((t, i) => (
-          <ThoughtCard key={`${t.created_at}-${i}`} thought={t} />
+          <ThoughtCard
+            key={`${t.created_at}-${i}`}
+            thought={t}
+            onUpdate={handleEditThought}
+            onDelete={handleDeleteThought}
+          />
         ))}
       </div>
 

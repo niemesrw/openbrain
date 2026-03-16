@@ -7,6 +7,8 @@ import { handleSearchThoughts } from "./handlers/search-thoughts";
 import { handleBrowseRecent } from "./handlers/browse-recent";
 import { handleStats } from "./handlers/stats";
 import { handleCaptureThought } from "./handlers/capture-thought";
+import { handleUpdateThought } from "./handlers/update-thought";
+import { handleDeleteThought } from "./handlers/delete-thought";
 import {
   handleCreateAgent,
   handleListAgents,
@@ -104,6 +106,50 @@ const TOOLS = [
         },
       },
       required: ["text"],
+    },
+  },
+  {
+    name: "update_thought",
+    description:
+      "Update an existing thought by ID. Re-embeds the new text and refreshes metadata. The thought ID is returned by browse_recent and search_thoughts when using _format: 'json'.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: {
+          type: "string",
+          description: "The vector key (ID) of the thought to update",
+        },
+        text: {
+          type: "string",
+          description: "The new text content for the thought",
+        },
+        scope: {
+          type: "string",
+          description: "Scope of the thought: private (default) or shared",
+          default: "private",
+        },
+      },
+      required: ["id", "text"],
+    },
+  },
+  {
+    name: "delete_thought",
+    description:
+      "Delete a thought by ID. The thought ID is returned by browse_recent and search_thoughts when using _format: 'json'.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: {
+          type: "string",
+          description: "The vector key (ID) of the thought to delete",
+        },
+        scope: {
+          type: "string",
+          description: "Scope of the thought: private (default) or shared",
+          default: "private",
+        },
+      },
+      required: ["id"],
     },
   },
   {
@@ -267,6 +313,12 @@ export async function handler(
           break;
         case "capture_thought":
           resultText = await handleCaptureThought(args as any, user);
+          break;
+        case "update_thought":
+          resultText = await handleUpdateThought(args as any, user);
+          break;
+        case "delete_thought":
+          resultText = await handleDeleteThought(args as any, user);
           break;
         case "create_agent":
           resultText = await handleCreateAgent(args as any, user);

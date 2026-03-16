@@ -69,3 +69,18 @@ export async function createAgent(name: string): Promise<string> {
 export async function revokeAgent(name: string): Promise<string> {
   return callTool("revoke_agent", { name });
 }
+
+export async function updateThought(
+  id: string,
+  text: string,
+  scope: "private" | "shared" = "private"
+): Promise<string> {
+  return callTool("update_thought", { id, text, scope });
+}
+
+export async function deleteThought(
+  id: string,
+  scope: "private" | "shared" = "private"
+): Promise<string> {
+  return callTool("delete_thought", { id, scope });
+}
