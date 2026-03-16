@@ -614,6 +614,11 @@ Because you're using OpenRouter, you can swap models by editing the model string
 - **LLM (metadata extraction):** Freely swappable. Change the model string, redeploy, done. Your existing data is unaffected because the LLM output (structured metadata) is model-independent.
 - **Embedding model:** Swappable, but requires re-embedding all existing thoughts. Embeddings from different models live in incompatible vector spaces — even models with the same dimensions (e.g. two different 1536-d models) produce vectors that can't be meaningfully compared. If you switch embedding models, you'll need a one-time migration: query all rows, re-generate embeddings with the new model, and update them in place.
 
+  In this starter, your Supabase table uses `vector(1536)` for the `embedding` column, and the HNSW index plus the `match_thoughts` function are built on that dimension. That means:
+
+  - **Same-dimension swap (e.g. 1536 → different 1536):** Schema and index can stay as-is. You still **must** re-embed all existing rows with the new model, then update them in place.
+  - **Different-dimension swap (e.g. 1536 → 3072):** You need to **update the DB schema** (change the `embedding` column type to the new dimension, update the `match_thoughts` function signature, and rebuild the vector index) **and** re-embed all existing rows.
+
 ---
 
 # What You Just Built — And What You Can Build Next
