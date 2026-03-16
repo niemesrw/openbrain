@@ -8,3 +8,8 @@ package-lock.json
 *-export.json
 cdk/cdk.out/
 lambda/dist/
+cli/dist/
+web/dist/
+web/tsconfig.tsbuildinfo
+web/tsconfig.node.tsbuildinfo
+excalidraw.log

@@ -11,7 +11,7 @@ describe("MCP protocol", () => {
     expect(res.error).toBeUndefined();
     const result = res.result as any;
     expect(result.protocolVersion).toBe("2025-03-26");
-    expect(result.serverInfo.name).toBe("enterprise-brain");
+    expect(result.serverInfo.name).toBe("open-brain");
     expect(result.capabilities.tools).toBeDefined();
   });
 
@@ -21,7 +21,7 @@ describe("MCP protocol", () => {
     expect(res.result).toEqual({});
   });
 
-  it("tools/list returns all four tools with correct names", async () => {
+  it("tools/list returns all eight tools with correct names", async () => {
     const res = await mcp<{ tools: { name: string }[] }>("tools/list");
     expect(res.error).toBeUndefined();
     const names = res.result!.tools.map((t) => t.name);
@@ -29,7 +29,11 @@ describe("MCP protocol", () => {
     expect(names).toContain("browse_recent");
     expect(names).toContain("stats");
     expect(names).toContain("capture_thought");
-    expect(names).toHaveLength(4);
+    expect(names).toContain("create_agent");
+    expect(names).toContain("list_agents");
+    expect(names).toContain("revoke_agent");
+    expect(names).toContain("bus_activity");
+    expect(names).toHaveLength(8);
   });
 
   it("tools/list includes inputSchema for each tool", async () => {

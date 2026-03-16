@@ -27,6 +27,8 @@ export interface McpRequest {
 export interface UserContext {
   userId: string;
   teamId?: string;
+  agentName?: string;
+  displayName?: string;
 }
 
 export interface SearchArgs {
@@ -48,4 +50,28 @@ export interface BrowseArgs {
 export interface CaptureArgs {
   text: string;
   scope?: "private" | "shared";
+}
+
+export interface CreateAgentArgs {
+  name: string;
+}
+
+export interface RevokeAgentArgs {
+  name: string;
+}
+
+export interface AgentKeyItem {
+  pk: string;
+  sk: string;
+  apiKey: string;
+  userId: string;
+  agentName: string;
+  displayName?: string;
+  createdAt: string;
+}
+
+export interface BusActivityArgs {
+  hours?: number;
+  agent?: string;
+  limit?: number;
 }

@@ -1,0 +1,27 @@
+{
+  "name": "openbrain-cli",
+  "version": "1.0.0",
+  "description": "CLI for Open Brain — your personal AI knowledge base",
+  "bin": {
+    "brain": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "dev": "ts-node src/index.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-cognito-identity-provider": "^3.750.0",
+    "commander": "^13.0.0",
+    "inquirer": "^9.0.0"
+  },
+  "devDependencies": {
+    "@types/inquirer": "^9.0.9",
+    "@types/node": "^22.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "~5.7.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -1,12 +1,13 @@
-import type { APIGatewayProxyEventV2WithJWTAuthorizer } from "aws-lambda";
+import type { APIGatewayProxyEventV2 } from "aws-lambda";
 import type { UserContext } from "../types";
 
-export function extractUserContext(
-  event: APIGatewayProxyEventV2WithJWTAuthorizer
-): UserContext {
-  const claims = event.requestContext.authorizer.jwt.claims;
-  const userId = claims.sub as string;
-  const teamId = (claims["custom:team_id"] as string) || undefined;
+export function extractUserContext(event: APIGatewayProxyEventV2): UserContext {
+  const ctx = (event.requestContext as any).authorizer?.lambda;
+  if (!ctx?.userId) throw new Error("Unauthorized");
 
-  return { userId, teamId };
+  return {
+    userId: ctx.userId,
+    agentName: ctx.agentName || undefined,
+    displayName: ctx.displayName || undefined,
+  };
 }

@@ -36,6 +36,11 @@ export async function handleCaptureThought(
     content: text,
     action_items: JSON.stringify(metadata.action_items),
     dates_mentioned: JSON.stringify(metadata.dates_mentioned),
+    // Attribution for shared captures
+    ...(scope === "shared" && {
+      display_name: user.displayName || "anonymous",
+      ...(user.agentName && { agent_id: user.agentName }),
+    }),
   });
 
   let confirmation = `Captured as ${metadata.type}`;
