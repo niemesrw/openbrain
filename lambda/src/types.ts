@@ -58,6 +58,17 @@ export interface CaptureArgs {
   scope?: "private" | "shared";
 }
 
+export interface UpdateThoughtArgs {
+  id: string;
+  text: string;
+  scope?: "private" | "shared";
+}
+
+export interface DeleteThoughtArgs {
+  id: string;
+  scope?: "private" | "shared";
+}
+
 export interface CreateAgentArgs {
   name: string;
 }

@@ -4,6 +4,8 @@ import {
   QueryVectorsCommand,
   PutVectorsCommand,
   ListVectorsCommand,
+  GetVectorsCommand,
+  DeleteVectorsCommand,
 } from "@aws-sdk/client-s3vectors";
 
 const client = new S3VectorsClient({});
@@ -151,6 +153,44 @@ export async function listAllVectors(
   }
 
   return all;
+}
+
+export async function getVector(
+  indexName: string,
+  key: string
+): Promise<{ key: string; metadata: VectorMetadata } | null> {
+  try {
+    const result = await client.send(
+      new GetVectorsCommand({
+        vectorBucketName: VECTOR_BUCKET,
+        indexName,
+        keys: [key],
+        returnMetadata: true,
+      })
+    );
+    const vector = result.vectors?.[0];
+    if (!vector) return null;
+    return {
+      key: vector.key!,
+      metadata: (vector.metadata ?? {}) as VectorMetadata,
+    };
+  } catch (e: any) {
+    if (e.name === "NotFoundException") return null;
+    throw e;
+  }
+}
+
+export async function deleteVector(
+  indexName: string,
+  key: string
+): Promise<void> {
+  await client.send(
+    new DeleteVectorsCommand({
+      vectorBucketName: VECTOR_BUCKET,
+      indexName,
+      keys: [key],
+    })
+  );
 }
 
 export function buildMetadataFilter(args: {

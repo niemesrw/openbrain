@@ -52,6 +52,7 @@ export async function handleBrowseRecent(
         const m = v.metadata;
         const indexScope = v._indexName.startsWith("private-") ? "private" : "shared";
         return {
+          id: v.key,
           content: m.content || "",
           type: m.type || "unknown",
           topics: Array.isArray(m.topics) ? m.topics : [],
