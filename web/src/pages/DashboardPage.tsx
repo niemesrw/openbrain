@@ -6,6 +6,7 @@ import { FilterChips } from "../components/FilterChips";
 import { ThoughtCard } from "../components/ThoughtCard";
 import { StatsBar } from "../components/StatsBar";
 import { AgentSection } from "../components/AgentSection";
+import { CaptureSection } from "../components/CaptureSection";
 
 export function DashboardPage() {
   const [stats, setStats] = useState<BrainStats | null>(null);
@@ -79,6 +80,15 @@ export function DashboardPage() {
     setActiveType((prev) => (prev === type ? null : type));
   };
 
+  const handleCaptured = () => {
+    // Refresh the thought list and stats after a new thought is captured
+    setLimit(20);
+    setQuery(null);
+    setActiveType(null);
+    setActiveTopic(null);
+    getStats().then(setStats).catch(() => {});
+  };
+
   const topTopics = stats
     ? Object.entries(stats.topics)
         .sort((a, b) => b[1] - a[1])
@@ -89,6 +99,7 @@ export function DashboardPage() {
   return (
     <div className="space-y-5">
       <StatsBar stats={stats} onTypeClick={handleTypeClick} />
+      <CaptureSection onCaptured={handleCaptured} />
       <SearchBar onSearch={handleSearch} onClear={handleClearSearch} loading={loading} />
       <FilterChips
         activeType={activeType}

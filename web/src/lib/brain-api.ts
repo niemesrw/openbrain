@@ -69,3 +69,13 @@ export async function createAgent(name: string): Promise<string> {
 export async function revokeAgent(name: string): Promise<string> {
   return callTool("revoke_agent", { name });
 }
+
+export async function captureThought(
+  text: string,
+  options?: { scope?: "private" | "shared"; type?: string }
+): Promise<string> {
+  const args: Record<string, unknown> = { text };
+  if (options?.scope) args.scope = options.scope;
+  if (options?.type) args.type = options.type;
+  return callTool("capture_thought", args);
+}
