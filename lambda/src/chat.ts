@@ -16,7 +16,7 @@ import { executeTool } from "./tool-executor";
 
 const CHAT_MODEL_ID =
   process.env.CHAT_MODEL_ID || "us.anthropic.claude-haiku-4-5-20251001-v1:0";
-const MAX_TOOL_ROUNDS = 5;
+const MAX_TOOL_ROUNDS = 10;
 
 const bedrock = new BedrockRuntimeClient({});
 
@@ -36,7 +36,12 @@ Behavior:
 Scheduled tasks:
 When a user expresses a recurring wish, automated task, or scheduled need — like "tell me the weather every morning", "check my portfolio daily", or "remind me to review PRs every Monday" — use the schedule_task tool to set it up. Background agents will execute it automatically on the specified schedule.
 
-IMPORTANT: Before creating a new task, always call list_tasks first to check for existing tasks with similar titles or actions. If a matching task already exists, tell the user instead of creating a duplicate. Only create a new task if nothing similar is already scheduled.
+IMPORTANT — duplicate prevention:
+- Before creating a new task, always call list_tasks first and read the output carefully.
+- Compare existing tasks by their schedule (in parentheses) and "Action:" line.
+- Exact duplicates (same schedule AND same action text): do NOT create a new task. If multiple exact duplicates exist, cancel all but one so only a single copy remains, then tell the user.
+- Similar but not exact (overlapping schedule or similar action): do NOT auto-cancel. Summarize what you found and ask the user which tasks to keep or cancel before taking action.
+- Only auto-cancel when tasks are clearly duplicates. When in doubt, ask.
 
 Use list_tasks to show the user their active tasks. Use cancel_task to remove one.
 
