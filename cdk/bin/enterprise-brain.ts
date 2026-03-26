@@ -56,6 +56,7 @@ const api = new ApiStack(app, "EnterpriseBrainApi", {
   agentKeysTable: data.agentKeysTable,
   usersTable: data.usersTable,
   agentTasksTable: data.agentTasksTable,
+  alarmEmail: app.node.tryGetContext("alarmEmail") ?? process.env.ALARM_EMAIL,
 });
 
 api.addDependency(vectors);

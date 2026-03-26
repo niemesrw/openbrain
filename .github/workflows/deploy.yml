@@ -79,6 +79,7 @@ jobs:
         env:
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET_ARN: ${{ secrets.GOOGLE_CLIENT_SECRET_ARN }}
+          ALARM_EMAIL: ${{ secrets.ALARM_EMAIL }}
 
       # --- Fetch CDK outputs for web build ---
 

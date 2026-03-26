@@ -7,6 +7,11 @@ import {
   type Tool,
   type ToolResultContentBlock,
 } from "@aws-sdk/client-bedrock-runtime";
+import {
+  DynamoDBClient,
+  PutItemCommand,
+  DeleteItemCommand,
+} from "@aws-sdk/client-dynamodb";
 import { handleSearchThoughts } from "./handlers/search-thoughts";
 import { handleCaptureThought } from "./handlers/capture-thought";
 import {
@@ -20,8 +25,42 @@ const CHAT_MODEL_ID =
   process.env.CHAT_MODEL_ID || "us.anthropic.claude-haiku-4-5-20251001-v1:0";
 const MAX_TOOL_ROUNDS = 5;
 const MAX_FETCH_CHARS = 10_000;
+// Lock TTL slightly longer than Lambda timeout to auto-expire on crash
+const LOCK_TTL_SECONDS = 6 * 60;
+const LOCK_PK = "LOCK#runner";
+const LOCK_SK = "LOCK#runner";
 
 const bedrock = new BedrockRuntimeClient({});
+const ddb = new DynamoDBClient({});
+const TASKS_TABLE = process.env.AGENT_TASKS_TABLE || "openbrain-agent-tasks";
+
+async function acquireRunLock(): Promise<boolean> {
+  const expiresAt = Math.floor(Date.now() / 1000) + LOCK_TTL_SECONDS;
+  try {
+    await ddb.send(new PutItemCommand({
+      TableName: TASKS_TABLE,
+      Item: {
+        userId: { S: LOCK_PK },
+        taskId: { S: LOCK_SK },
+        expiresAt: { N: String(expiresAt) },
+      },
+      // Only succeed if no lock exists, or the existing one has expired
+      ConditionExpression: "attribute_not_exists(userId) OR expiresAt < :now",
+      ExpressionAttributeValues: { ":now": { N: String(Math.floor(Date.now() / 1000)) } },
+    }));
+    return true;
+  } catch (e: unknown) {
+    if (e instanceof Error && e.name === "ConditionalCheckFailedException") return false;
+    throw e;
+  }
+}
+
+async function releaseRunLock(): Promise<void> {
+  await ddb.send(new DeleteItemCommand({
+    TableName: TASKS_TABLE,
+    Key: { userId: { S: LOCK_PK }, taskId: { S: LOCK_SK } },
+  }));
+}
 
 // Block SSRF to internal/metadata IPs
 const BLOCKED_IP_PATTERNS = [
@@ -243,43 +282,53 @@ async function executeTask(
 export async function handler(): Promise<void> {
   console.log("Agent runner starting...");
 
-  let tasks: AgentTask[];
-  try {
-    tasks = await getAllActiveTasks();
-  } catch (e) {
-    console.error("Failed to fetch tasks:", e);
+  const locked = await acquireRunLock();
+  if (!locked) {
+    console.log("Another invocation is already running — skipping.");
     return;
   }
 
-  const dueTasks = tasks.filter(isTaskDue);
-  console.log(`Found ${tasks.length} active task(s), ${dueTasks.length} due`);
-
-  // Limit tasks per invocation to stay within Lambda timeout
-  const MAX_TASKS_PER_RUN = 5;
-  const batch = dueTasks.slice(0, MAX_TASKS_PER_RUN);
-  if (dueTasks.length > MAX_TASKS_PER_RUN) {
-    console.log(`Processing first ${MAX_TASKS_PER_RUN} of ${dueTasks.length} due tasks`);
-  }
-
-  for (const task of batch) {
-    const ownerContext: UserContext = {
-      userId: task.userId,
-      displayName: "Agent Runner",
-    };
-
+  try {
+    let tasks: AgentTask[];
     try {
-      console.log(`Executing "${task.title}" for user ${task.userId}...`);
-      const captured = await executeTask(task, ownerContext);
-      if (captured) {
-        await updateTaskLastRun(task.userId, task.taskId);
-        console.log(`Completed "${task.title}"`);
-      } else {
-        console.warn(`"${task.title}" finished without capturing a result — will retry next run`);
-      }
+      tasks = await getAllActiveTasks();
     } catch (e) {
-      console.error(`Failed to execute "${task.title}":`, e);
+      console.error("Failed to fetch tasks:", e);
+      return;
     }
-  }
 
-  console.log("Agent runner finished");
+    const dueTasks = tasks.filter(isTaskDue);
+    console.log(`Found ${tasks.length} active task(s), ${dueTasks.length} due`);
+
+    // Limit tasks per invocation to stay within Lambda timeout
+    const MAX_TASKS_PER_RUN = 5;
+    const batch = dueTasks.slice(0, MAX_TASKS_PER_RUN);
+    if (dueTasks.length > MAX_TASKS_PER_RUN) {
+      console.log(`Processing first ${MAX_TASKS_PER_RUN} of ${dueTasks.length} due tasks`);
+    }
+
+    for (const task of batch) {
+      const ownerContext: UserContext = {
+        userId: task.userId,
+        displayName: "Agent Runner",
+      };
+
+      try {
+        console.log(`Executing "${task.title}" for user ${task.userId}...`);
+        const captured = await executeTask(task, ownerContext);
+        if (captured) {
+          await updateTaskLastRun(task.userId, task.taskId);
+          console.log(`Completed "${task.title}"`);
+        } else {
+        console.warn(`"${task.title}" finished without capturing a result — will retry next run`);
+        }
+      } catch (e) {
+        console.error(`Failed to execute "${task.title}":`, e);
+      }
+    }
+
+    console.log("Agent runner finished");
+  } finally {
+    await releaseRunLock();
+  }
 }

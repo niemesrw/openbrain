@@ -9,6 +9,10 @@ import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as events from "aws-cdk-lib/aws-events";
 import * as targets from "aws-cdk-lib/aws-events-targets";
+import * as cloudwatch from "aws-cdk-lib/aws-cloudwatch";
+import * as cwActions from "aws-cdk-lib/aws-cloudwatch-actions";
+import * as sns from "aws-cdk-lib/aws-sns";
+import * as snsSubscriptions from "aws-cdk-lib/aws-sns-subscriptions";
 import { Construct } from "constructs";
 import * as path from "path";
 
@@ -20,6 +24,7 @@ interface ApiStackProps extends cdk.StackProps {
   agentKeysTable: dynamodb.Table;
   usersTable: dynamodb.Table;
   agentTasksTable: dynamodb.Table;
+  alarmEmail?: string;
 }
 
 export class ApiStack extends cdk.Stack {
@@ -37,6 +42,7 @@ export class ApiStack extends cdk.Stack {
       agentKeysTable,
       usersTable,
       agentTasksTable,
+      alarmEmail,
     } = props;
 
     // Main MCP handler Lambda
@@ -301,6 +307,23 @@ export class ApiStack extends cdk.Stack {
       description: "Triggers the background agent runner every 5 minutes",
       targets: [new targets.LambdaFunction(agentRunner)],
     });
+
+    // CloudWatch alarm + SNS alert on agent runner errors
+    const alarmTopic = new sns.Topic(this, "AgentRunnerAlarmTopic", {
+      displayName: "Open Brain Agent Runner Errors",
+    });
+    if (alarmEmail) {
+      alarmTopic.addSubscription(new snsSubscriptions.EmailSubscription(alarmEmail));
+    }
+    new cloudwatch.Alarm(this, "AgentRunnerErrorAlarm", {
+      alarmName: "openbrain-agent-runner-errors",
+      alarmDescription: "Agent runner Lambda is throwing errors",
+      metric: agentRunner.metricErrors({ period: cdk.Duration.minutes(5) }),
+      threshold: 1,
+      evaluationPeriods: 1,
+      comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+      treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+    }).addAlarmAction(new cwActions.SnsAction(alarmTopic));
 
     // Outputs
     new cdk.CfnOutput(this, "ApiUrl", {
