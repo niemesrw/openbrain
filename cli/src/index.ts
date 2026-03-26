@@ -25,6 +25,7 @@ program
   .description("Create a new Open Brain account")
   .option("--api-url <url>", "API endpoint URL")
   .option("--client-id <id>", "Cognito CLI client ID")
+  .option("--cognito-domain <url>", "Cognito domain URL (for Google login)")
   .option("--region <region>", "AWS region", "us-east-1")
   .action((options) => signup(options));
 
@@ -33,8 +34,10 @@ program
   .description("Log in to your Open Brain account")
   .option("--email <email>", "Email address")
   .option("--password <password>", "Password")
+  .option("--google", "Log in with Google via browser")
   .option("--api-url <url>", "API endpoint URL")
   .option("--client-id <id>", "Cognito CLI client ID")
+  .option("--cognito-domain <url>", "Cognito domain URL (for Google login)")
   .option("--region <region>", "AWS region")
   .action((options) => login(options));
 

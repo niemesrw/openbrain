@@ -8,6 +8,8 @@ You have access to a personal knowledge base called Open Brain via MCP. It store
 - `browse_recent` — See recent thoughts chronologically. Filter by type or topic.
 - `stats` — Overview of the brain: totals, types, topics, people mentioned.
 - `capture_thought` — Save something to the brain. Use when the user makes a decision, shares an insight, or says "remember this."
+- `update_thought` — Edit an existing thought. Re-embeds and re-extracts metadata.
+- `delete_thought` — Remove a thought by ID. Ownership is verified via `user_id`.
 
 ## When to Search
 
@@ -72,4 +74,7 @@ After migration, suggest the user test by asking a different AI client about som
 
 ## Troubleshooting
 
-If the MCP server shows "failed" or won't connect, the most common cause is a **key mismatch**. Running `setup.sh` again (or regenerating the key during setup) updates the Supabase secret but does not update AI client configs. Compare the key in the client config against `.setup-state` or the setup script output — they must match. To fix, update the client config or re-run the MCP add command with the current key.
+If tools return errors, check CloudWatch Logs for the Lambda function. Common issues:
+- **401 errors** — Token expired. Cognito CLI tokens last 8 hours. Re-authenticate and update your client config.
+- **Bedrock `AccessDeniedException`** — Ensure Titan Embed v2 and Claude Haiku 4.5 are enabled in your region. Cross-region inference profiles require IAM access to both the profile ARN and underlying model ARNs.
+- **S3 Vectors permission errors** — Check the Lambda role has `s3vectors:*` on the vector bucket.

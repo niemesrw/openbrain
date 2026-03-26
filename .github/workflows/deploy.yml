@@ -1,0 +1,152 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '*.md'
+      - 'docs/**'
+      - 'skills/**'
+      - 'migrations/**'
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  MANAGEMENT_ACCOUNT: '982682372189'
+  AI_ACCOUNT: '057122451218'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # --- AWS Auth (two-hop: OIDC → management → AI account) ---
+
+      - name: Configure AWS credentials (Management)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ env.MANAGEMENT_ACCOUNT }}:role/GitHubActionsRole
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Assume role in AI account
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ env.AI_ACCOUNT }}:role/GitHubDeployRole
+          aws-region: ${{ env.AWS_REGION }}
+          role-chaining: true
+
+      # --- Build Lambda ---
+
+      - name: Install Lambda dependencies
+        working-directory: lambda
+        run: npm ci
+
+      # --- Deploy infra stacks (everything except web) ---
+
+      - name: Install CDK dependencies
+        working-directory: cdk
+        run: npm ci
+
+      - name: CDK Deploy (infra stacks)
+        working-directory: cdk
+        run: |
+          npx cdk deploy \
+            EnterpriseBrainVectors \
+            EnterpriseBrainAuth \
+            EnterpriseBrainData \
+            EnterpriseBrainApi \
+            --require-approval never
+        env:
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET_ARN: ${{ secrets.GOOGLE_CLIENT_SECRET_ARN }}
+
+      # --- Fetch CDK outputs for web build ---
+
+      - name: Get stack outputs
+        id: outputs
+        run: |
+          API_URL=$(aws cloudformation describe-stacks \
+            --stack-name EnterpriseBrainApi \
+            --query "Stacks[0].Outputs[?ExportName=='BrainApiUrl'].OutputValue" \
+            --output text)
+          USER_POOL_ID=$(aws cloudformation describe-stacks \
+            --stack-name EnterpriseBrainAuth \
+            --query "Stacks[0].Outputs[?ExportName=='BrainUserPoolId'].OutputValue" \
+            --output text)
+          WEB_CLIENT_ID=$(aws cloudformation describe-stacks \
+            --stack-name EnterpriseBrainAuth \
+            --query "Stacks[0].Outputs[?ExportName=='BrainWebClientId'].OutputValue" \
+            --output text)
+          COGNITO_DOMAIN=$(aws cloudformation describe-stacks \
+            --stack-name EnterpriseBrainAuth \
+            --query "Stacks[0].Outputs[?ExportName=='BrainCognitoDomain'].OutputValue" \
+            --output text)
+          echo "api_url=$API_URL" >> "$GITHUB_OUTPUT"
+          echo "user_pool_id=$USER_POOL_ID" >> "$GITHUB_OUTPUT"
+          echo "web_client_id=$WEB_CLIENT_ID" >> "$GITHUB_OUTPUT"
+          echo "cognito_domain=$COGNITO_DOMAIN" >> "$GITHUB_OUTPUT"
+
+      # --- Build and deploy web ---
+
+      - name: Install web dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Build web
+        working-directory: web
+        run: npm run build
+        env:
+          VITE_API_URL: ${{ steps.outputs.outputs.api_url }}
+          VITE_USER_POOL_ID: ${{ steps.outputs.outputs.user_pool_id }}
+          VITE_WEB_CLIENT_ID: ${{ steps.outputs.outputs.web_client_id }}
+          VITE_COGNITO_DOMAIN: ${{ steps.outputs.outputs.cognito_domain }}
+
+      - name: CDK Deploy (web stack)
+        working-directory: cdk
+        run: npx cdk deploy EnterpriseBrainWeb --require-approval never
+        env:
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET_ARN: ${{ secrets.GOOGLE_CLIENT_SECRET_ARN }}
+
+      # --- Update Cognito callback URLs with CloudFront domain ---
+
+      - name: Get CloudFront URL
+        id: web
+        run: |
+          WEB_URL=$(aws cloudformation describe-stacks \
+            --stack-name EnterpriseBrainWeb \
+            --query "Stacks[0].Outputs[?ExportName=='BrainWebUrl'].OutputValue" \
+            --output text)
+          echo "url=$WEB_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Redeploy auth with production callback URLs
+        working-directory: cdk
+        run: |
+          npx cdk deploy EnterpriseBrainAuth --require-approval never \
+            -c callbackUrls='["http://localhost:5173/callback","http://localhost:19836/callback","${{ steps.web.outputs.url }}/callback"]' \
+            -c logoutUrls='["http://localhost:5173/login","http://localhost:19836/logout","${{ steps.web.outputs.url }}/login"]'
+        env:
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET_ARN: ${{ secrets.GOOGLE_CLIENT_SECRET_ARN }}
+
+      # --- Print deployment info ---
+
+      - name: Deployment summary
+        run: |
+          echo "### Deployment Complete" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Resource | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|----------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| API URL | ${{ steps.outputs.outputs.api_url }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Web URL | ${{ steps.web.outputs.url }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Cognito Domain | ${{ steps.outputs.outputs.cognito_domain }} |" >> "$GITHUB_STEP_SUMMARY"

@@ -14,6 +14,7 @@ const DEFAULT_REGION = "us-east-1";
 interface SignupOptions {
   apiUrl?: string;
   clientId?: string;
+  cognitoDomain?: string;
   region?: string;
 }
 
@@ -28,10 +29,14 @@ export async function signup(options: SignupOptions): Promise<void> {
     ...(!options.clientId
       ? [{ name: "clientId", message: "CLI Client ID:", type: "input" }]
       : []),
+    ...(!options.cognitoDomain
+      ? [{ name: "cognitoDomain", message: "Cognito domain URL (for Google login, optional):", type: "input" }]
+      : []),
   ]);
 
   const apiUrl = options.apiUrl || answers.apiUrl;
   const clientId = options.clientId || answers.clientId;
+  const cognitoDomain = options.cognitoDomain || answers.cognitoDomain || undefined;
   const region = options.region || DEFAULT_REGION;
 
   const client = new CognitoIdentityProviderClient({ region });
@@ -92,6 +97,7 @@ export async function signup(options: SignupOptions): Promise<void> {
       apiUrl,
       region,
       clientId,
+      cognitoDomain,
       accessToken: auth.AccessToken!,
       idToken: auth.IdToken!,
       refreshToken: auth.RefreshToken!,

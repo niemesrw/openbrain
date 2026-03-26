@@ -6,8 +6,8 @@ Connect the MCP server:
 
 ```bash
 gemini mcp add -t http open-brain \
-  https://YOUR_PROJECT_REF.supabase.co/functions/v1/open-brain-mcp \
-  -H "x-brain-key: YOUR_MCP_ACCESS_KEY"
+  https://YOUR_API_ID.execute-api.us-east-1.amazonaws.com/mcp \
+  -H "Authorization: Bearer YOUR_ID_TOKEN"
 ```
 
 Then add the skill below to your Gemini CLI system instructions (`~/.gemini/GEMINI.md`):
@@ -22,6 +22,8 @@ You have access to a personal knowledge base called Open Brain via MCP. It store
 - `browse_recent` — See recent thoughts chronologically. Filter by type or topic.
 - `stats` — Overview of the brain: totals, types, topics, people mentioned.
 - `capture_thought` — Save something to the brain. Use when the user makes a decision, shares an insight, or says "remember this."
+- `update_thought` — Edit an existing thought. Re-embeds and re-extracts metadata.
+- `delete_thought` — Remove a thought by ID.
 
 ### When to Search
 
@@ -53,7 +55,7 @@ Create a Gem at gemini.google.com with these instructions. Note: Gemini web does
 
 ---
 
-The user has a personal knowledge base called Open Brain. It's a Supabase database with semantic search that stores thoughts, decisions, and memories.
+The user has a personal knowledge base called Open Brain. It's an AWS-hosted service with semantic search that stores thoughts, decisions, and memories.
 
 When MCP connector support is available for Gemini, the following tools will be accessible:
 - **search_thoughts** — Semantic search by meaning

@@ -4,19 +4,67 @@ import {
 } from "@aws-sdk/client-cognito-identity-provider";
 import inquirer from "inquirer";
 import { loadCredentials, saveCredentials } from "../lib/config";
+import { oauthLogin } from "../lib/oauth";
 import { printSuccess, printError } from "../lib/display";
 
 interface LoginOptions {
   email?: string;
   password?: string;
+  google?: boolean;
   apiUrl?: string;
   clientId?: string;
+  cognitoDomain?: string;
   region?: string;
 }
 
 export async function login(options: LoginOptions): Promise<void> {
   const existing = loadCredentials();
 
+  // If --google flag, use OAuth browser flow
+  if (options.google) {
+    const apiUrl = options.apiUrl || existing?.apiUrl;
+    const clientId = options.clientId || existing?.clientId;
+    const region = options.region || existing?.region || "us-east-1";
+    const cognitoDomain = options.cognitoDomain || existing?.cognitoDomain;
+
+    if (!apiUrl || !clientId || !cognitoDomain) {
+      printError(
+        "Google login requires API URL, Client ID, and Cognito domain.\n" +
+        "  Run `brain signup` first, or pass --api-url, --client-id, and --cognito-domain."
+      );
+      return;
+    }
+
+    try {
+      await oauthLogin({ cognitoDomain, clientId, region, apiUrl });
+    } catch (e: any) {
+      printError(`Google login failed: ${e.message}`);
+    }
+    return;
+  }
+
+  // If no flags given, ask how they want to log in
+  if (!options.email && !options.password) {
+    const hasCognitoDomain = !!(options.cognitoDomain || existing?.cognitoDomain);
+    if (hasCognitoDomain) {
+      const { method } = await inquirer.prompt([
+        {
+          name: "method",
+          message: "How would you like to log in?",
+          type: "list",
+          choices: [
+            { name: "Email / password", value: "password" },
+            { name: "Google (opens browser)", value: "google" },
+          ],
+        },
+      ]);
+      if (method === "google") {
+        return login({ ...options, google: true });
+      }
+    }
+  }
+
+  // Password flow
   let email = options.email;
   let password = options.password;
 
@@ -61,6 +109,7 @@ export async function login(options: LoginOptions): Promise<void> {
       apiUrl,
       region,
       clientId,
+      cognitoDomain: options.cognitoDomain || existing?.cognitoDomain,
       accessToken: auth.AccessToken!,
       idToken: auth.IdToken!,
       refreshToken: auth.RefreshToken!,

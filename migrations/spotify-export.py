@@ -9,8 +9,8 @@ This produces a JSON file (spotify-export.json) with summarized music preference
 Review the file, remove entries you don't want, then run with --capture:
 
     python3 migrations/spotify-export.py spotify-export.json --capture \
-      --mcp-url https://YOUR_REF.supabase.co/functions/v1/open-brain-mcp \
-      --mcp-key YOUR_KEY
+      --api-url https://YOUR_API_ID.execute-api.us-east-1.amazonaws.com/mcp \
+      --api-key ob_YOUR_API_KEY
 
 Zero external dependencies — uses only the Python standard library.
 
@@ -303,11 +303,11 @@ def _post_json(host: str, path: str, body: bytes, headers: dict) -> dict:
         conn.close()
 
 
-def capture_to_brain(thoughts: list[dict], mcp_url: str, mcp_key: str) -> None:
+def capture_to_brain(thoughts: list[dict], api_url: str, api_key: str) -> None:
     """Send thoughts to Open Brain via the MCP server."""
-    parsed = urlparse(mcp_url)
+    parsed = urlparse(api_url)
     if parsed.scheme != "https":
-        print("Error: MCP URL must use https://")
+        print("Error: API URL must use https://")
         sys.exit(1)
 
     host = parsed.hostname
@@ -317,7 +317,7 @@ def capture_to_brain(thoughts: list[dict], mcp_url: str, mcp_key: str) -> None:
     errors = 0
     headers = {
         "Content-Type": "application/json",
-        "x-brain-key": mcp_key,
+        "x-api-key": api_key,
     }
 
     for i, thought in enumerate(thoughts):
@@ -359,10 +359,10 @@ def main():
     parser.add_argument(
         "--capture",
         action="store_true",
-        help="Capture from a reviewed JSON file (requires --mcp-url and --mcp-key, or MCP_URL/MCP_KEY env vars)",
+        help="Capture from a reviewed JSON file (requires --api-url and --api-key, or API_URL/API_KEY env vars)",
     )
-    parser.add_argument("--mcp-url", help="MCP server URL")
-    parser.add_argument("--mcp-key", help="MCP access key")
+    parser.add_argument("--api-url", help="Open Brain API URL (e.g. https://YOUR_API_ID.execute-api.us-east-1.amazonaws.com/mcp)")
+    parser.add_argument("--api-key", help="Agent API key (starts with ob_)")
     parser.add_argument(
         "--output",
         default="spotify-export.json",
@@ -379,18 +379,18 @@ def main():
     if args.capture:
         import os
 
-        mcp_url = args.mcp_url or os.environ.get("MCP_URL")
-        mcp_key = args.mcp_key or os.environ.get("MCP_KEY")
+        api_url = args.api_url or os.environ.get("API_URL")
+        api_key = args.api_key or os.environ.get("API_KEY")
 
-        if not mcp_url or not mcp_key:
-            print("Error: --capture requires MCP_URL and MCP_KEY")
-            print("  Set via env vars or --mcp-url / --mcp-key flags")
-            print("  You can find these in .setup-state after running setup.sh")
+        if not api_url or not api_key:
+            print("Error: --capture requires API_URL and API_KEY")
+            print("  Set via env vars or --api-url / --api-key flags")
+            print("  Create an API key with: brain create-agent migration")
             sys.exit(1)
 
         thoughts = json.loads(input_path.read_text())
         print(f"Capturing {len(thoughts)} thoughts to brain...", flush=True)
-        capture_to_brain(thoughts, mcp_url, mcp_key)
+        capture_to_brain(thoughts, api_url, api_key)
         return
 
     # Parse mode: extract from zip and save JSON for review
@@ -425,7 +425,7 @@ def main():
     print(f"\nSaved to {output_path}", flush=True)
     print(f"\nNext steps:", flush=True)
     print(f"  1. Review {output_path} — edit or remove entries you don't want", flush=True)
-    print(f"  2. Run: python3 {sys.argv[0]} {output_path} --capture --mcp-url <URL> --mcp-key <KEY>", flush=True)
+    print(f"  2. Run: python3 {sys.argv[0]} {output_path} --capture --api-url <URL> --api-key <KEY>", flush=True)
 
 
 if __name__ == "__main__":

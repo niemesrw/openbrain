@@ -12,16 +12,15 @@ One database that every AI you use shares as persistent memory. Claude, ChatGPT,
 ## Architecture
 
 ```
-Claude Code ──┐
-Claude Desktop ┼── MCP ──→ API Gateway + Lambda ──→ S3 Vectors
-ChatGPT ───────┤                    ↕
-Gemini CLI ────┘                  Bedrock
-                             (embed + classify)
+Claude Code ──┐                                        ┌── S3 Vectors
+Claude Desktop ┼── MCP ──→ API Gateway + Lambda ──────┤
+ChatGPT ───────┤              ↕            ↕           └── DynamoDB
+Gemini CLI ────┘          Cognito       Bedrock            (agent keys)
+                       (JWT + OAuth)  (embed + classify)
+Web Dashboard ────────────────┘
 ```
 
-Fully serverless — Lambda + S3 Vectors + Bedrock + Cognito. Org-level sharing with JWT auth.
-
-> **Legacy Supabase docs:** Some files in this repo (`openbrain-guide.md`, `slack/SETUP.md`) still reference an older Supabase/Deno deployment path. These are deprecated — use the AWS instructions below.
+Fully serverless — Lambda + S3 Vectors + Bedrock + Cognito + DynamoDB + CloudFront. Org-level sharing with JWT auth and Google OAuth.
 
 ### Cost
 
@@ -30,7 +29,9 @@ Fully serverless — Lambda + S3 Vectors + Bedrock + Cognito. Org-level sharing 
 | S3 Vectors | Pay-per-use (pennies/month for personal use) |
 | Lambda + API Gateway | Pay-per-request |
 | Bedrock (Titan Embed v2 + Haiku metadata) | ~$0.10–0.50/month |
+| DynamoDB | Pay-per-request (agent keys, user profiles) |
 | Cognito | Free tier covers 50K MAU |
+| CloudFront + S3 | Minimal (static web dashboard) |
 
 ### Prerequisites
 
@@ -47,13 +48,15 @@ npm install
 npx cdk deploy --all
 ```
 
-This creates three stacks:
+This creates five stacks:
 
 | Stack | What it creates |
 |-------|----------------|
 | `EnterpriseBrainVectors` | S3 vector bucket + `shared` index |
-| `EnterpriseBrainAuth` | Cognito user pool (org email domain enforcement) |
-| `EnterpriseBrainApi` | API Gateway (JWT) + Lambda MCP server |
+| `EnterpriseBrainAuth` | Cognito user pool + Google OAuth |
+| `EnterpriseBrainData` | DynamoDB tables (agent keys, user profiles) |
+| `EnterpriseBrainApi` | API Gateway (JWT + API key auth) + Lambda MCP server |
+| `EnterpriseBrainWeb` | S3 + CloudFront web dashboard |
 
 The API URL is printed at the end of the deploy.
 
@@ -158,6 +161,12 @@ gemini mcp add -t http open-brain \
 | `browse_recent` | Browse chronologically, filter by type or topic |
 | `stats` | Overview — total thoughts, types, topics, people |
 | `capture_thought` | Save a thought from any connected AI |
+| `update_thought` | Edit an existing thought (re-embeds + re-extracts metadata) |
+| `delete_thought` | Remove a thought by ID (ownership verified) |
+| `create_agent` | Register a new agent and generate an API key |
+| `list_agents` | Show all agents for the authenticated user |
+| `revoke_agent` | Disable an agent's API key |
+| `bus_activity` | Monitor shared feed — activity grouped by agent |
 
 ---
 
@@ -199,10 +208,6 @@ Pre-built instructions for each AI client — teach it to search before answerin
 
 ## Optional Add-ons
 
-### Slack Capture
-
-A Slack channel for quick-capture without opening an AI. See [`slack/SETUP.md`](slack/SETUP.md).
-
 ### Google Meet Ingestion
 
 Automatically captures Gemini-generated meeting summaries as shared thoughts. See [`google-meet/README.md`](google-meet/README.md).
@@ -230,21 +235,23 @@ openbrain/
 │   │   └── enterprise-brain.ts
 │   └── lib/stacks/
 │       ├── vector-storage-stack.ts  # S3 vector bucket + shared index
-│       ├── auth-stack.ts           # Cognito user pool
-│       └── api-stack.ts            # API Gateway + Lambda
+│       ├── auth-stack.ts           # Cognito user pool + Google OAuth
+│       ├── data-stack.ts           # DynamoDB (agent keys, user profiles)
+│       ├── api-stack.ts            # API Gateway + Lambda + authorizer
+│       └── web-stack.ts            # S3 + CloudFront web dashboard
 ├── lambda/                         # AWS Lambda MCP server
 │   └── src/
 │       ├── index.ts                # MCP protocol handler
 │       ├── auth/context.ts         # JWT context extraction
-│       ├── handlers/               # search, browse, capture, stats
+│       ├── handlers/               # search, browse, capture, update, delete, stats, agent-keys, bus-activity
 │       └── services/
 │           ├── vectors.ts          # S3 Vectors client
 │           ├── embeddings.ts       # Bedrock Titan Embed v2
 │           └── metadata.ts         # Bedrock Claude Haiku 4.5
-├── openbrain-guide.md              # Legacy Supabase/OpenRouter setup guide (deprecated)
+├── web/                            # React SPA dashboard (Cognito + Google OAuth)
+├── cli/                            # Claude Code CLI extension
 ├── skills/                         # AI client instructions
 ├── google-meet/                    # Optional: Google Meet ingestion
-├── slack/                          # Optional: Slack capture channel
 └── tests/                          # Integration tests (vitest)
 ```
 

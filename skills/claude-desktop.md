@@ -12,6 +12,8 @@ You have access to a personal knowledge base called Open Brain via MCP connector
 - **browse_recent** — See recent thoughts. Optionally filter by type or topic.
 - **stats** — Brain overview: totals, types, topics, people.
 - **capture_thought** — Save a thought. Use when I make a decision or say "remember this."
+- **update_thought** — Edit an existing thought. Re-embeds and re-extracts metadata.
+- **delete_thought** — Remove a thought by ID.
 
 ## Behavior
 

@@ -6,13 +6,13 @@ This repo implements the [Open Brain guide](https://promptkit.natebjones.com/202
 
 Everything a user needs to set up their own Open Brain on AWS.
 
-- `cdk/` — CDK stacks: S3 Vectors, Cognito auth, API Gateway + Lambda
+- `cdk/` — CDK stacks: S3 Vectors, DynamoDB, Cognito auth, API Gateway + Lambda, Web (S3 + CloudFront)
 - `lambda/` — MCP server with S3 Vectors storage, Bedrock embeddings/metadata
+- `web/` — React SPA dashboard (search, browse, feed, agent activity)
+- `cli/` — Claude Code CLI extension
 - Index-per-scope design: `private-{userId}` + `shared` indexes
-- `slack/ingest-thought/` — Optional Slack capture add-on
 - `skills/` — Pre-built instructions for each AI client
-
-> **Note:** The Supabase deployment path (`supabase/`, `setup.sh`) is deprecated and will be removed in a future release. AWS is the sole supported path going forward.
+- `google-meet/` — Optional Google Meet summary ingestion
 
 ## Claude Code Skill
 
@@ -24,6 +24,8 @@ You have access to a personal knowledge base called Open Brain via MCP. It store
 - `browse_recent` — See recent thoughts chronologically. Filter by type or topic.
 - `stats` — Overview of the brain: totals, types, topics, people mentioned.
 - `capture_thought` — Save something to the brain. Use when the user makes a decision, shares an insight, or says "remember this."
+- `update_thought` — Edit an existing thought. Re-embeds and re-extracts metadata.
+- `delete_thought` — Remove a thought by ID. Ownership is verified via `user_id`.
 
 ### Metadata Schema
 
@@ -77,7 +79,7 @@ Open Brain doubles as a shared communication bus for agents. Each agent gets its
 - React SPA in `web/` — deployed via CDK (S3 + CloudFront)
 - Shows agent activity, per-agent breakdown, and recent thoughts timeline
 - Auto-refreshes every 30 seconds
-- **Auth:** Cognito JWT (social login TBD)
+- **Auth:** Cognito JWT with Google OAuth sign-in
 
 **Registering a new agent:**
 Use the `create_agent` / `list_agents` / `revoke_agent` MCP tools, or manage via the DynamoDB `agent_keys` table.
@@ -122,7 +124,35 @@ The brain can store any personal context. Have the user export data from service
 
 After migration, suggest the user test by asking a different AI client about something that was just migrated.
 
-## Infrastructure — Self-Hosted Runners
+## Infrastructure
+
+### AWS Accounts (BLANXLAIT org)
+
+| Account | ID | Purpose |
+|---------|-----|---------|
+| Management | `982682372189` | Org root, CDK bootstrap, OIDC provider |
+| AI (blanxlait-ai) | `057122451218` | **Production deployment target** |
+| Log Archive | `779315395440` | SecurityLake |
+| Security | `429971481640` | Security tooling |
+
+**Region:** `us-east-1`
+
+### GitHub Actions OIDC Auth
+
+Deployments use a two-hop auth flow (defined in `blanxlait-aws-infra`):
+1. GitHub OIDC → `arn:aws:iam::982682372189:role/GitHubActionsRole` (management account)
+2. Assume role → `arn:aws:iam::057122451218:role/GitHubDeployRole` (AI account, AdministratorAccess)
+
+Trust policy scoped to `repo:BLANXLAIT/*:*`.
+
+### Google OAuth
+
+- **GCP Project:** `560120385866` / `openbrain-490609`
+- Google client secret must be stored in AWS Secrets Manager in the AI account (`057122451218`)
+- CDK reads the secret ARN at deploy time via `-c googleClientSecretArn=<ARN>`
+- The Google Client ID is passed via `-c googleClientId=<ID>`
+
+### Self-Hosted Runners
 
 The org has self-hosted GitHub Actions runners (macOS ARM64, Linux ARM64).
 Use `runs-on: self-hosted` in workflows targeting these runners.
@@ -136,9 +166,13 @@ Uses S3 Vectors with an index-per-scope design. The `shared` index is created by
 - `scope: "shared"` — reads/writes to the `shared` index
 - `scope: "all"` — queries both indexes, merges results
 
-**Deploy:** `cd cdk && npx cdk deploy --all`
+**Deploy:** `cd cdk && npx cdk deploy --all` (or via GitHub Actions — see CI/CD below)
 
 ## CI/CD
+
+### Deploy (`.github/workflows/deploy.yml`)
+
+Triggered on push to `main`. Deploys all 5 CDK stacks to the AI account (`057122451218`). Uses OIDC → management account → cross-account assume role to AI account. Requires GitHub secrets: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET_ARN`, and `CLOUDFRONT_CALLBACK_URL` (set after first deploy).
 
 ### Integration Tests (`.github/workflows/integration-tests.yml`)
 

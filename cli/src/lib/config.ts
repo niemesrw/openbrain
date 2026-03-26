@@ -9,6 +9,7 @@ export interface Credentials {
   apiUrl: string;
   region: string;
   clientId: string;
+  cognitoDomain?: string;
   accessToken: string;
   idToken: string;
   refreshToken: string;

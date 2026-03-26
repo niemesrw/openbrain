@@ -98,7 +98,7 @@ export class AuthStack extends cdk.Stack {
     // Ensure the client is created after the Google provider
     this.webClient.node.addDependency(googleProvider);
 
-    // CLI client — longer token lifetime for dev use
+    // CLI client — longer token lifetime for dev use, with OAuth for Google sign-in
     this.cliClient = this.userPool.addClient("CliClient", {
       userPoolClientName: "brain-cli",
       authFlows: {
@@ -106,10 +106,27 @@ export class AuthStack extends cdk.Stack {
         userSrp: true,
       },
       generateSecret: false,
+      supportedIdentityProviders: [
+        cognito.UserPoolClientIdentityProvider.COGNITO,
+        cognito.UserPoolClientIdentityProvider.GOOGLE,
+      ],
+      oAuth: {
+        flows: { authorizationCodeGrant: true },
+        scopes: [
+          cognito.OAuthScope.OPENID,
+          cognito.OAuthScope.EMAIL,
+          cognito.OAuthScope.PROFILE,
+        ],
+        callbackUrls: ["http://localhost:19836/callback"],
+        logoutUrls: ["http://localhost:19836/logout"],
+      },
       accessTokenValidity: cdk.Duration.hours(8),
       idTokenValidity: cdk.Duration.hours(8),
       refreshTokenValidity: cdk.Duration.days(90),
     });
+
+    // Ensure the CLI client is created after the Google provider
+    this.cliClient.node.addDependency(googleProvider);
 
     new cdk.CfnOutput(this, "UserPoolId", {
       value: this.userPool.userPoolId,

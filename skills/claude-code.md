@@ -8,6 +8,8 @@ You have access to a personal knowledge base called Open Brain via MCP. It store
 - `browse_recent` — See recent thoughts chronologically. Filter by type or topic.
 - `stats` — Overview of the brain: totals, types, topics, people mentioned.
 - `capture_thought` — Save something to the brain. Use when the user makes a decision, shares an insight, or says "remember this."
+- `update_thought` — Edit an existing thought. Re-embeds and re-extracts metadata.
+- `delete_thought` — Remove a thought by ID.
 
 ## When to Search
 
