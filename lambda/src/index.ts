@@ -17,6 +17,9 @@ const SCOPE_ENUM = z.enum(["private", "shared"]).default("private")
 const READ_SCOPE_ENUM = z.enum(["private", "shared", "all"]).default("private")
   .describe("Scope: private (default), shared (public feed), all (both)");
 
+const FORMAT_ENUM = z.enum(["json"]).optional()
+  .describe("Response format: json; omit for plain text");
+
 function createMcpServer(user: UserContext): McpServer {
   const server = new McpServer({ name: "open-brain", version: "2.0.0" });
 
@@ -29,6 +32,7 @@ function createMcpServer(user: UserContext): McpServer {
       type: z.string().optional().describe("Filter by type: observation, task, idea, reference, person_note"),
       topic: z.string().optional().describe("Filter by topic"),
       scope: READ_SCOPE_ENUM,
+      _format: FORMAT_ENUM,
     },
   }, async (args) => ({
     content: [{ type: "text" as const, text: await executeTool("search_thoughts", args, user) }],
@@ -41,6 +45,7 @@ function createMcpServer(user: UserContext): McpServer {
       type: z.string().optional().describe("Filter by type: observation, task, idea, reference, person_note"),
       topic: z.string().optional().describe("Filter by topic"),
       scope: READ_SCOPE_ENUM,
+      _format: FORMAT_ENUM,
     },
   }, async (args) => ({
     content: [{ type: "text" as const, text: await executeTool("browse_recent", args, user) }],
@@ -48,7 +53,9 @@ function createMcpServer(user: UserContext): McpServer {
 
   server.registerTool("stats", {
     description: "Get an overview of your brain — total thoughts, breakdown by type, top topics, and people mentioned.",
-    inputSchema: {},
+    inputSchema: {
+      _format: FORMAT_ENUM,
+    },
   }, async (args) => ({
     content: [{ type: "text" as const, text: await executeTool("stats", args, user) }],
   }));
@@ -95,7 +102,9 @@ function createMcpServer(user: UserContext): McpServer {
 
   server.registerTool("list_agents", {
     description: "List all your registered AI agents and their creation dates.",
-    inputSchema: {},
+    inputSchema: {
+      _format: FORMAT_ENUM,
+    },
   }, async (args) => ({
     content: [{ type: "text" as const, text: await executeTool("list_agents", args, user) }],
   }));
@@ -115,6 +124,7 @@ function createMcpServer(user: UserContext): McpServer {
       hours: z.number().default(24).describe("Look back this many hours (default 24)"),
       agent: z.string().optional().describe("Filter to a specific agent name"),
       limit: z.number().default(50).describe("Max thoughts to return (default 50)"),
+      _format: FORMAT_ENUM,
     },
   }, async (args) => ({
     content: [{ type: "text" as const, text: await executeTool("bus_activity", args, user) }],
