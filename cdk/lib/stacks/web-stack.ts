@@ -81,7 +81,6 @@ export class WebStack extends cdk.Stack {
       {
         originRequestPolicyName: "openbrain-api-forward-headers",
         headerBehavior: cloudfront.OriginRequestHeaderBehavior.allowList(
-          "Authorization",
           "x-api-key",
           "Content-Type",
         ),
