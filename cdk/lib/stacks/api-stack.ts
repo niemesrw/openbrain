@@ -250,7 +250,6 @@ export class ApiStack extends cdk.Stack {
       handler: "handler",
       memorySize: 512,
       timeout: cdk.Duration.minutes(5),
-      reservedConcurrentExecutions: 1,
       environment: {
         VECTOR_BUCKET_NAME: vectorBucketName,
         EMBEDDING_MODEL_ID: "amazon.titan-embed-text-v2:0",
