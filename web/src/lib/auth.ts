@@ -9,6 +9,7 @@ import {
 const API_URL = import.meta.env.VITE_API_URL;
 const USER_POOL_ID = import.meta.env.VITE_USER_POOL_ID;
 const WEB_CLIENT_ID = import.meta.env.VITE_WEB_CLIENT_ID;
+const COGNITO_DOMAIN = import.meta.env.VITE_COGNITO_DOMAIN;
 
 if (!API_URL || !USER_POOL_ID || !WEB_CLIENT_ID) {
   throw new Error(
@@ -93,4 +94,95 @@ export function signIn(email: string, password: string): Promise<void> {
 export function signOut(): void {
   const user = getCurrentUser();
   if (user) user.signOut();
+}
+
+// --- Google OAuth ---
+
+const REDIRECT_URI = `${window.location.origin}/callback`;
+const OAUTH_STATE_KEY = "oauth_state";
+
+function generateOAuthState(): string {
+  const array = new Uint8Array(16);
+  window.crypto.getRandomValues(array);
+  return Array.from(array)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+function decodeBase64Url(str: string): string {
+  const base64 = str.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
+  return atob(padded);
+}
+
+export function signInWithGoogle(): void {
+  if (!COGNITO_DOMAIN) {
+    throw new Error("VITE_COGNITO_DOMAIN is required for Google sign-in");
+  }
+  const state = generateOAuthState();
+  sessionStorage.setItem(OAUTH_STATE_KEY, state);
+
+  const params = new URLSearchParams({
+    identity_provider: "Google",
+    redirect_uri: REDIRECT_URI,
+    response_type: "code",
+    client_id: WEB_CLIENT_ID,
+    scope: "openid email profile",
+    state,
+  });
+  window.location.href = `${COGNITO_DOMAIN}/oauth2/authorize?${params}`;
+}
+
+export async function handleOAuthCallback(
+  code: string,
+  state: string | null
+): Promise<void> {
+  if (!COGNITO_DOMAIN) {
+    throw new Error("VITE_COGNITO_DOMAIN is required for OAuth callback");
+  }
+
+  const expectedState = sessionStorage.getItem(OAUTH_STATE_KEY);
+  if (!expectedState || !state || expectedState !== state) {
+    throw new Error("Invalid OAuth state — possible CSRF attempt");
+  }
+  sessionStorage.removeItem(OAUTH_STATE_KEY);
+
+  const res = await fetch(`${COGNITO_DOMAIN}/oauth2/token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "authorization_code",
+      client_id: WEB_CLIENT_ID,
+      redirect_uri: REDIRECT_URI,
+      code,
+    }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Token exchange failed: ${body}`);
+  }
+
+  const tokens = await res.json();
+
+  // Store tokens in the Cognito user pool's local storage keys
+  // so that amazon-cognito-identity-js picks them up as a valid session
+  const idPayload = JSON.parse(
+    decodeBase64Url(tokens.id_token.split(".")[1])
+  );
+  const username = idPayload["cognito:username"] || idPayload.sub;
+  const keyPrefix = `CognitoIdentityServiceProvider.${WEB_CLIENT_ID}`;
+
+  localStorage.setItem(`${keyPrefix}.LastAuthUser`, username);
+  localStorage.setItem(`${keyPrefix}.${username}.idToken`, tokens.id_token);
+  localStorage.setItem(
+    `${keyPrefix}.${username}.accessToken`,
+    tokens.access_token
+  );
+  if (tokens.refresh_token) {
+    localStorage.setItem(
+      `${keyPrefix}.${username}.refreshToken`,
+      tokens.refresh_token
+    );
+  }
 }
