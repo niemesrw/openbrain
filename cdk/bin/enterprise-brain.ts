@@ -65,5 +65,10 @@ api.addDependency(data);
 
 // Web SPA — build web/ first, then deploy
 // Only instantiate when web/dist/ exists (after `cd web && npm run build`)
-const web = new WebStack(app, "EnterpriseBrainWeb", { env });
+const customDomain = app.node.tryGetContext("customDomain") ?? process.env.CUSTOM_DOMAIN;
+const web = new WebStack(app, "EnterpriseBrainWeb", {
+  env,
+  customDomain,
+  apiEndpointHostname: customDomain ? api.apiEndpointHostname : undefined,
+});
 web.addDependency(api);

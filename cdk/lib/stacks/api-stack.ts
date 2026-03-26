@@ -30,6 +30,7 @@ interface ApiStackProps extends cdk.StackProps {
 export class ApiStack extends cdk.Stack {
   public readonly api: apigwv2.HttpApi;
   public readonly handler: lambdaNode.NodejsFunction;
+  public readonly apiEndpointHostname: string;
 
   constructor(scope: Construct, id: string, props: ApiStackProps) {
     super(scope, id, props);
@@ -330,5 +331,7 @@ export class ApiStack extends cdk.Stack {
       value: this.api.apiEndpoint,
       exportName: "BrainApiUrl",
     });
+
+    this.apiEndpointHostname = cdk.Fn.select(2, cdk.Fn.split("/", this.api.apiEndpoint));
   }
 }

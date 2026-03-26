@@ -80,6 +80,7 @@ jobs:
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET_ARN: ${{ secrets.GOOGLE_CLIENT_SECRET_ARN }}
           ALARM_EMAIL: ${{ secrets.ALARM_EMAIL }}
+          CUSTOM_DOMAIN: ${{ secrets.CUSTOM_DOMAIN }}
 
       # --- Fetch CDK outputs for web build ---
 
@@ -124,6 +125,7 @@ jobs:
         env:
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET_ARN: ${{ secrets.GOOGLE_CLIENT_SECRET_ARN }}
+          CUSTOM_DOMAIN: ${{ secrets.CUSTOM_DOMAIN }}
 
       # --- Update Cognito callback URLs with CloudFront domain ---
 
@@ -139,9 +141,10 @@ jobs:
       - name: Redeploy auth with production callback URLs
         working-directory: cdk
         run: |
+          WEB_URL="${{ steps.web.outputs.url }}"
           npx cdk deploy EnterpriseBrainAuth --require-approval never \
-            -c callbackUrls='["http://localhost:5173/callback","http://localhost:19836/callback","${{ steps.web.outputs.url }}/callback"]' \
-            -c logoutUrls='["http://localhost:5173/login","http://localhost:19836/logout","${{ steps.web.outputs.url }}/login"]'
+            -c callbackUrls='["http://localhost:5173/callback","http://localhost:19836/callback","'"$WEB_URL"'/callback"]' \
+            -c logoutUrls='["http://localhost:5173/login","http://localhost:19836/logout","'"$WEB_URL"'/login"]'
         env:
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET_ARN: ${{ secrets.GOOGLE_CLIENT_SECRET_ARN }}
