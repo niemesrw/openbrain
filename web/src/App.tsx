@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Layout } from "./components/Layout";
+import { RequireAuth } from "./components/RequireAuth";
 import { SignupPage } from "./pages/SignupPage";
 import { LoginPage } from "./pages/LoginPage";
 import { CallbackPage } from "./pages/CallbackPage";
@@ -15,8 +16,10 @@ export function App() {
           <Route path="/signup" element={<SignupPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/callback" element={<CallbackPage />} />
-          <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/feed" element={<FeedPage />} />
+          <Route element={<RequireAuth />}>
+            <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/feed" element={<FeedPage />} />
+          </Route>
         </Route>
       </Routes>
     </BrowserRouter>

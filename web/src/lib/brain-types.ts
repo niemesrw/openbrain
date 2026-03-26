@@ -1,3 +1,6 @@
+export type Scope = "private" | "shared";
+export type ReadScope = Scope | "all";
+
 export interface Thought {
   id?: string;
   content: string;
@@ -8,7 +11,15 @@ export interface Thought {
   dates_mentioned: string[];
   created_at: number | null;
   similarity?: number;
-  scope: "private" | "shared";
+  scope: Scope;
+}
+
+export interface Message {
+  id: string;
+  role: "user" | "brain";
+  text: string;
+  thoughts?: Thought[];
+  timestamp: number;
 }
 
 export interface BrainStats {
