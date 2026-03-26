@@ -2,7 +2,6 @@
 .gemini/
 .claude/
 node_modules/
-package-lock.json
 *-export.json
 cdk/cdk.out/
 lambda/dist/
