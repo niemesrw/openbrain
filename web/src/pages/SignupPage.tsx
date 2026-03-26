@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { signUp, confirmSignUp, signIn } from "../lib/auth";
+import { ErrorAlert } from "../components/ErrorAlert";
 
 export function SignupPage() {
   const navigate = useNavigate();
@@ -45,11 +46,7 @@ export function SignupPage() {
     <div className="max-w-md mx-auto">
       <h1 className="text-2xl font-bold mb-6">Create your account</h1>
 
-      {error && (
-        <div className="bg-red-900/50 text-red-300 px-4 py-2 rounded mb-4">
-          {error}
-        </div>
-      )}
+      {error && <ErrorAlert message={error} />}
 
       {step === "register" ? (
         <form onSubmit={handleSignUp} className="space-y-4">

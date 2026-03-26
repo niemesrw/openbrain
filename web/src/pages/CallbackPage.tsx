@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { handleOAuthCallback } from "../lib/auth";
+import { ErrorAlert } from "../components/ErrorAlert";
 
 export function CallbackPage() {
   const navigate = useNavigate();
@@ -8,6 +9,8 @@ export function CallbackPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    let cancelled = false;
+
     const oauthError = searchParams.get("error");
     if (oauthError) {
       const desc = searchParams.get("error_description") || oauthError;
@@ -23,16 +26,22 @@ export function CallbackPage() {
 
     const state = searchParams.get("state");
     handleOAuthCallback(code, state)
-      .then(() => navigate("/dashboard", { replace: true }))
-      .catch((err) => setError(err.message || "OAuth callback failed"));
+      .then(() => {
+        if (!cancelled) navigate("/dashboard", { replace: true });
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err.message || "OAuth callback failed");
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [searchParams, navigate]);
 
   if (error) {
     return (
       <div className="max-w-md mx-auto">
-        <div className="bg-red-900/50 text-red-300 px-4 py-2 rounded">
-          {error}
-        </div>
+        <ErrorAlert message={error} />
       </div>
     );
   }

@@ -98,8 +98,11 @@ export function signOut(): void {
 
 // --- Google OAuth ---
 
-const REDIRECT_URI = `${window.location.origin}/callback`;
 const OAUTH_STATE_KEY = "oauth_state";
+
+function getRedirectUri(): string {
+  return `${window.location.origin}/callback`;
+}
 
 function generateOAuthState(): string {
   const array = new Uint8Array(16);
@@ -124,7 +127,7 @@ export function signInWithGoogle(): void {
 
   const params = new URLSearchParams({
     identity_provider: "Google",
-    redirect_uri: REDIRECT_URI,
+    redirect_uri: getRedirectUri(),
     response_type: "code",
     client_id: WEB_CLIENT_ID,
     scope: "openid email profile",
@@ -142,10 +145,15 @@ export async function handleOAuthCallback(
   }
 
   const expectedState = sessionStorage.getItem(OAUTH_STATE_KEY);
-  if (!expectedState || !state || expectedState !== state) {
-    throw new Error("Invalid OAuth state — possible CSRF attempt");
+  if (!expectedState) {
+    throw new Error("OAuth state not found in session — try signing in again");
   }
-  sessionStorage.removeItem(OAUTH_STATE_KEY);
+  if (!state) {
+    throw new Error("OAuth state missing from callback URL");
+  }
+  if (expectedState !== state) {
+    throw new Error("OAuth state mismatch — possible CSRF attempt");
+  }
 
   const res = await fetch(`${COGNITO_DOMAIN}/oauth2/token`, {
     method: "POST",
@@ -153,20 +161,18 @@ export async function handleOAuthCallback(
     body: new URLSearchParams({
       grant_type: "authorization_code",
       client_id: WEB_CLIENT_ID,
-      redirect_uri: REDIRECT_URI,
+      redirect_uri: getRedirectUri(),
       code,
     }),
   });
 
   if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Token exchange failed: ${body}`);
+    throw new Error(`Token exchange failed (${res.status})`);
   }
 
   const tokens = await res.json();
 
-  // Store tokens in the Cognito user pool's local storage keys
-  // so that amazon-cognito-identity-js picks them up as a valid session
+  // Store tokens so amazon-cognito-identity-js picks them up as a valid session
   const idPayload = JSON.parse(
     decodeBase64Url(tokens.id_token.split(".")[1])
   );
@@ -185,4 +191,6 @@ export async function handleOAuthCallback(
       tokens.refresh_token
     );
   }
+
+  sessionStorage.removeItem(OAUTH_STATE_KEY);
 }

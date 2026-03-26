@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { signIn, signInWithGoogle } from "../lib/auth";
+import { ErrorAlert } from "../components/ErrorAlert";
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -27,11 +28,7 @@ export function LoginPage() {
     <div className="max-w-md mx-auto">
       <h1 className="text-2xl font-bold mb-6">Log in</h1>
 
-      {error && (
-        <div className="bg-red-900/50 text-red-300 px-4 py-2 rounded mb-4">
-          {error}
-        </div>
-      )}
+      {error && <ErrorAlert message={error} />}
 
       <button
         onClick={() => signInWithGoogle()}
