@@ -38,12 +38,22 @@ function isBlockedUrl(url: string): boolean {
   return BLOCKED_IP_PATTERNS.some((p) => p.test(url));
 }
 
-function scheduleToMs(schedule: string): number {
+export function scheduleToMs(schedule: string): number {
   const lower = schedule.toLowerCase();
   if (lower.includes("hourly") || lower === "every hour") return 3_600_000;
   if (lower.includes("weekly")) return 604_800_000;
+  const everyNMinutes = lower.match(/every\s+(\d+)\s*min(?:ute)?s?\b/);
+  if (everyNMinutes) {
+    const minutes = parseInt(everyNMinutes[1], 10);
+    if (!Number.isFinite(minutes) || minutes <= 0) return 86_400_000;
+    return minutes * 60_000;
+  }
   const everyNHours = lower.match(/every\s+(\d+)\s*hours?/);
-  if (everyNHours) return parseInt(everyNHours[1]) * 3_600_000;
+  if (everyNHours) {
+    const hours = parseInt(everyNHours[1], 10);
+    if (!Number.isFinite(hours) || hours <= 0) return 86_400_000;
+    return hours * 3_600_000;
+  }
   return 86_400_000; // default: daily
 }
 

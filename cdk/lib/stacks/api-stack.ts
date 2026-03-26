@@ -250,6 +250,7 @@ export class ApiStack extends cdk.Stack {
       handler: "handler",
       memorySize: 512,
       timeout: cdk.Duration.minutes(5),
+      reservedConcurrentExecutions: 1,
       environment: {
         VECTOR_BUCKET_NAME: vectorBucketName,
         EMBEDDING_MODEL_ID: "amazon.titan-embed-text-v2:0",
@@ -297,8 +298,8 @@ export class ApiStack extends cdk.Stack {
     );
 
     new events.Rule(this, "AgentRunnerSchedule", {
-      schedule: events.Schedule.rate(cdk.Duration.hours(1)),
-      description: "Triggers the background agent runner every hour",
+      schedule: events.Schedule.rate(cdk.Duration.minutes(5)),
+      description: "Triggers the background agent runner every 5 minutes",
       targets: [new targets.LambdaFunction(agentRunner)],
     });
 
