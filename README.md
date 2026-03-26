@@ -9,76 +9,7 @@ One database that every AI you use shares as persistent memory. Claude, ChatGPT,
 - **Memory migration** — Pull memories out of ChatGPT, Claude, and Gemini into one shared brain
 - **Skills for each AI** — Pre-built instructions that teach each client how to use the brain
 
-## Choose Your Path
-
-| | Supabase (Personal) | AWS (Enterprise) |
-|---|---|---|
-| **Best for** | Individuals, hobbyists, agent builders | Teams, orgs, production workloads |
-| **Setup time** | ~45 minutes, no coding | ~15 minutes, requires CDK |
-| **Cost** | Free tier | Pay-per-use (~$0.10-0.50/mo) |
-| **Auth** | API key (brain key) | Cognito JWT |
-| **Vector storage** | pgvector (Postgres) | S3 Vectors |
-| **Embeddings** | OpenRouter (any model) | Bedrock Titan Embed v2 |
-| **Scoping** | Single user | Private + shared (org-wide) |
-| **MCP transport** | HTTP | HTTP |
-
-Both paths expose the same MCP tools and work with the same AI clients.
-
----
-
-## Path A: Supabase (Personal)
-
-```
-Claude Code ──┐
-Claude Desktop ┼── MCP ──→ Supabase Edge Function ──→ pgvector
-ChatGPT ───────┤                    ↕
-Gemini CLI ────┘                OpenRouter
-                           (embed + classify)
-```
-
-Zero coding, free tier, perfect for personal use and building agents on top of shared memory.
-
-The Supabase path is based entirely on [Nate B. Jones'](https://www.youtube.com/@DoingAIDifferently) original Open Brain concept. He created the architecture, the setup guide, and the MCP server design. **For the complete step-by-step Supabase setup, follow Nate's guide on his [Substack](https://natesnewsletter.substack.com/).** The video walkthrough is [here](https://www.youtube.com/watch?v=2JiMmye2ezg).
-
-The `supabase/` directory in this repo contains the Edge Function and migrations referenced in his guide.
-
-### Connect Your AIs (Supabase)
-
-#### Claude Code
-
-```bash
-claude mcp add --transport http open-brain \
-  https://YOUR_PROJECT.supabase.co/functions/v1/open-brain-mcp \
-  --header "x-brain-key: YOUR_BRAIN_KEY"
-```
-
-#### Claude Agent SDK
-
-Pass MCP config directly in `query()` options — child processes don't inherit MCP from the parent:
-
-```typescript
-const response = query({
-  prompt: "Search my brain for...",
-  options: {
-    mcpServers: {
-      "open-brain": {
-        type: "http",
-        url: process.env.OPEN_BRAIN_URL,
-        headers: { "x-brain-key": process.env.OPEN_BRAIN_KEY },
-      },
-    },
-    allowedTools: ["mcp__open-brain__search_thoughts", "mcp__open-brain__capture_thought"],
-  },
-});
-```
-
-#### Other clients
-
-Same as AWS path below, but use your Supabase function URL and `x-brain-key` header instead of Bearer token.
-
----
-
-## Path B: AWS (Enterprise)
+## Architecture
 
 ```
 Claude Code ──┐
@@ -88,7 +19,9 @@ Gemini CLI ────┘                  Bedrock
                              (embed + classify)
 ```
 
-**AWS Enterprise deployment** — Lambda + S3 Vectors + Bedrock + Cognito. Fully serverless, org-level sharing, Cognito JWT auth.
+Fully serverless — Lambda + S3 Vectors + Bedrock + Cognito. Org-level sharing with JWT auth.
+
+> **Legacy Supabase docs:** Some files in this repo (`openbrain-guide.md`, `slack/SETUP.md`) still reference an older Supabase/Deno deployment path. These are deprecated — use the AWS instructions below.
 
 ### Cost
 
@@ -219,8 +152,6 @@ gemini mcp add -t http open-brain \
 
 ## MCP Tools
 
-Both paths expose the same tools:
-
 | Tool | Description |
 |------|-------------|
 | `search_thoughts` | Semantic search — finds thoughts by meaning |
@@ -280,14 +211,6 @@ Automatically captures Gemini-generated meeting summaries as shared thoughts. Se
 
 ## Troubleshooting
 
-### Supabase
-
-**No search results** — Capture some thoughts first. Check that your Edge Function is deployed and the brain key matches.
-
-**Edge Function errors** — Check Supabase dashboard → Edge Functions → Logs.
-
-### AWS
-
 **401 errors** — Token expired. Cognito tokens last 8 hours (CLI client) or 1 hour (web client). Re-authenticate and update your client config.
 
 **Bedrock `AccessDeniedException` with cross-region model** — Cross-region inference profiles require the IAM policy to grant access to both the inference profile ARN *and* the underlying foundation model ARNs in each routable region. See `cdk/lib/stacks/api-stack.ts` for the required ARN set.
@@ -302,12 +225,7 @@ Automatically captures Gemini-generated meeting summaries as shared thoughts. Se
 
 ```
 openbrain/
-├── supabase/                       # Supabase (Personal) deployment
-│   ├── functions/
-│   │   └── open-brain-mcp/         # Edge Function MCP server
-│   ├── migrations/                 # SQL migrations (pgvector setup)
-│   └── config.toml
-├── cdk/                            # AWS (Enterprise) deployment
+├── cdk/                            # AWS CDK infrastructure
 │   ├── bin/
 │   │   └── enterprise-brain.ts
 │   └── lib/stacks/
@@ -323,7 +241,7 @@ openbrain/
 │           ├── vectors.ts          # S3 Vectors client
 │           ├── embeddings.ts       # Bedrock Titan Embed v2
 │           └── metadata.ts         # Bedrock Claude Haiku 4.5
-├── openbrain-guide.md              # Complete Supabase setup guide
+├── openbrain-guide.md              # Legacy Supabase/OpenRouter setup guide (deprecated)
 ├── skills/                         # AI client instructions
 ├── google-meet/                    # Optional: Google Meet ingestion
 ├── slack/                          # Optional: Slack capture channel
@@ -334,4 +252,4 @@ openbrain/
 
 ## Credits
 
-The Open Brain concept, Supabase architecture, and MCP server design are the work of [Nate B. Jones](https://www.youtube.com/@DoingAIDifferently). His [original video](https://www.youtube.com/watch?v=2JiMmye2ezg) and [Substack newsletter](https://natesnewsletter.substack.com/) walk through the full setup and philosophy. The AWS enterprise path in this repo is a derivative that swaps the infrastructure layer for serverless AWS services (S3 Vectors, Bedrock, Cognito) while keeping the same core idea: one brain, every AI.
+The Open Brain concept and MCP server design are the work of [Nate B. Jones](https://www.youtube.com/@DoingAIDifferently). His [original video](https://www.youtube.com/watch?v=2JiMmye2ezg) and [Substack newsletter](https://natesnewsletter.substack.com/) walk through the philosophy. This repo implements the idea on AWS serverless infrastructure (S3 Vectors, Bedrock, Cognito) — one brain, every AI.

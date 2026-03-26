@@ -1,24 +1,18 @@
 # Open Brain
 
-This repo implements the [Open Brain guide](https://promptkit.natebjones.com/20260224_uq1_guide_main) by Nate B. Jones. The goal is to mirror the guide as closely as possible while automating setup via `setup.sh`.
+This repo implements the [Open Brain guide](https://promptkit.natebjones.com/20260224_uq1_guide_main) by Nate B. Jones.
 
 ## Repo Purpose
 
-Everything a user needs to set up their own Open Brain. Two deployment paths:
+Everything a user needs to set up their own Open Brain on AWS.
 
-**Supabase (free tier):**
-- `setup.sh` — Automated setup: links Supabase, applies migrations, sets secrets, deploys functions
-- `supabase/migrations/` — Database schema (pgvector, thoughts table, match_thoughts function)
-- `supabase/functions/open-brain-mcp/` — MCP server (Edge Function)
-
-**AWS Enterprise:**
 - `cdk/` — CDK stacks: S3 Vectors, Cognito auth, API Gateway + Lambda
 - `lambda/` — MCP server with S3 Vectors storage, Bedrock embeddings/metadata
 - Index-per-scope design: `private-{userId}` + `shared` indexes
-
-**Shared:**
 - `slack/ingest-thought/` — Optional Slack capture add-on
 - `skills/` — Pre-built instructions for each AI client
+
+> **Note:** The Supabase deployment path (`supabase/`, `setup.sh`) is deprecated and will be removed in a future release. AWS is the sole supported path going forward.
 
 ## Claude Code Skill
 
@@ -72,7 +66,7 @@ Open Brain doubles as a shared communication bus for agents. Each agent gets its
 **How it works:**
 - Per-agent keys are stored in the `agent_keys` table. Auth looks up the key to identify the agent.
 - On `capture_thought`, the server injects `agent_id` into metadata automatically — agents don't pass it.
-- `bus_activity` calls a server-side SQL function for efficient aggregation.
+- `bus_activity` scans the shared S3 Vectors index and aggregates results in the Lambda.
 
 **Topic channels (convention):**
 - Use `channel:` prefix for bus-oriented topics: `channel:deploys`, `channel:security`, `channel:research`
@@ -80,20 +74,13 @@ Open Brain doubles as a shared communication bus for agents. Each agent gets its
 - Agents "subscribe" by searching/browsing with a topic filter
 
 **Web dashboard:**
-- `dashboard.html` — standalone HTML file, serve locally (`python3 -m http.server 8787`)
-- Connects to the `open-brain-dashboard` Edge Function (JSON API) for data
+- React SPA in `web/` — deployed via CDK (S3 + CloudFront)
 - Shows agent activity, per-agent breakdown, and recent thoughts timeline
 - Auto-refreshes every 30 seconds
-- **Auth:** GitHub/Google OAuth via Supabase Auth, or API key fallback
-- First visit requires `?anon_key=<supabase-anon-key>` URL param (saved to localStorage)
-- OAuth providers configured in Supabase Dashboard → Authentication → Providers
+- **Auth:** Cognito JWT (social login TBD)
 
 **Registering a new agent:**
-```sql
-insert into agent_keys (agent_name) values ('my-agent');
--- api_key is auto-generated; retrieve it:
-select agent_name, api_key from agent_keys where agent_name = 'my-agent';
-```
+Use the `create_agent` / `list_agents` / `revoke_agent` MCP tools, or manage via the DynamoDB `agent_keys` table.
 
 ## Memory Migration
 
@@ -135,13 +122,12 @@ The brain can store any personal context. Have the user export data from service
 
 After migration, suggest the user test by asking a different AI client about something that was just migrated.
 
+## Infrastructure — Self-Hosted Runners
+
+The org has self-hosted GitHub Actions runners (macOS ARM64, Linux ARM64).
+Use `runs-on: self-hosted` in workflows targeting these runners.
+
 ## Development Notes
-
-### Supabase Path
-
-Migrations are in `supabase/migrations/`. The initial schema is in `20260306000000_initial_schema.sql`. Additional migrations add server-side functions (e.g. `stats_summary()` for aggregation without PostgREST row limits).
-
-### AWS Enterprise Path
 
 Uses S3 Vectors with an index-per-scope design. The `shared` index is created by CDK at deploy time. Private user indexes (`private-{userId}`) are created on-demand at first capture via the Lambda. No database migrations needed — S3 Vectors is schemaless.
 
@@ -154,32 +140,13 @@ Uses S3 Vectors with an index-per-scope design. The `shared` index is created by
 
 ## CI/CD
 
-### Supabase Deploy (`.github/workflows/deploy-supabase.yml`)
-
-Runs automatically on push to `main` when files change in `supabase/migrations/` or `supabase/functions/`. Pushes migrations and deploys Edge Functions using the Supabase CLI.
-
-**Required GitHub secrets:**
-- `SUPABASE_ACCESS_TOKEN` — Personal access token from [supabase.com/dashboard/account/tokens](https://supabase.com/dashboard/account/tokens)
-- `SUPABASE_PROJECT_REF` — Supabase project reference ID
-
 ### Integration Tests (`.github/workflows/integration-tests.yml`)
 
 Manual-only (`workflow_dispatch`). Uses OIDC to AWS management account to fetch test credentials from Secrets Manager, then runs the integration test suite in `tests/`.
 
-### Local Deploy
-
-You can still deploy manually:
-```bash
-supabase db push
-supabase functions deploy open-brain-mcp --no-verify-jwt
-supabase functions deploy open-brain-dashboard --no-verify-jwt
-```
-
 ## Troubleshooting
 
-**Supabase path:** If the MCP server shows "failed" or won't connect, the most common cause is a **key mismatch**. Running `setup.sh` again (or regenerating the key during setup) updates the Supabase secret but does not update AI client configs. Compare the key in the client config against `.setup-state` or the setup script output — they must match.
-
-**AWS Enterprise path:** If tools return errors, check CloudWatch Logs for the Lambda function. Common issues:
+If tools return errors, check CloudWatch Logs for the Lambda function. Common issues:
 - **Bedrock model access:** Ensure Titan Embed v2 and the Claude Haiku model are enabled in your region
 - **S3 Vectors permissions:** The Lambda role needs `s3vectors:*` on the vector bucket
 - **`AccessDeniedException` from Bedrock with a cross-region model:** Cross-region inference profiles (e.g. `us.anthropic.claude-haiku-4-5-20251001-v1:0`) require the IAM policy to grant access to both the inference profile ARN *and* the underlying foundation model ARNs in each routable region. The profile ARN alone is not sufficient. See `api-stack.ts` for the required ARN set.
