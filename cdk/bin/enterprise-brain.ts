@@ -55,6 +55,7 @@ const api = new ApiStack(app, "EnterpriseBrainApi", {
   cliClient: auth.cliClient,
   agentKeysTable: data.agentKeysTable,
   usersTable: data.usersTable,
+  agentTasksTable: data.agentTasksTable,
 });
 
 api.addDependency(vectors);

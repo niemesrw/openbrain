@@ -7,6 +7,8 @@ import * as apigwv2Authorizers from "aws-cdk-lib/aws-apigatewayv2-authorizers";
 import * as cognito from "aws-cdk-lib/aws-cognito";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import * as iam from "aws-cdk-lib/aws-iam";
+import * as events from "aws-cdk-lib/aws-events";
+import * as targets from "aws-cdk-lib/aws-events-targets";
 import { Construct } from "constructs";
 import * as path from "path";
 
@@ -17,6 +19,7 @@ interface ApiStackProps extends cdk.StackProps {
   cliClient: cognito.UserPoolClient;
   agentKeysTable: dynamodb.Table;
   usersTable: dynamodb.Table;
+  agentTasksTable: dynamodb.Table;
 }
 
 export class ApiStack extends cdk.Stack {
@@ -33,6 +36,7 @@ export class ApiStack extends cdk.Stack {
       cliClient,
       agentKeysTable,
       usersTable,
+      agentTasksTable,
     } = props;
 
     // Main MCP handler Lambda
@@ -48,6 +52,7 @@ export class ApiStack extends cdk.Stack {
         METADATA_MODEL_ID: "us.anthropic.claude-haiku-4-5-20251001-v1:0",
         AGENT_KEYS_TABLE: agentKeysTable.tableName,
         USERS_TABLE: usersTable.tableName,
+        AGENT_TASKS_TABLE: agentTasksTable.tableName,
       },
       bundling: {
         externalModules: ["@aws-sdk/*"],
@@ -92,6 +97,7 @@ export class ApiStack extends cdk.Stack {
     // DynamoDB permissions for main handler
     agentKeysTable.grantReadWriteData(this.handler);
     usersTable.grantReadData(this.handler);
+    agentTasksTable.grantReadWriteData(this.handler);
 
     // Chat handler Lambda (LLM + brain tools via Bedrock Converse)
     const chatHandler = new lambdaNode.NodejsFunction(this, "ChatHandler", {
@@ -107,6 +113,7 @@ export class ApiStack extends cdk.Stack {
         CHAT_MODEL_ID: "us.anthropic.claude-haiku-4-5-20251001-v1:0",
         AGENT_KEYS_TABLE: agentKeysTable.tableName,
         USERS_TABLE: usersTable.tableName,
+        AGENT_TASKS_TABLE: agentTasksTable.tableName,
       },
       bundling: {
         externalModules: ["@aws-sdk/*"],
@@ -147,6 +154,7 @@ export class ApiStack extends cdk.Stack {
     );
     agentKeysTable.grantReadWriteData(chatHandler);
     usersTable.grantReadData(chatHandler);
+    agentTasksTable.grantReadWriteData(chatHandler);
 
     // Custom Lambda authorizer (supports both JWT and API key)
     const authorizerFn = new lambdaNode.NodejsFunction(this, "AuthorizerFn", {
@@ -233,6 +241,65 @@ export class ApiStack extends cdk.Stack {
       methods: [apigwv2.HttpMethod.POST],
       integration: chatIntegration,
       authorizer,
+    });
+
+    // Background agent runner (scheduled hourly)
+    const agentRunner = new lambdaNode.NodejsFunction(this, "AgentRunner", {
+      runtime: lambda.Runtime.NODEJS_20_X,
+      entry: path.join(__dirname, "..", "..", "..", "lambda", "src", "agent-runner.ts"),
+      handler: "handler",
+      memorySize: 512,
+      timeout: cdk.Duration.minutes(5),
+      environment: {
+        VECTOR_BUCKET_NAME: vectorBucketName,
+        EMBEDDING_MODEL_ID: "amazon.titan-embed-text-v2:0",
+        METADATA_MODEL_ID: "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+        CHAT_MODEL_ID: "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+        AGENT_TASKS_TABLE: agentTasksTable.tableName,
+      },
+      bundling: {
+        externalModules: ["@aws-sdk/*"],
+        minify: true,
+        sourceMap: true,
+      },
+    });
+
+    agentTasksTable.grantReadWriteData(agentRunner);
+
+    agentRunner.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: [
+          "s3vectors:CreateIndex",
+          "s3vectors:QueryVectors",
+          "s3vectors:PutVectors",
+          "s3vectors:GetVectors",
+          "s3vectors:DeleteVectors",
+          "s3vectors:ListVectors",
+          "s3vectors:ListIndexes",
+        ],
+        resources: [
+          `arn:aws:s3vectors:${this.region}:${this.account}:bucket/${vectorBucketName}`,
+          `arn:aws:s3vectors:${this.region}:${this.account}:bucket/${vectorBucketName}/*`,
+        ],
+      })
+    );
+    agentRunner.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ["bedrock:InvokeModel"],
+        resources: [
+          `arn:aws:bedrock:${this.region}::foundation-model/amazon.titan-embed-text-v2:0`,
+          `arn:aws:bedrock:${this.region}:${this.account}:inference-profile/us.anthropic.claude-haiku-4-5-20251001-v1:0`,
+          `arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0`,
+          `arn:aws:bedrock:us-east-2::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0`,
+          `arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0`,
+        ],
+      })
+    );
+
+    new events.Rule(this, "AgentRunnerSchedule", {
+      schedule: events.Schedule.rate(cdk.Duration.hours(1)),
+      description: "Triggers the background agent runner every hour",
+      targets: [new targets.LambdaFunction(agentRunner)],
     });
 
     // Outputs

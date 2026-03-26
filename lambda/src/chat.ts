@@ -20,8 +20,7 @@ const MAX_TOOL_ROUNDS = 5;
 
 const bedrock = new BedrockRuntimeClient({});
 
-const SYSTEM_PROMPT: SystemContentBlock[] = [
-  {
+const SYSTEM_PROMPT: SystemContentBlock[] = [{
     text: `You are Open Brain, a personal knowledge assistant. You help users capture thoughts, search their memory, browse recent entries, and understand their brain's contents.
 
 Behavior:
@@ -34,22 +33,13 @@ Behavior:
 - Default scope is "private" unless the user says to share.
 - Be concise. Don't over-explain what you're doing.
 
-Agent tasks:
-When a user expresses a recurring wish, automated task, or scheduled need — like "tell me the weather every morning", "check my portfolio daily", or "remind me to review PRs every Monday" — capture it as a structured agent task so background agents can pick it up and execute it automatically.
+Scheduled tasks:
+When a user expresses a recurring wish, automated task, or scheduled need — like "tell me the weather every morning", "check my portfolio daily", or "remind me to review PRs every Monday" — use the schedule_task tool to set it up. Background agents will execute it automatically on the specified schedule.
 
-Format the captured text exactly like this:
-[agent-task] <short title>
-Schedule: <frequency — e.g. daily, hourly, weekly on Monday, every 6 hours>
-Action: <what to do — be specific and actionable>
-Channel: channel:agent-tasks
+Use list_tasks to show the user their active tasks. Use cancel_task to remove one.
 
-Examples:
-- "I want daily weather updates" → capture: "[agent-task] Daily weather update\\nSchedule: daily at 7am\\nAction: Get weather forecast for the user's location and write a summary\\nChannel: channel:agent-tasks"
-- "Check HackerNews for AI news every morning" → capture: "[agent-task] Morning AI news scan\\nSchedule: daily at 8am\\nAction: Search HackerNews for top AI/ML stories and summarize the top 5\\nChannel: channel:agent-tasks"
-
-After capturing an agent task, confirm what was set up and mention that background agents will handle it automatically. If the schedule or action is unclear, ask the user to clarify before capturing.`,
-  },
-];
+If the schedule or action is unclear, ask the user to clarify before scheduling.`,
+}];
 
 const CHAT_TOOLS: Tool[] = [
   {
@@ -118,6 +108,54 @@ const CHAT_TOOLS: Tool[] = [
             },
           },
           required: ["text"],
+        },
+      },
+    },
+  },
+  {
+    toolSpec: {
+      name: "schedule_task",
+      description:
+        "Schedule a recurring background task. Use when the user wants something done automatically on a regular basis.",
+      inputSchema: {
+        json: {
+          type: "object",
+          properties: {
+            title: { type: "string", description: "Short task title" },
+            schedule: {
+              type: "string",
+              description: "Frequency: hourly, daily, weekly, every N hours",
+            },
+            action: {
+              type: "string",
+              description: "What to do — be specific and actionable",
+            },
+          },
+          required: ["title", "schedule", "action"],
+        },
+      },
+    },
+  },
+  {
+    toolSpec: {
+      name: "list_tasks",
+      description: "List the user's active scheduled tasks.",
+      inputSchema: {
+        json: { type: "object", properties: {} },
+      },
+    },
+  },
+  {
+    toolSpec: {
+      name: "cancel_task",
+      description: "Cancel a scheduled task by ID.",
+      inputSchema: {
+        json: {
+          type: "object",
+          properties: {
+            taskId: { type: "string", description: "Task ID to cancel" },
+          },
+          required: ["taskId"],
         },
       },
     },

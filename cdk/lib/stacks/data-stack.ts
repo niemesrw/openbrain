@@ -5,6 +5,7 @@ import { Construct } from "constructs";
 export class DataStack extends cdk.Stack {
   public readonly agentKeysTable: dynamodb.Table;
   public readonly usersTable: dynamodb.Table;
+  public readonly agentTasksTable: dynamodb.Table;
 
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
@@ -32,6 +33,21 @@ export class DataStack extends cdk.Stack {
       partitionKey: { name: "userId", type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       removalPolicy: cdk.RemovalPolicy.RETAIN,
+    });
+
+    // Agent Tasks table — stores scheduled tasks per user
+    // PK: userId  SK: taskId
+    this.agentTasksTable = new dynamodb.Table(this, "AgentTasksTable", {
+      tableName: "openbrain-agent-tasks",
+      partitionKey: { name: "userId", type: dynamodb.AttributeType.STRING },
+      sortKey: { name: "taskId", type: dynamodb.AttributeType.STRING },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+    });
+
+    new cdk.CfnOutput(this, "AgentTasksTableName", {
+      value: this.agentTasksTable.tableName,
+      exportName: "BrainAgentTasksTableName",
     });
 
     new cdk.CfnOutput(this, "AgentKeysTableName", {
