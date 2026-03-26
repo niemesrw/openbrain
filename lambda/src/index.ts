@@ -2,235 +2,175 @@ import type {
   APIGatewayProxyEventV2,
   APIGatewayProxyResultV2,
 } from "aws-lambda";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
+import { z } from "zod";
 import { extractUserContext } from "./auth/context";
 import { executeTool } from "./tool-executor";
-import type { McpRequest, UserContext } from "./types";
+import type { UserContext } from "./types";
 
-// --- Tool definitions ---
+// --- Tool registration ---
 
-const TOOLS = [
-  {
-    name: "search_thoughts",
-    description:
-      "Search your brain by meaning. Uses semantic similarity to find relevant thoughts regardless of exact keywords.",
+const SCOPE_ENUM = z.enum(["private", "shared"]).default("private")
+  .describe("Scope: private (default, only you), shared (public feed)");
+
+const READ_SCOPE_ENUM = z.enum(["private", "shared", "all"]).default("private")
+  .describe("Scope: private (default), shared (public feed), all (both)");
+
+function createMcpServer(user: UserContext): McpServer {
+  const server = new McpServer({ name: "open-brain", version: "2.0.0" });
+
+  server.registerTool("search_thoughts", {
+    description: "Search your brain by meaning. Uses semantic similarity to find relevant thoughts regardless of exact keywords.",
     inputSchema: {
-      type: "object",
-      properties: {
-        query: {
-          type: "string",
-          description: "What you're looking for — natural language",
-        },
-        threshold: {
-          type: "number",
-          description:
-            "Similarity threshold 0-1 (lower = broader results)",
-          default: 0.5,
-        },
-        limit: {
-          type: "number",
-          description: "Max results to return",
-          default: 10,
-        },
-        type: {
-          type: "string",
-          description:
-            "Filter by type: observation, task, idea, reference, person_note",
-        },
-        topic: { type: "string", description: "Filter by topic" },
-        scope: {
-          type: "string",
-          description:
-            "Scope: private (default, your thoughts only), shared (public feed), all (both)",
-          default: "private",
-        },
-      },
-      required: ["query"],
+      query: z.string().describe("What you're looking for — natural language"),
+      threshold: z.number().default(0.5).describe("Similarity threshold 0-1 (lower = broader results)"),
+      limit: z.number().default(10).describe("Max results to return"),
+      type: z.string().optional().describe("Filter by type: observation, task, idea, reference, person_note"),
+      topic: z.string().optional().describe("Filter by topic"),
+      scope: READ_SCOPE_ENUM,
     },
-  },
-  {
-    name: "browse_recent",
-    description:
-      "Browse recent thoughts chronologically. Optionally filter by type or topic.",
+  }, async (args) => ({
+    content: [{ type: "text" as const, text: await executeTool("search_thoughts", args, user) }],
+  }));
+
+  server.registerTool("browse_recent", {
+    description: "Browse recent thoughts chronologically. Optionally filter by type or topic.",
     inputSchema: {
-      type: "object",
-      properties: {
-        limit: {
-          type: "number",
-          description: "Number of recent thoughts",
-          default: 10,
-        },
-        type: {
-          type: "string",
-          description:
-            "Filter by type: observation, task, idea, reference, person_note",
-        },
-        topic: { type: "string", description: "Filter by topic" },
-        scope: {
-          type: "string",
-          description: "Scope: private (default), shared (public feed), all",
-          default: "private",
-        },
-      },
+      limit: z.number().default(10).describe("Number of recent thoughts"),
+      type: z.string().optional().describe("Filter by type: observation, task, idea, reference, person_note"),
+      topic: z.string().optional().describe("Filter by topic"),
+      scope: READ_SCOPE_ENUM,
     },
-  },
-  {
-    name: "stats",
-    description:
-      "Get an overview of your brain — total thoughts, breakdown by type, top topics, and people mentioned.",
-    inputSchema: { type: "object", properties: {} },
-  },
-  {
-    name: "capture_thought",
-    description:
-      "Save a new thought to your brain. Automatically generates embedding and extracts metadata.",
+  }, async (args) => ({
+    content: [{ type: "text" as const, text: await executeTool("browse_recent", args, user) }],
+  }));
+
+  server.registerTool("stats", {
+    description: "Get an overview of your brain — total thoughts, breakdown by type, top topics, and people mentioned.",
+    inputSchema: {},
+  }, async (args) => ({
+    content: [{ type: "text" as const, text: await executeTool("stats", args, user) }],
+  }));
+
+  server.registerTool("capture_thought", {
+    description: "Save a new thought to your brain. Automatically generates embedding and extracts metadata.",
     inputSchema: {
-      type: "object",
-      properties: {
-        text: { type: "string", description: "The thought to capture" },
-        scope: {
-          type: "string",
-          description:
-            "Scope: private (default, only you can see it), shared (visible on the public feed)",
-          default: "private",
-        },
-      },
-      required: ["text"],
+      text: z.string().describe("The thought to capture"),
+      scope: SCOPE_ENUM,
     },
-  },
-  {
-    name: "update_thought",
-    description:
-      "Update an existing thought by ID. Re-embeds the new text and refreshes metadata. The thought ID is returned by browse_recent and search_thoughts when using _format: 'json'.",
+  }, async (args) => ({
+    content: [{ type: "text" as const, text: await executeTool("capture_thought", args, user) }],
+  }));
+
+  server.registerTool("update_thought", {
+    description: "Update an existing thought by ID. Re-embeds the new text and refreshes metadata. The thought ID is returned by browse_recent and search_thoughts.",
     inputSchema: {
-      type: "object",
-      properties: {
-        id: {
-          type: "string",
-          description: "The vector key (ID) of the thought to update",
-        },
-        text: {
-          type: "string",
-          description: "The new text content for the thought",
-        },
-        scope: {
-          type: "string",
-          description: "Scope of the thought: private (default) or shared",
-          default: "private",
-        },
-      },
-      required: ["id", "text"],
+      id: z.string().describe("The vector key (ID) of the thought to update"),
+      text: z.string().describe("The new text content for the thought"),
+      scope: SCOPE_ENUM,
     },
-  },
-  {
-    name: "delete_thought",
-    description:
-      "Delete a thought by ID. The thought ID is returned by browse_recent and search_thoughts when using _format: 'json'.",
+  }, async (args) => ({
+    content: [{ type: "text" as const, text: await executeTool("update_thought", args, user) }],
+  }));
+
+  server.registerTool("delete_thought", {
+    description: "Delete a thought by ID. The thought ID is returned by browse_recent and search_thoughts.",
     inputSchema: {
-      type: "object",
-      properties: {
-        id: {
-          type: "string",
-          description: "The vector key (ID) of the thought to delete",
-        },
-        scope: {
-          type: "string",
-          description: "Scope of the thought: private (default) or shared",
-          default: "private",
-        },
-      },
-      required: ["id"],
+      id: z.string().describe("The vector key (ID) of the thought to delete"),
+      scope: SCOPE_ENUM,
     },
-  },
-  {
-    name: "create_agent",
-    description:
-      "Create an API key for an AI agent. Returns the key and MCP config snippets for Claude Code, Claude Desktop, etc.",
+  }, async (args) => ({
+    content: [{ type: "text" as const, text: await executeTool("delete_thought", args, user) }],
+  }));
+
+  server.registerTool("create_agent", {
+    description: "Create an API key for an AI agent. Returns the key and MCP config snippets for Claude Code, Claude Desktop, etc.",
     inputSchema: {
-      type: "object",
-      properties: {
-        name: {
-          type: "string",
-          description:
-            "Agent name (alphanumeric, hyphens, underscores). e.g. 'claude-code', 'chatgpt'",
-        },
-      },
-      required: ["name"],
+      name: z.string().describe("Agent name (alphanumeric, hyphens, underscores). e.g. 'claude-code', 'chatgpt'"),
     },
-  },
-  {
-    name: "list_agents",
+  }, async (args) => ({
+    content: [{ type: "text" as const, text: await executeTool("create_agent", args, user) }],
+  }));
+
+  server.registerTool("list_agents", {
     description: "List all your registered AI agents and their creation dates.",
-    inputSchema: { type: "object", properties: {} },
-  },
-  {
-    name: "revoke_agent",
-    description:
-      "Revoke an agent's API key. The key will immediately stop working.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        name: {
-          type: "string",
-          description: "The agent name to revoke",
-        },
-      },
-      required: ["name"],
-    },
-  },
-  {
-    name: "bus_activity",
-    description:
-      "Monitor the public feed — recent shared thoughts grouped by contributor, activity counts, and timeline.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        hours: {
-          type: "number",
-          description: "Look back this many hours (default 24)",
-          default: 24,
-        },
-        agent: {
-          type: "string",
-          description: "Filter to a specific agent name",
-        },
-        limit: {
-          type: "number",
-          description: "Max thoughts to return (default 50)",
-          default: 50,
-        },
-      },
-    },
-  },
-];
+    inputSchema: {},
+  }, async (args) => ({
+    content: [{ type: "text" as const, text: await executeTool("list_agents", args, user) }],
+  }));
 
-// --- JSON-RPC helpers ---
+  server.registerTool("revoke_agent", {
+    description: "Revoke an agent's API key. The key will immediately stop working.",
+    inputSchema: {
+      name: z.string().describe("The agent name to revoke"),
+    },
+  }, async (args) => ({
+    content: [{ type: "text" as const, text: await executeTool("revoke_agent", args, user) }],
+  }));
 
-function jsonrpcResponse(
-  id: string | number | null,
-  result: unknown
-): APIGatewayProxyResultV2 {
-  return {
-    statusCode: 200,
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ jsonrpc: "2.0", id, result }),
-  };
+  server.registerTool("bus_activity", {
+    description: "Monitor the public feed — recent shared thoughts grouped by contributor, activity counts, and timeline.",
+    inputSchema: {
+      hours: z.number().default(24).describe("Look back this many hours (default 24)"),
+      agent: z.string().optional().describe("Filter to a specific agent name"),
+      limit: z.number().default(50).describe("Max thoughts to return (default 50)"),
+    },
+  }, async (args) => ({
+    content: [{ type: "text" as const, text: await executeTool("bus_activity", args, user) }],
+  }));
+
+  return server;
 }
 
-function jsonrpcError(
-  id: string | number | null,
-  code: number,
-  message: string,
-  statusCode = 200
-): APIGatewayProxyResultV2 {
-  return {
-    statusCode,
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      jsonrpc: "2.0",
-      id,
-      error: { code, message },
-    }),
+// --- Lambda ↔ Fetch API adapters ---
+
+function eventToRequest(event: APIGatewayProxyEventV2): Request {
+  const method = event.requestContext.http.method;
+  const qs = event.rawQueryString ? `?${event.rawQueryString}` : "";
+  const url = `https://${event.requestContext.domainName}${event.rawPath}${qs}`;
+
+  const headers = new Headers(
+    Object.entries(event.headers ?? {}).filter(([, v]) => v !== undefined) as [string, string][]
+  );
+
+  // API GW v2 separates cookies from headers — merge them back in
+  if (event.cookies && event.cookies.length > 0) {
+    const incoming = headers.get("cookie");
+    const merged = [incoming, event.cookies.join("; ")].filter(Boolean).join("; ");
+    headers.set("cookie", merged);
+  }
+
+  const body =
+    event.body && method !== "GET" && method !== "HEAD"
+      ? event.isBase64Encoded
+        ? Buffer.from(event.body, "base64") // keep as bytes; avoid corrupt non-UTF8 payloads
+        : event.body
+      : undefined;
+
+  return new Request(url, { method, headers, body });
+}
+
+async function responseToResult(response: Response): Promise<APIGatewayProxyResultV2> {
+  const headers: Record<string, string> = {};
+  const cookies: string[] = [];
+
+  response.headers.forEach((value, key) => {
+    if (key.toLowerCase() === "set-cookie") {
+      // API GW v2 requires multi-value Set-Cookie in the cookies array
+      cookies.push(value);
+    } else {
+      headers[key] = value;
+    }
+  });
+
+  const result: APIGatewayProxyResultV2 = {
+    statusCode: response.status,
+    headers,
+    body: await response.text(),
   };
+  if (cookies.length > 0) result.cookies = cookies;
+  return result;
 }
 
 // --- Lambda handler ---
@@ -240,7 +180,7 @@ export async function handler(
 ): Promise<APIGatewayProxyResultV2> {
   const method = event.requestContext.http.method;
 
-  // Health check (GET, no auth required)
+  // Health check — GET with no auth required
   if (method === "GET") {
     return {
       statusCode: 200,
@@ -249,64 +189,28 @@ export async function handler(
     };
   }
 
-  if (method !== "POST") {
-    return jsonrpcError(null, -32600, "Method not allowed", 405);
-  }
-
   // Extract user from custom authorizer context
   let user: UserContext;
   try {
     user = extractUserContext(event);
   } catch {
-    return jsonrpcError(null, -32600, "Unauthorized", 401);
+    return {
+      statusCode: 401,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: null, error: { code: -32600, message: "Unauthorized" } }),
+    };
   }
 
-  const body: McpRequest = JSON.parse(event.body || "{}");
-  const { method: rpcMethod, id, params } = body;
+  // Create a fresh server + transport per request (stateless)
+  const server = createMcpServer(user);
+  const transport = new WebStandardStreamableHTTPServerTransport({
+    sessionIdGenerator: undefined, // stateless mode
+    enableJsonResponse: true,      // return JSON, not SSE (Lambda can't stream)
+  });
 
-  // MCP: initialize
-  if (rpcMethod === "initialize") {
-    return jsonrpcResponse(id ?? null, {
-      protocolVersion: "2025-03-26",
-      capabilities: { tools: {} },
-      serverInfo: { name: "open-brain", version: "2.0.0" },
-    });
-  }
+  await server.connect(transport);
 
-  // MCP: initialized notification
-  if (rpcMethod === "notifications/initialized") {
-    return { statusCode: 204, body: "" };
-  }
-
-  // MCP: list tools
-  if (rpcMethod === "tools/list") {
-    return jsonrpcResponse(id ?? null, { tools: TOOLS });
-  }
-
-  // MCP: call tool
-  if (rpcMethod === "tools/call") {
-    const toolName = params?.name as string;
-    const args = (params?.arguments ?? {}) as Record<string, unknown>;
-
-    let resultText: string;
-    try {
-      resultText = await executeTool(toolName, args, user);
-    } catch (e) {
-      if ((e as Error).message?.startsWith("Unknown tool:")) {
-        return jsonrpcError(id ?? null, -32601, (e as Error).message);
-      }
-      resultText = `Error: ${(e as Error).message}`;
-    }
-
-    return jsonrpcResponse(id ?? null, {
-      content: [{ type: "text", text: resultText }],
-    });
-  }
-
-  // MCP: ping
-  if (rpcMethod === "ping") {
-    return jsonrpcResponse(id ?? null, {});
-  }
-
-  return jsonrpcError(id ?? null, -32601, `Method not found: ${rpcMethod}`);
+  const request = eventToRequest(event);
+  const response = await transport.handleRequest(request);
+  return responseToResult(response);
 }

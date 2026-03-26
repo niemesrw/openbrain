@@ -1,0 +1,346 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<coverage generated="1774547699518" clover="3.2.0">
+  <project timestamp="1774547699518" name="All files">
+    <metrics statements="304" coveredstatements="185" conditionals="198" coveredconditionals="123" methods="40" coveredmethods="24" elements="542" coveredelements="332" complexity="0" loc="304" ncloc="304" packages="3" files="9" classes="9"/>
+    <package name="src">
+      <metrics statements="120" coveredstatements="32" conditionals="43" coveredconditionals="16" methods="10" coveredmethods="1"/>
+      <file name="agent-runner.ts" path="/Users/ryan/dev/openbrain/lambda/src/agent-runner.ts">
+        <metrics statements="120" coveredstatements="32" conditionals="43" coveredconditionals="16" methods="10" coveredmethods="1"/>
+        <line num="1" count="1" type="stmt"/>
+        <line num="10" count="1" type="stmt"/>
+        <line num="15" count="1" type="stmt"/>
+        <line num="16" count="1" type="stmt"/>
+        <line num="17" count="1" type="stmt"/>
+        <line num="25" count="1" type="cond" truecount="2" falsecount="0"/>
+        <line num="26" count="1" type="stmt"/>
+        <line num="27" count="1" type="stmt"/>
+        <line num="29" count="1" type="stmt"/>
+        <line num="30" count="1" type="stmt"/>
+        <line num="31" count="1" type="stmt"/>
+        <line num="33" count="1" type="stmt"/>
+        <line num="34" count="1" type="stmt"/>
+        <line num="35" count="1" type="cond" truecount="2" falsecount="0"/>
+        <line num="38" count="0" type="stmt"/>
+        <line num="39" count="0" type="stmt"/>
+        <line num="40" count="0" type="stmt"/>
+        <line num="51" count="0" type="stmt"/>
+        <line num="53" count="0" type="cond" truecount="0" falsecount="3"/>
+        <line num="54" count="0" type="stmt"/>
+        <line num="59" count="0" type="stmt"/>
+        <line num="66" count="1" type="stmt"/>
+        <line num="77" count="0" type="stmt"/>
+        <line num="80" count="1" type="stmt"/>
+        <line num="81" count="12" type="stmt"/>
+        <line num="82" count="12" type="cond" truecount="3" falsecount="0"/>
+        <line num="83" count="10" type="cond" truecount="1" falsecount="0"/>
+        <line num="84" count="9" type="stmt"/>
+        <line num="85" count="9" type="cond" truecount="1" falsecount="0"/>
+        <line num="86" count="5" type="stmt"/>
+        <line num="87" count="5" type="cond" truecount="3" falsecount="0"/>
+        <line num="88" count="4" type="stmt"/>
+        <line num="90" count="4" type="stmt"/>
+        <line num="91" count="4" type="cond" truecount="1" falsecount="0"/>
+        <line num="92" count="2" type="stmt"/>
+        <line num="93" count="2" type="cond" truecount="3" falsecount="0"/>
+        <line num="94" count="1" type="stmt"/>
+        <line num="96" count="2" type="stmt"/>
+        <line num="100" count="0" type="cond" truecount="0" falsecount="1"/>
+        <line num="101" count="0" type="stmt"/>
+        <line num="102" count="0" type="stmt"/>
+        <line num="105" count="1" type="stmt"/>
+        <line num="162" count="0" type="cond" truecount="0" falsecount="1"/>
+        <line num="163" count="0" type="stmt"/>
+        <line num="164" count="0" type="cond" truecount="0" falsecount="1"/>
+        <line num="165" count="0" type="stmt"/>
+        <line num="166" count="0" type="stmt"/>
+        <line num="171" count="0" type="stmt"/>
+        <line num="172" count="0" type="cond" truecount="0" falsecount="1"/>
+        <line num="173" count="0" type="stmt"/>
+        <line num="174" count="0" type="stmt"/>
+        <line num="175" count="0" type="stmt"/>
+        <line num="176" count="0" type="stmt"/>
+        <line num="177" count="0" type="cond" truecount="0" falsecount="1"/>
+        <line num="178" count="0" type="stmt"/>
+        <line num="180" count="0" type="stmt"/>
+        <line num="181" count="0" type="cond" truecount="0" falsecount="1"/>
+        <line num="182" count="0" type="stmt"/>
+        <line num="184" count="0" type="stmt"/>
+        <line num="186" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="190" count="0" type="cond" truecount="0" falsecount="1"/>
+        <line num="191" count="0" type="stmt"/>
+        <line num="192" count="0" type="stmt"/>
+        <line num="198" count="0" type="cond" truecount="0" falsecount="1"/>
+        <line num="199" count="0" type="stmt"/>
+        <line num="200" count="0" type="stmt"/>
+        <line num="206" count="0" type="stmt"/>
+        <line num="213" count="0" type="stmt"/>
+        <line num="214" count="0" type="stmt"/>
+        <line num="220" count="0" type="stmt"/>
+        <line num="229" count="0" type="stmt"/>
+        <line num="230" count="0" type="stmt"/>
+        <line num="240" count="0" type="stmt"/>
+        <line num="241" count="0" type="cond" truecount="0" falsecount="1"/>
+        <line num="242" count="0" type="stmt"/>
+        <line num="244" count="0" type="cond" truecount="0" falsecount="1"/>
+        <line num="246" count="0" type="cond" truecount="0" falsecount="1"/>
+        <line num="248" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="250" count="0" type="stmt"/>
+        <line num="251" count="0" type="stmt"/>
+        <line num="252" count="0" type="stmt"/>
+        <line num="254" count="0" type="stmt"/>
+        <line num="255" count="0" type="stmt"/>
+        <line num="261" count="0" type="cond" truecount="0" falsecount="1"/>
+        <line num="262" count="0" type="stmt"/>
+        <line num="264" count="0" type="stmt"/>
+        <line num="268" count="0" type="stmt"/>
+        <line num="272" count="0" type="stmt"/>
+        <line num="273" count="0" type="stmt"/>
+        <line num="276" count="0" type="stmt"/>
+        <line num="279" count="0" type="stmt"/>
+        <line num="282" count="1" type="stmt"/>
+        <line num="283" count="0" type="stmt"/>
+        <line num="285" count="0" type="stmt"/>
+        <line num="286" count="0" type="cond" truecount="0" falsecount="1"/>
+        <line num="287" count="0" type="stmt"/>
+        <line num="288" count="0" type="stmt"/>
+        <line num="291" count="0" type="stmt"/>
+        <line num="293" count="0" type="stmt"/>
+        <line num="294" count="0" type="stmt"/>
+        <line num="296" count="0" type="stmt"/>
+        <line num="297" count="0" type="stmt"/>
+        <line num="300" count="0" type="stmt"/>
+        <line num="301" count="0" type="stmt"/>
+        <line num="304" count="0" type="stmt"/>
+        <line num="305" count="0" type="stmt"/>
+        <line num="306" count="0" type="cond" truecount="0" falsecount="1"/>
+        <line num="307" count="0" type="stmt"/>
+        <line num="310" count="0" type="stmt"/>
+        <line num="311" count="0" type="stmt"/>
+        <line num="316" count="0" type="stmt"/>
+        <line num="317" count="0" type="stmt"/>
+        <line num="318" count="0" type="stmt"/>
+        <line num="319" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="320" count="0" type="stmt"/>
+        <line num="321" count="0" type="stmt"/>
+        <line num="323" count="0" type="stmt"/>
+        <line num="326" count="0" type="stmt"/>
+        <line num="330" count="0" type="stmt"/>
+        <line num="332" count="0" type="stmt"/>
+      </file>
+    </package>
+    <package name="src.handlers">
+      <metrics statements="106" coveredstatements="103" conditionals="125" coveredconditionals="90" methods="20" coveredmethods="18"/>
+      <file name="agent-tasks.ts" path="/Users/ryan/dev/openbrain/lambda/src/handlers/agent-tasks.ts">
+        <metrics statements="24" coveredstatements="22" conditionals="39" coveredconditionals="24" methods="9" coveredmethods="7"/>
+        <line num="1" count="2" type="stmt"/>
+        <line num="2" count="2" type="stmt"/>
+        <line num="11" count="2" type="cond" truecount="2" falsecount="0"/>
+        <line num="12" count="2" type="stmt"/>
+        <line num="35" count="2" type="stmt"/>
+        <line num="39" count="1" type="stmt"/>
+        <line num="40" count="1" type="stmt"/>
+        <line num="42" count="1" type="stmt"/>
+        <line num="58" count="1" type="stmt"/>
+        <line num="61" count="2" type="stmt"/>
+        <line num="65" count="3" type="stmt"/>
+        <line num="73" count="3" type="cond" truecount="1" falsecount="1"/>
+        <line num="83" count="3" type="cond" truecount="1" falsecount="0"/>
+        <line num="85" count="2" type="stmt"/>
+        <line num="88" count="2" type="cond" truecount="2" falsecount="0"/>
+        <line num="93" count="2" type="stmt"/>
+        <line num="97" count="1" type="stmt"/>
+        <line num="109" count="1" type="stmt"/>
+        <line num="113" count="2" type="stmt"/>
+        <line num="114" count="3" type="stmt"/>
+        <line num="123" count="3" type="cond" truecount="1" falsecount="1"/>
+        <line num="135" count="2" type="stmt"/>
+        <line num="139" count="0" type="stmt"/>
+        <line num="140" count="0" type="stmt"/>
+      </file>
+      <file name="capture-thought.ts" path="/Users/ryan/dev/openbrain/lambda/src/handlers/capture-thought.ts">
+        <metrics statements="20" coveredstatements="20" conditionals="16" coveredconditionals="16" methods="1" coveredmethods="1"/>
+        <line num="1" count="2" type="stmt"/>
+        <line num="2" count="2" type="stmt"/>
+        <line num="3" count="2" type="stmt"/>
+        <line num="4" count="2" type="stmt"/>
+        <line num="7" count="2" type="stmt"/>
+        <line num="11" count="8" type="cond" truecount="1" falsecount="0"/>
+        <line num="15" count="8" type="cond" truecount="2" falsecount="0"/>
+        <line num="16" count="3" type="stmt"/>
+        <line num="18" count="5" type="stmt"/>
+        <line num="22" count="8" type="stmt"/>
+        <line num="27" count="8" type="stmt"/>
+        <line num="30" count="8" type="stmt"/>
+        <line num="46" count="8" type="stmt"/>
+        <line num="47" count="8" type="cond" truecount="1" falsecount="0"/>
+        <line num="48" count="5" type="stmt"/>
+        <line num="49" count="8" type="cond" truecount="1" falsecount="0"/>
+        <line num="50" count="1" type="stmt"/>
+        <line num="51" count="8" type="cond" truecount="1" falsecount="0"/>
+        <line num="52" count="2" type="stmt"/>
+        <line num="54" count="8" type="stmt"/>
+      </file>
+      <file name="delete-thought.ts" path="/Users/ryan/dev/openbrain/lambda/src/handlers/delete-thought.ts">
+        <metrics statements="11" coveredstatements="11" conditionals="5" coveredconditionals="5" methods="1" coveredmethods="1"/>
+        <line num="1" count="1" type="stmt"/>
+        <line num="4" count="1" type="stmt"/>
+        <line num="8" count="5" type="cond" truecount="1" falsecount="0"/>
+        <line num="11" count="5" type="cond" truecount="2" falsecount="0"/>
+        <line num="14" count="5" type="stmt"/>
+        <line num="15" count="5" type="cond" truecount="1" falsecount="0"/>
+        <line num="16" count="1" type="stmt"/>
+        <line num="18" count="4" type="cond" truecount="1" falsecount="0"/>
+        <line num="19" count="2" type="stmt"/>
+        <line num="22" count="2" type="stmt"/>
+        <line num="24" count="2" type="stmt"/>
+      </file>
+      <file name="search-thoughts.ts" path="/Users/ryan/dev/openbrain/lambda/src/handlers/search-thoughts.ts">
+        <metrics statements="32" coveredstatements="31" conditionals="46" coveredconditionals="28" methods="8" coveredmethods="8"/>
+        <line num="1" count="2" type="stmt"/>
+        <line num="2" count="2" type="stmt"/>
+        <line num="10" count="4" type="cond" truecount="0" falsecount="1"/>
+        <line num="11" count="4" type="cond" truecount="3" falsecount="0"/>
+        <line num="12" count="4" type="cond" truecount="1" falsecount="0"/>
+        <line num="14" count="0" type="stmt"/>
+        <line num="17" count="2" type="stmt"/>
+        <line num="29" count="9" type="stmt"/>
+        <line num="31" count="9" type="stmt"/>
+        <line num="32" count="9" type="stmt"/>
+        <line num="33" count="9" type="stmt"/>
+        <line num="36" count="9" type="stmt"/>
+        <line num="38" count="10" type="stmt"/>
+        <line num="39" count="10" type="stmt"/>
+        <line num="44" count="9" type="stmt"/>
+        <line num="49" count="6" type="cond" truecount="1" falsecount="1"/>
+        <line num="50" count="6" type="stmt"/>
+        <line num="52" count="1" type="cond" truecount="2" falsecount="2"/>
+        <line num="55" count="9" type="cond" truecount="1" falsecount="0"/>
+        <line num="56" count="5" type="cond" truecount="2" falsecount="0"/>
+        <line num="60" count="4" type="cond" truecount="1" falsecount="0"/>
+        <line num="61" count="2" type="stmt"/>
+        <line num="63" count="2" type="cond" truecount="1" falsecount="1"/>
+        <line num="64" count="2" type="cond" truecount="1" falsecount="1"/>
+        <line num="65" count="2" type="cond" truecount="1" falsecount="1"/>
+        <line num="66" count="2" type="stmt"/>
+        <line num="82" count="2" type="stmt"/>
+        <line num="86" count="3" type="cond" truecount="1" falsecount="1"/>
+        <line num="87" count="3" type="cond" truecount="1" falsecount="1"/>
+        <line num="88" count="3" type="cond" truecount="1" falsecount="1"/>
+        <line num="91" count="3" type="cond" truecount="1" falsecount="1"/>
+        <line num="94" count="3" type="cond" truecount="2" falsecount="2"/>
+      </file>
+      <file name="update-thought.ts" path="/Users/ryan/dev/openbrain/lambda/src/handlers/update-thought.ts">
+        <metrics statements="19" coveredstatements="19" conditionals="19" coveredconditionals="17" methods="1" coveredmethods="1"/>
+        <line num="1" count="1" type="stmt"/>
+        <line num="2" count="1" type="stmt"/>
+        <line num="3" count="1" type="stmt"/>
+        <line num="6" count="1" type="stmt"/>
+        <line num="10" count="7" type="cond" truecount="1" falsecount="0"/>
+        <line num="13" count="7" type="cond" truecount="2" falsecount="0"/>
+        <line num="16" count="7" type="stmt"/>
+        <line num="17" count="7" type="cond" truecount="1" falsecount="0"/>
+        <line num="18" count="1" type="stmt"/>
+        <line num="20" count="6" type="cond" truecount="1" falsecount="0"/>
+        <line num="21" count="2" type="stmt"/>
+        <line num="25" count="4" type="stmt"/>
+        <line num="31" count="4" type="stmt"/>
+        <line num="46" count="4" type="stmt"/>
+        <line num="47" count="4" type="cond" truecount="1" falsecount="0"/>
+        <line num="48" count="4" type="stmt"/>
+        <line num="49" count="4" type="cond" truecount="1" falsecount="0"/>
+        <line num="50" count="1" type="stmt"/>
+        <line num="52" count="4" type="stmt"/>
+      </file>
+    </package>
+    <package name="src.services">
+      <metrics statements="78" coveredstatements="50" conditionals="30" coveredconditionals="17" methods="10" coveredmethods="5"/>
+      <file name="embeddings.ts" path="/Users/ryan/dev/openbrain/lambda/src/services/embeddings.ts">
+        <metrics statements="8" coveredstatements="4" conditionals="2" coveredconditionals="2" methods="1" coveredmethods="0"/>
+        <line num="1" count="4" type="stmt"/>
+        <line num="6" count="4" type="stmt"/>
+        <line num="7" count="4" type="cond" truecount="2" falsecount="0"/>
+        <line num="9" count="4" type="stmt"/>
+        <line num="10" count="0" type="stmt"/>
+        <line num="21" count="0" type="stmt"/>
+        <line num="22" count="0" type="stmt"/>
+        <line num="23" count="0" type="stmt"/>
+      </file>
+      <file name="metadata.ts" path="/Users/ryan/dev/openbrain/lambda/src/services/metadata.ts">
+        <metrics statements="13" coveredstatements="5" conditionals="2" coveredconditionals="2" methods="1" coveredmethods="0"/>
+        <line num="1" count="3" type="stmt"/>
+        <line num="7" count="3" type="stmt"/>
+        <line num="9" count="3" type="cond" truecount="2" falsecount="0"/>
+        <line num="11" count="3" type="stmt"/>
+        <line num="19" count="3" type="stmt"/>
+        <line num="22" count="0" type="stmt"/>
+        <line num="34" count="0" type="stmt"/>
+        <line num="35" count="0" type="stmt"/>
+        <line num="37" count="0" type="stmt"/>
+        <line num="38" count="0" type="stmt"/>
+        <line num="40" count="0" type="stmt"/>
+        <line num="41" count="0" type="stmt"/>
+        <line num="43" count="0" type="stmt"/>
+      </file>
+      <file name="vectors.ts" path="/Users/ryan/dev/openbrain/lambda/src/services/vectors.ts">
+        <metrics statements="57" coveredstatements="41" conditionals="26" coveredconditionals="13" methods="8" coveredmethods="5"/>
+        <line num="1" count="7" type="stmt"/>
+        <line num="11" count="7" type="stmt"/>
+        <line num="12" count="7" type="stmt"/>
+        <line num="14" count="7" type="stmt"/>
+        <line num="16" count="7" type="stmt"/>
+        <line num="17" count="5" type="stmt"/>
+        <line num="18" count="5" type="cond" truecount="1" falsecount="0"/>
+        <line num="20" count="4" type="stmt"/>
+        <line num="21" count="4" type="stmt"/>
+        <line num="39" count="2" type="cond" truecount="1" falsecount="0"/>
+        <line num="42" count="3" type="stmt"/>
+        <line num="43" count="3" type="stmt"/>
+        <line num="46" count="7" type="stmt"/>
+        <line num="50" count="3" type="cond" truecount="3" falsecount="0"/>
+        <line num="52" count="1" type="stmt"/>
+        <line num="54" count="1" type="stmt"/>
+        <line num="56" count="1" type="stmt"/>
+        <line num="73" count="7" type="stmt"/>
+        <line num="79" count="0" type="stmt"/>
+        <line num="80" count="0" type="stmt"/>
+        <line num="91" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="94" count="0" type="cond" truecount="0" falsecount="1"/>
+        <line num="95" count="0" type="stmt"/>
+        <line num="99" count="7" type="stmt"/>
+        <line num="105" count="0" type="stmt"/>
+        <line num="123" count="7" type="stmt"/>
+        <line num="126" count="0" type="stmt"/>
+        <line num="129" count="0" type="stmt"/>
+        <line num="130" count="0" type="stmt"/>
+        <line num="131" count="0" type="stmt"/>
+        <line num="140" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="141" count="0" type="stmt"/>
+        <line num="147" count="0" type="stmt"/>
+        <line num="151" count="0" type="cond" truecount="0" falsecount="1"/>
+        <line num="152" count="0" type="stmt"/>
+        <line num="155" count="0" type="stmt"/>
+        <line num="158" count="7" type="stmt"/>
+        <line num="162" count="4" type="stmt"/>
+        <line num="163" count="4" type="stmt"/>
+        <line num="171" count="2" type="stmt"/>
+        <line num="172" count="2" type="cond" truecount="1" falsecount="0"/>
+        <line num="173" count="1" type="stmt"/>
+        <line num="178" count="2" type="cond" truecount="1" falsecount="0"/>
+        <line num="179" count="1" type="stmt"/>
+        <line num="183" count="7" type="stmt"/>
+        <line num="187" count="3" type="stmt"/>
+        <line num="196" count="7" type="stmt"/>
+        <line num="201" count="5" type="stmt"/>
+        <line num="203" count="5" type="cond" truecount="1" falsecount="0"/>
+        <line num="204" count="2" type="stmt"/>
+        <line num="206" count="5" type="cond" truecount="1" falsecount="0"/>
+        <line num="207" count="2" type="stmt"/>
+        <line num="209" count="5" type="cond" truecount="1" falsecount="0"/>
+        <line num="210" count="1" type="stmt"/>
+        <line num="213" count="5" type="cond" truecount="1" falsecount="0"/>
+        <line num="214" count="4" type="cond" truecount="1" falsecount="0"/>
+        <line num="215" count="1" type="stmt"/>
+      </file>
+    </package>
+  </project>
+</coverage>

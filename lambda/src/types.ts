@@ -17,13 +17,6 @@ export interface S3VectorMetadata {
   dates_mentioned: string;
 }
 
-export interface McpRequest {
-  jsonrpc: "2.0";
-  id?: string | number | null;
-  method: string;
-  params?: Record<string, unknown>;
-}
-
 export interface UserContext {
   userId: string;
   teamId?: string;
