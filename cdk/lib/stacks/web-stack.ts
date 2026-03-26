@@ -62,49 +62,25 @@ export class WebStack extends cdk.Stack {
           })
         : undefined;
 
-    const apiCachePolicy = new cloudfront.CachePolicy(this, "ApiCachePolicy", {
-      cachePolicyName: "openbrain-api-no-cache",
-      defaultTtl: cdk.Duration.seconds(0),
-      minTtl: cdk.Duration.seconds(0),
-      maxTtl: cdk.Duration.seconds(0),
-      headerBehavior: cloudfront.CacheHeaderBehavior.allowList(
-        "Authorization",
-        "x-api-key",
-        "Content-Type",
-      ),
-      queryStringBehavior: cloudfront.CacheQueryStringBehavior.all(),
-    });
-
-    const apiOriginRequestPolicy = new cloudfront.OriginRequestPolicy(
-      this,
-      "ApiOriginRequestPolicy",
-      {
-        originRequestPolicyName: "openbrain-api-forward-headers",
-        headerBehavior: cloudfront.OriginRequestHeaderBehavior.allowList(
-          "x-api-key",
-          "Content-Type",
-        ),
-        queryStringBehavior: cloudfront.OriginRequestQueryStringBehavior.all(),
-        cookieBehavior: cloudfront.OriginRequestCookieBehavior.none(),
-      }
-    );
-
     // Additional CloudFront behaviors for API paths (only when custom domain + API origin configured)
+    // Use managed CachingDisabled + AllViewerExceptHostHeader to forward all headers
+    // (including Authorization and x-api-key) with no caching.
+    // Custom CachePolicy with headerBehavior is invalid when TTL=0.
     const additionalBehaviors: Record<string, cloudfront.BehaviorOptions> =
       apiOrigin
         ? {
             "/mcp*": {
               origin: apiOrigin,
               allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
-              cachePolicy: apiCachePolicy,
-              originRequestPolicy: apiOriginRequestPolicy,
+              cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
+              originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
               viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
             },
             "/chat*": {
               origin: apiOrigin,
               allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
-              cachePolicy: apiCachePolicy,
-              originRequestPolicy: apiOriginRequestPolicy,
+              cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
+              originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
               viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
             },
           }
