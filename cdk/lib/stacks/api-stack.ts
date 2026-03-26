@@ -93,6 +93,61 @@ export class ApiStack extends cdk.Stack {
     agentKeysTable.grantReadWriteData(this.handler);
     usersTable.grantReadData(this.handler);
 
+    // Chat handler Lambda (LLM + brain tools via Bedrock Converse)
+    const chatHandler = new lambdaNode.NodejsFunction(this, "ChatHandler", {
+      runtime: lambda.Runtime.NODEJS_20_X,
+      entry: path.join(__dirname, "..", "..", "..", "lambda", "src", "chat.ts"),
+      handler: "handler",
+      memorySize: 512,
+      timeout: cdk.Duration.seconds(30),
+      environment: {
+        VECTOR_BUCKET_NAME: vectorBucketName,
+        EMBEDDING_MODEL_ID: "amazon.titan-embed-text-v2:0",
+        METADATA_MODEL_ID: "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+        CHAT_MODEL_ID: "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+        AGENT_KEYS_TABLE: agentKeysTable.tableName,
+        USERS_TABLE: usersTable.tableName,
+      },
+      bundling: {
+        externalModules: ["@aws-sdk/*"],
+        minify: true,
+        sourceMap: true,
+      },
+    });
+
+    // Chat handler needs same permissions as MCP handler
+    chatHandler.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: [
+          "s3vectors:CreateIndex",
+          "s3vectors:QueryVectors",
+          "s3vectors:PutVectors",
+          "s3vectors:GetVectors",
+          "s3vectors:DeleteVectors",
+          "s3vectors:ListVectors",
+          "s3vectors:ListIndexes",
+        ],
+        resources: [
+          `arn:aws:s3vectors:${this.region}:${this.account}:bucket/${vectorBucketName}`,
+          `arn:aws:s3vectors:${this.region}:${this.account}:bucket/${vectorBucketName}/*`,
+        ],
+      })
+    );
+    chatHandler.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ["bedrock:InvokeModel"],
+        resources: [
+          `arn:aws:bedrock:${this.region}::foundation-model/amazon.titan-embed-text-v2:0`,
+          `arn:aws:bedrock:${this.region}:${this.account}:inference-profile/us.anthropic.claude-haiku-4-5-20251001-v1:0`,
+          `arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0`,
+          `arn:aws:bedrock:us-east-2::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0`,
+          `arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0`,
+        ],
+      })
+    );
+    agentKeysTable.grantReadWriteData(chatHandler);
+    usersTable.grantReadData(chatHandler);
+
     // Custom Lambda authorizer (supports both JWT and API key)
     const authorizerFn = new lambdaNode.NodejsFunction(this, "AuthorizerFn", {
       runtime: lambda.Runtime.NODEJS_20_X,
@@ -166,6 +221,18 @@ export class ApiStack extends cdk.Stack {
       path: "/mcp",
       methods: [apigwv2.HttpMethod.GET],
       integration,
+    });
+
+    // Chat route (LLM + brain tools)
+    const chatIntegration = new apigwv2Integrations.HttpLambdaIntegration(
+      "ChatIntegration",
+      chatHandler,
+    );
+    this.api.addRoutes({
+      path: "/chat",
+      methods: [apigwv2.HttpMethod.POST],
+      integration: chatIntegration,
+      authorizer,
     });
 
     // Outputs

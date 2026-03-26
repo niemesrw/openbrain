@@ -62,7 +62,7 @@ export function BrainInput({ onSubmit, loading }: BrainInputProps) {
           </button>
         </div>
         <p className="text-center text-xs text-gray-600 mt-2">
-          Ask a question to search, or share a thought to capture it
+          Talk to your brain...
         </p>
       </div>
     </div>

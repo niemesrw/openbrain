@@ -3,18 +3,7 @@ import type {
   APIGatewayProxyResultV2,
 } from "aws-lambda";
 import { extractUserContext } from "./auth/context";
-import { handleSearchThoughts } from "./handlers/search-thoughts";
-import { handleBrowseRecent } from "./handlers/browse-recent";
-import { handleStats } from "./handlers/stats";
-import { handleCaptureThought } from "./handlers/capture-thought";
-import { handleUpdateThought } from "./handlers/update-thought";
-import { handleDeleteThought } from "./handlers/delete-thought";
-import {
-  handleCreateAgent,
-  handleListAgents,
-  handleRevokeAgent,
-} from "./handlers/agent-keys";
-import { handleBusActivity } from "./handlers/bus-activity";
+import { executeTool } from "./tool-executor";
 import type { McpRequest, UserContext } from "./types";
 
 // --- Tool definitions ---
@@ -301,41 +290,11 @@ export async function handler(
 
     let resultText: string;
     try {
-      switch (toolName) {
-        case "search_thoughts":
-          resultText = await handleSearchThoughts(args as any, user);
-          break;
-        case "browse_recent":
-          resultText = await handleBrowseRecent(args as any, user);
-          break;
-        case "stats":
-          resultText = await handleStats(args as any, user);
-          break;
-        case "capture_thought":
-          resultText = await handleCaptureThought(args as any, user);
-          break;
-        case "update_thought":
-          resultText = await handleUpdateThought(args as any, user);
-          break;
-        case "delete_thought":
-          resultText = await handleDeleteThought(args as any, user);
-          break;
-        case "create_agent":
-          resultText = await handleCreateAgent(args as any, user);
-          break;
-        case "list_agents":
-          resultText = await handleListAgents(args as any, user);
-          break;
-        case "revoke_agent":
-          resultText = await handleRevokeAgent(args as any, user);
-          break;
-        case "bus_activity":
-          resultText = await handleBusActivity(args as any, user);
-          break;
-        default:
-          return jsonrpcError(id ?? null, -32601, `Unknown tool: ${toolName}`);
-      }
+      resultText = await executeTool(toolName, args, user);
     } catch (e) {
+      if ((e as Error).message?.startsWith("Unknown tool:")) {
+        return jsonrpcError(id ?? null, -32601, (e as Error).message);
+      }
       resultText = `Error: ${(e as Error).message}`;
     }
 

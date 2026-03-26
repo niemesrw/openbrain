@@ -1,30 +1,16 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import {
-  searchThoughts,
   browseRecent,
   getStats,
-  captureThought,
   updateThought,
   deleteThought,
 } from "../lib/brain-api";
+import { chatWithBrain, type ChatMessage } from "../lib/api";
 import type { Thought, BrainStats, Message, Scope } from "../lib/brain-types";
 import { FilterChips } from "../components/FilterChips";
 import { ThoughtCard } from "../components/ThoughtCard";
 import { StatsBar } from "../components/StatsBar";
 import { BrainInput } from "../components/BrainInput";
-
-function isQuestion(text: string): boolean {
-  const trimmed = text.trim();
-  if (trimmed.endsWith("?")) return true;
-  const lower = trimmed.toLowerCase();
-  const questionStarts = [
-    "what", "when", "where", "who", "why", "how",
-    "do i", "did i", "have i", "am i", "is there",
-    "can you", "could you", "tell me", "show me",
-    "find", "search", "look up", "look for",
-  ];
-  return questionStarts.some((q) => lower.startsWith(q));
-}
 
 function makeBrainMessage(text: string, thoughts?: Thought[]): Message {
   return {
@@ -39,6 +25,7 @@ function makeBrainMessage(text: string, thoughts?: Thought[]): Message {
 export function DashboardPage() {
   const [stats, setStats] = useState<BrainStats | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [history, setHistory] = useState<ChatMessage[]>([]);
   const [recentThoughts, setRecentThoughts] = useState<Thought[]>([]);
   const [browseLoading, setBrowseLoading] = useState(false);
   const [chatLoading, setChatLoading] = useState(false);
@@ -50,6 +37,7 @@ export function DashboardPage() {
   const [browseStale, setBrowseStale] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const requestIdRef = useRef(0);
+  const chatIdRef = useRef(0);
 
   useEffect(() => {
     getStats().then(setStats).catch(() => {});
@@ -89,6 +77,7 @@ export function DashboardPage() {
 
   const handleSubmit = async (text: string) => {
     setMode("chat");
+    const chatId = ++chatIdRef.current;
     const userMsg: Message = {
       id: crypto.randomUUID(),
       role: "user",
@@ -98,32 +87,25 @@ export function DashboardPage() {
     setMessages((prev) => [...prev, userMsg]);
     setChatLoading(true);
 
+    const newHistory: ChatMessage[] = [...history, { role: "user", content: text }];
+    setHistory(newHistory);
+
     try {
-      if (isQuestion(text)) {
-        const thoughts = await searchThoughts(text, { limit: 10 });
-        setMessages((prev) => [
-          ...prev,
-          makeBrainMessage(
-            thoughts.length > 0
-              ? `Found ${thoughts.length} thought${thoughts.length === 1 ? "" : "s"}:`
-              : "Nothing comes to mind. Want me to remember this instead?",
-            thoughts.length > 0 ? thoughts : undefined,
-          ),
-        ]);
-      } else {
-        const confirmation = await captureThought(text);
-        setMessages((prev) => [...prev, makeBrainMessage(confirmation)]);
-        setBrowseStale(true);
-        getStats().then(setStats).catch(() => {});
-      }
+      const response = await chatWithBrain(newHistory);
+      if (chatId !== chatIdRef.current) return;
+      setHistory((prev) => [...prev, { role: "assistant", content: response.reply }]);
+      setMessages((prev) => [...prev, makeBrainMessage(response.reply)]);
+      setBrowseStale(true);
+      getStats().then(setStats).catch(() => {});
     } catch (e: unknown) {
+      if (chatId !== chatIdRef.current) return;
       const msg = e instanceof Error ? e.message : String(e);
       setMessages((prev) => [
         ...prev,
         makeBrainMessage(`Something went wrong: ${msg}`),
       ]);
     } finally {
-      setChatLoading(false);
+      if (chatId === chatIdRef.current) setChatLoading(false);
     }
   };
 
@@ -166,7 +148,11 @@ export function DashboardPage() {
   };
 
   const handleBackToBrowse = () => {
+    ++chatIdRef.current;
+    setChatLoading(false);
     setMode("browse");
+    setMessages([]);
+    setHistory([]);
   };
 
   const topTopics = useMemo(
