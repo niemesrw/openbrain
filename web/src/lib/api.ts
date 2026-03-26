@@ -52,7 +52,7 @@ export async function callTool(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Accept: "application/json",
+      Accept: "application/json, text/event-stream",
       Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify({
