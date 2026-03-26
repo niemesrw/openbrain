@@ -100,14 +100,35 @@ describe("handleListTasks", () => {
 });
 
 describe("handleCancelTask", () => {
-  it("deletes task and returns confirmation", async () => {
-    
-    mockSend.mockResolvedValue({});
+  it("deletes task and returns confirmation when task exists", async () => {
+    mockSend.mockResolvedValue({
+      Attributes: {
+        userId: { S: "user-123" },
+        taskId: { S: "task-1" },
+        title: { S: "Check HN" },
+      },
+    });
 
     const result = await handleCancelTask({ taskId: "task-1" }, USER);
 
     expect(mockSend).toHaveBeenCalledTimes(1);
     expect(result).toBe("Task task-1 cancelled.");
+  });
+
+  it("returns not-found message when task does not exist", async () => {
+    mockSend.mockResolvedValue({ Attributes: undefined });
+
+    const result = await handleCancelTask({ taskId: "nonexistent" }, USER);
+
+    expect(result).toBe("Task nonexistent not found or already removed.");
+  });
+
+  it("returns not-found message when Attributes is empty", async () => {
+    mockSend.mockResolvedValue({ Attributes: {} });
+
+    const result = await handleCancelTask({ taskId: "gone" }, USER);
+
+    expect(result).toBe("Task gone not found or already removed.");
   });
 });
 

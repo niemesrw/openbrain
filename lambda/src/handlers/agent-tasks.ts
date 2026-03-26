@@ -94,17 +94,20 @@ export async function handleCancelTask(
   args: CancelTaskArgs,
   user: UserContext,
 ): Promise<string> {
-  await ddb.send(
+  const result = await ddb.send(
     new DeleteItemCommand({
       TableName: TABLE_NAME,
       Key: {
         userId: { S: user.userId },
         taskId: { S: args.taskId },
       },
-      ConditionExpression: "userId = :uid",
-      ExpressionAttributeValues: { ":uid": { S: user.userId } },
+      ReturnValues: "ALL_OLD",
     }),
   );
+
+  if (!result.Attributes || Object.keys(result.Attributes).length === 0) {
+    return `Task ${args.taskId} not found or already removed.`;
+  }
 
   return `Task ${args.taskId} cancelled.`;
 }

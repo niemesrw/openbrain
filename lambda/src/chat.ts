@@ -36,6 +36,8 @@ Behavior:
 Scheduled tasks:
 When a user expresses a recurring wish, automated task, or scheduled need — like "tell me the weather every morning", "check my portfolio daily", or "remind me to review PRs every Monday" — use the schedule_task tool to set it up. Background agents will execute it automatically on the specified schedule.
 
+IMPORTANT: Before creating a new task, always call list_tasks first to check for existing tasks with similar titles or actions. If a matching task already exists, tell the user instead of creating a duplicate. Only create a new task if nothing similar is already scheduled.
+
 Use list_tasks to show the user their active tasks. Use cancel_task to remove one.
 
 If the schedule or action is unclear, ask the user to clarify before scheduling.`,
