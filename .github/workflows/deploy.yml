@@ -51,6 +51,16 @@ jobs:
         working-directory: lambda
         run: npm ci
 
+      # --- Build web (needed for CDK synth even when deploying infra only) ---
+
+      - name: Install web dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Build web placeholder
+        working-directory: web
+        run: mkdir -p dist && echo '<!doctype html><html><body>placeholder</body></html>' > dist/index.html
+
       # --- Deploy infra stacks (everything except web) ---
 
       - name: Install CDK dependencies
@@ -96,11 +106,7 @@ jobs:
           echo "web_client_id=$WEB_CLIENT_ID" >> "$GITHUB_OUTPUT"
           echo "cognito_domain=$COGNITO_DOMAIN" >> "$GITHUB_OUTPUT"
 
-      # --- Build and deploy web ---
-
-      - name: Install web dependencies
-        working-directory: web
-        run: npm ci
+      # --- Build and deploy web (rebuild with real env vars) ---
 
       - name: Build web
         working-directory: web
