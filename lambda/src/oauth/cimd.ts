@@ -144,7 +144,7 @@ async function registerCognitoClient(
     new CreateUserPoolClientCommand({
       UserPoolId: USER_POOL_ID,
       ClientName: clientName,
-      GenerateSecret: true,
+      GenerateSecret: false,
       AllowedOAuthFlows: ["code"],
       AllowedOAuthFlowsUserPoolClient: true,
       AllowedOAuthScopes: ["openid", "profile", "email"],
@@ -165,7 +165,7 @@ async function registerCognitoClient(
   const client = result.UserPoolClient!;
   return {
     clientId: client.ClientId!,
-    clientSecret: client.ClientSecret!,
+    clientSecret: "",
     redirectUris,
   };
 }
