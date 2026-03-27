@@ -10,7 +10,7 @@ jobs:
   claude:
     if: |
       (github.event_name == 'issues' && github.event.label.name == 'claude') ||
-      (github.event_name == 'pull_request_review' && github.event.review.state == 'changes_requested' && github.event.pull_request.user.login == 'app/claude-code')
+      (github.event_name == 'pull_request_review' && github.event.review.author_association == 'CONTRIBUTOR' && github.event.review.user.login == 'copilot-pull-request-reviewer')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -30,3 +30,18 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           additional_permissions: |
             actions: read
+          prompt: |
+            ${{ github.event_name == 'issues' && format('
+              You have been assigned issue #{0}: {1}
+
+              Read the issue carefully, implement the required changes following the patterns in CLAUDE.md, then:
+              1. Create a feature branch (feat/ or fix/ prefix)
+              2. Commit your changes with a descriptive message
+              3. Open a pull request against main with a clear title and description referencing the issue number
+
+              Do not ask for confirmation — implement and open the PR.
+            ', github.event.issue.number, github.event.issue.title) || '' }}
+            ${{ github.event_name == 'pull_request_review' && format('
+              Copilot has reviewed PR #{0} and left comments. Read all review comments carefully and address each one.
+              Push your fixes to the existing PR branch. Do not open a new PR.
+            ', github.event.pull_request.number) || '' }}
