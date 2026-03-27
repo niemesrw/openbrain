@@ -575,6 +575,8 @@ export class ApiStack extends cdk.Stack {
         USER_POOL_ID: userPool.userPoolId,
         AGENT_KEYS_TABLE: agentKeysTableName,
         GITHUB_INSTALLATIONS_TABLE: githubInstallationsTableName,
+        GITHUB_APP_ID: process.env.GITHUB_APP_ID ?? "",
+        GITHUB_APP_PRIVATE_KEY_SECRET_NAME: githubAppPrivateKeySecretName,
       },
       bundling: {
         externalModules: ["@aws-sdk/*"],
@@ -589,6 +591,12 @@ export class ApiStack extends cdk.Stack {
     githubRestHandler.addToRolePolicy(new iam.PolicyStatement({
       actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Query", "dynamodb:UpdateItem", "dynamodb:DeleteItem"],
       resources: [githubInstallationsTableArn, `${githubInstallationsTableArn}/index/*`],
+    }));
+    githubRestHandler.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["secretsmanager:GetSecretValue"],
+      resources: [
+        `arn:aws:secretsmanager:${this.region}:${this.account}:secret:${githubAppPrivateKeySecretName}*`,
+      ],
     }));
 
     // API routes

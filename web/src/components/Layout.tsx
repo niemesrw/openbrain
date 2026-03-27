@@ -25,6 +25,9 @@ export function Layout() {
               <Link to="/feed" className="text-gray-300 hover:text-white">
                 Feed
               </Link>
+              <Link to="/settings" className="text-gray-300 hover:text-white">
+                Settings
+              </Link>
               <button
                 onClick={handleSignOut}
                 className="text-gray-400 hover:text-white"

@@ -30,7 +30,7 @@ export async function handler(
       return unauthorized();
     }
 
-    let body: { installationId?: unknown; accountLogin?: unknown; accountType?: unknown };
+    let body: { installationId?: unknown };
     try {
       body = JSON.parse(event.body ?? "{}") as typeof body;
     } catch {
@@ -41,11 +41,9 @@ export async function handler(
       };
     }
 
-    const { installationId: rawId, accountLogin, accountType } = body;
+    const { installationId: rawId } = body;
 
-    // Accept string or number from the client (GitHub sends a numeric ID in the
-    // redirect URL query param, but clients may serialise it as either type).
-    // Standardise to string for storage.
+    // Accept string or number — GitHub sends a numeric ID in the redirect URL.
     const installationId =
       typeof rawId === "string" && /^\d+$/.test(rawId)
         ? rawId
@@ -53,24 +51,17 @@ export async function handler(
         ? String(rawId)
         : null;
 
-    if (
-      !installationId ||
-      typeof accountLogin !== "string" ||
-      (accountType !== "User" && accountType !== "Organization")
-    ) {
+    if (!installationId) {
       return {
         statusCode: 400,
         headers: JSON_HEADERS,
-        body: JSON.stringify({
-          error:
-            "installationId (string or integer), accountLogin (string), and accountType (User|Organization) are required",
-        }),
+        body: JSON.stringify({ error: "installationId (string or integer) is required" }),
       };
     }
 
     try {
       const result = await handleGitHubConnect(
-        { installationId, accountLogin, accountType },
+        { installationId },
         user
       );
       return {

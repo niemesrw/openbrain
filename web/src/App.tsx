@@ -6,6 +6,8 @@ import { LoginPage } from "./pages/LoginPage";
 import { CallbackPage } from "./pages/CallbackPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { FeedPage } from "./pages/FeedPage";
+import { SettingsPage } from "./pages/SettingsPage";
+import { GitHubCallbackPage } from "./pages/GitHubCallbackPage";
 
 export function App() {
   return (
@@ -19,6 +21,8 @@ export function App() {
           <Route element={<RequireAuth />}>
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/feed" element={<FeedPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/github/callback" element={<GitHubCallbackPage />} />
           </Route>
         </Route>
       </Routes>

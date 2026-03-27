@@ -168,6 +168,7 @@ jobs:
           VITE_USER_POOL_ID: ${{ steps.outputs.outputs.user_pool_id }}
           VITE_WEB_CLIENT_ID: ${{ steps.outputs.outputs.web_client_id }}
           VITE_COGNITO_DOMAIN: ${{ steps.outputs.outputs.cognito_domain }}
+          VITE_GITHUB_APP_SLUG: ${{ secrets.GITHUB_APP_SLUG }}
 
       - name: CDK Deploy (web stack)
         working-directory: cdk

@@ -96,3 +96,38 @@ export async function callTool(
 
   return JSON.stringify(json.result, null, 2);
 }
+
+export interface GitHubInstallation {
+  installationId: string;
+  accountLogin: string;
+  accountType: "User" | "Organization";
+  installedAt: string;
+}
+
+export async function connectGitHubInstallation(
+  installationId: string
+): Promise<{ ok: boolean; accountLogin: string; accountType: string }> {
+  const token = await getIdToken();
+  const apiUrl = getApiUrl();
+  const res = await fetch(`${apiUrl}/github/connect`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ installationId }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.error || `GitHub connect error: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function getGitHubInstallations(): Promise<GitHubInstallation[]> {
+  const token = await getIdToken();
+  const apiUrl = getApiUrl();
+  const res = await fetch(`${apiUrl}/github/installations`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error(`GitHub installations error: ${res.status}`);
+  const data = await res.json();
+  return data.installations ?? [];
+}

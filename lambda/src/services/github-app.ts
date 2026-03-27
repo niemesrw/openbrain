@@ -45,6 +45,45 @@ function mintAppJwt(privateKeyPem: string, appId: string): string {
   return `${signingInput}.${signature}`;
 }
 
+export interface InstallationDetails {
+  accountLogin: string;
+  accountType: "User" | "Organization";
+}
+
+export async function getInstallationDetails(
+  installationId: string
+): Promise<InstallationDetails> {
+  const appId = process.env.GITHUB_APP_ID!;
+  const privateKey = await getPrivateKey();
+  const jwt = mintAppJwt(privateKey, appId);
+
+  const res = await fetch(
+    `https://api.github.com/app/installations/${installationId}`,
+    {
+      headers: {
+        Authorization: `Bearer ${jwt}`,
+        Accept: "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+    }
+  );
+
+  if (!res.ok) {
+    throw new Error(
+      `GitHub installation lookup failed: ${res.status} ${await res.text()}`
+    );
+  }
+
+  const data = (await res.json()) as {
+    account: { login: string; type: string };
+  };
+  return {
+    accountLogin: data.account.login,
+    accountType:
+      data.account.type === "Organization" ? "Organization" : "User",
+  };
+}
+
 export async function getInstallationToken(
   installationId: string
 ): Promise<string> {

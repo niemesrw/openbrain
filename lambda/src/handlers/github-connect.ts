@@ -4,6 +4,7 @@ import {
   PutCommand,
   QueryCommand,
 } from "@aws-sdk/lib-dynamodb";
+import { getInstallationDetails } from "../services/github-app";
 import type { UserContext } from "../types";
 
 const GITHUB_INSTALLATIONS_TABLE = process.env.GITHUB_INSTALLATIONS_TABLE!;
@@ -11,8 +12,6 @@ const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
 export interface ConnectArgs {
   installationId: string;
-  accountLogin: string;
-  accountType: "User" | "Organization";
 }
 
 export interface GitHubInstallation {
@@ -26,8 +25,12 @@ export interface GitHubInstallation {
 export async function handleGitHubConnect(
   args: ConnectArgs,
   user: UserContext
-): Promise<{ ok: boolean }> {
-  const { installationId, accountLogin, accountType } = args;
+): Promise<{ ok: boolean; accountLogin: string; accountType: string }> {
+  const { installationId } = args;
+
+  // Verify the installation and fetch account details from GitHub — clients
+  // cannot spoof accountLogin or accountType.
+  const { accountLogin, accountType } = await getInstallationDetails(installationId);
 
   try {
     await ddb.send(
@@ -41,8 +44,7 @@ export async function handleGitHubConnect(
           installedAt: new Date().toISOString(),
         },
         // Allow create-if-new OR update by the same owner.
-        // Prevents a different user from hijacking an existing installation mapping.
-        // TODO (Phase 2): also verify ownership via GitHub API (App JWT + installation token)
+        // Prevents a different user from hijacking an existing installation.
         ConditionExpression:
           "attribute_not_exists(installationId) OR userId = :uid",
         ExpressionAttributeValues: { ":uid": user.userId },
@@ -57,7 +59,7 @@ export async function handleGitHubConnect(
     throw e;
   }
 
-  return { ok: true };
+  return { ok: true, accountLogin, accountType };
 }
 
 export async function handleGitHubInstallations(
