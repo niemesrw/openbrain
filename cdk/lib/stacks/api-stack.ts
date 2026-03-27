@@ -25,7 +25,6 @@ interface ApiStackProps extends cdk.StackProps {
   usersTable: dynamodb.Table;
   agentTasksTable: dynamodb.Table;
   dcrClientsTable: dynamodb.Table;
-  telegramTokensTable: dynamodb.Table;
   customDomain?: string;
   alarmEmail?: string;
 }
@@ -47,7 +46,6 @@ export class ApiStack extends cdk.Stack {
       usersTable,
       agentTasksTable,
       dcrClientsTable,
-      telegramTokensTable,
       customDomain,
       alarmEmail,
     } = props;
@@ -66,7 +64,6 @@ export class ApiStack extends cdk.Stack {
         AGENT_KEYS_TABLE: agentKeysTable.tableName,
         USERS_TABLE: usersTable.tableName,
         AGENT_TASKS_TABLE: agentTasksTable.tableName,
-        TELEGRAM_TOKENS_TABLE: telegramTokensTable.tableName,
         USER_POOL_ID: userPool.userPoolId,
         ...(customDomain && { CUSTOM_DOMAIN: customDomain }),
       },
@@ -114,7 +111,6 @@ export class ApiStack extends cdk.Stack {
     agentKeysTable.grantReadWriteData(this.handler);
     usersTable.grantReadData(this.handler);
     agentTasksTable.grantReadWriteData(this.handler);
-    telegramTokensTable.grantReadWriteData(this.handler);
 
     // Chat handler Lambda (LLM + brain tools via Bedrock Converse)
     const chatHandler = new lambdaNode.NodejsFunction(this, "ChatHandler", {
@@ -419,13 +415,6 @@ export class ApiStack extends cdk.Stack {
       comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
       treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
     }).addAlarmAction(new cwActions.SnsAction(alarmTopic));
-
-    // Telegram link route — POST /telegram/link, auth handled in-Lambda
-    this.api.addRoutes({
-      path: "/telegram/link",
-      methods: [apigwv2.HttpMethod.POST],
-      integration,
-    });
 
     // Outputs
     new cdk.CfnOutput(this, "ApiUrl", {

@@ -7,8 +7,6 @@ export class DataStack extends cdk.Stack {
   public readonly usersTable: dynamodb.Table;
   public readonly agentTasksTable: dynamodb.Table;
   public readonly dcrClientsTable: dynamodb.Table;
-  public readonly telegramUsersTable: dynamodb.Table;
-  public readonly telegramTokensTable: dynamodb.Table;
 
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
@@ -82,23 +80,6 @@ export class DataStack extends cdk.Stack {
     new cdk.CfnOutput(this, "UsersTableName", {
       value: this.usersTable.tableName,
       exportName: "BrainUsersTableName",
-    });
-
-    // Telegram users table — maps telegramUserId → Open Brain userId
-    this.telegramUsersTable = new dynamodb.Table(this, "TelegramUsersTable", {
-      tableName: "openbrain-telegram-users",
-      partitionKey: { name: "telegramUserId", type: dynamodb.AttributeType.STRING },
-      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
-      removalPolicy: cdk.RemovalPolicy.RETAIN,
-    });
-
-    // Telegram link tokens — one-time codes for account linking (10min TTL)
-    this.telegramTokensTable = new dynamodb.Table(this, "TelegramTokensTable", {
-      tableName: "openbrain-telegram-tokens",
-      partitionKey: { name: "token", type: dynamodb.AttributeType.STRING },
-      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
-      timeToLiveAttribute: "expiresAt",
     });
   }
 }

@@ -5,7 +5,6 @@ import { AuthStack } from "../lib/stacks/auth-stack";
 import { DataStack } from "../lib/stacks/data-stack";
 import { ApiStack } from "../lib/stacks/api-stack";
 import { WebStack } from "../lib/stacks/web-stack";
-import { TelegramStack } from "../lib/stacks/telegram-stack";
 
 const app = new cdk.App();
 
@@ -60,7 +59,6 @@ const api = new ApiStack(app, "EnterpriseBrainApi", {
   usersTable: data.usersTable,
   agentTasksTable: data.agentTasksTable,
   dcrClientsTable: data.dcrClientsTable,
-  telegramTokensTable: data.telegramTokensTable,
   customDomain,
   alarmEmail: app.node.tryGetContext("alarmEmail") ?? process.env.ALARM_EMAIL,
 });
@@ -68,24 +66,6 @@ const api = new ApiStack(app, "EnterpriseBrainApi", {
 api.addDependency(vectors);
 api.addDependency(auth);
 api.addDependency(data);
-
-// Telegram bot — optional; only deployed when telegramBotTokenSecretArn is provided
-const telegramBotTokenSecretArn =
-  app.node.tryGetContext("telegramBotTokenSecretArn") ??
-  process.env.TELEGRAM_BOT_TOKEN_SECRET_ARN;
-
-if (telegramBotTokenSecretArn) {
-  const telegram = new TelegramStack(app, "EnterpriseBrainTelegram", {
-    env,
-    httpApi: api.api,
-    vectorBucketName: vectors.vectorBucketName,
-    telegramUsersTable: data.telegramUsersTable,
-    telegramTokensTable: data.telegramTokensTable,
-    telegramBotTokenSecretArn,
-  });
-  telegram.addDependency(api);
-  telegram.addDependency(data);
-}
 
 // Web SPA — build web/ first, then deploy
 // Only instantiate when web/dist/ exists (after `cd web && npm run build`)

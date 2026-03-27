@@ -95,19 +95,3 @@ export interface ListAgentsArgs {
   _format?: "json";
 }
 
-export interface TelegramLinkArgs {
-  /** Optional: pre-set display name for the linked account */
-  displayName?: string;
-}
-
-export interface TelegramLinkResult {
-  code: string;
-  expiresAt: number; // epoch ms
-}
-
-export interface TelegramUserRecord {
-  telegramUserId: string;
-  userId: string;
-  displayName?: string;
-  linkedAt: number; // epoch seconds
-}
