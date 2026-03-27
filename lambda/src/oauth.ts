@@ -108,15 +108,7 @@ async function handleAuthorize(event: APIGatewayProxyEventV2): Promise<APIGatewa
     try {
       const mapping = await resolveClientId(clientId!);
       authUrl.searchParams.set("client_id", mapping.clientId);
-
-      // Validate redirect_uri against registered list
-      const requestedRedirectUri = params.redirect_uri;
-      if (requestedRedirectUri && !mapping.redirectUris.includes(requestedRedirectUri)) {
-        return json(400, {
-          error: "invalid_request",
-          error_description: "redirect_uri not registered in client metadata document",
-        });
-      }
+      // redirect_uri validation is handled by Cognito itself
     } catch (error: any) {
       return json(400, {
         error: "invalid_client_metadata",
@@ -156,16 +148,6 @@ async function handleToken(event: APIGatewayProxyEventV2): Promise<APIGatewayPro
   if (isUrlClientId(clientId ?? undefined)) {
     try {
       const mapping = await resolveClientId(clientId!);
-
-      // Validate redirect_uri
-      const redirectUri = params.get("redirect_uri");
-      if (redirectUri && !mapping.redirectUris.includes(redirectUri)) {
-        return json(400, {
-          error: "invalid_request",
-          error_description: "redirect_uri not registered in client metadata document",
-        });
-      }
-
       // Replace with Cognito credentials
       params.set("client_id", mapping.clientId);
       params.set("client_secret", mapping.clientSecret);
