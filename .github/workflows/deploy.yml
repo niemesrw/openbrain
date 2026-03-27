@@ -62,8 +62,8 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
           role-chaining: true
 
-      # --- Store GitHub App webhook secret in Secrets Manager ---
-      # CDK references the secret by name rather than embedding its value in the CF template.
+      # --- Store GitHub App secrets in Secrets Manager ---
+      # CDK references secrets by name rather than embedding values in the CF template.
       - name: Upsert GitHub webhook secret in Secrets Manager
         run: |
           aws secretsmanager describe-secret \
@@ -76,6 +76,19 @@ jobs:
             --secret-string "$GH_APP_WEBHOOK_SECRET"
         env:
           GH_APP_WEBHOOK_SECRET: ${{ secrets.GH_APP_WEBHOOK_SECRET }}
+
+      - name: Upsert GitHub App private key in Secrets Manager
+        run: |
+          aws secretsmanager describe-secret \
+            --secret-id openbrain/github-app-private-key > /dev/null 2>&1 \
+          && aws secretsmanager put-secret-value \
+            --secret-id openbrain/github-app-private-key \
+            --secret-string "$GH_APP_PRIVATE_KEY" \
+          || aws secretsmanager create-secret \
+            --name openbrain/github-app-private-key \
+            --secret-string "$GH_APP_PRIVATE_KEY"
+        env:
+          GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
 
       # --- Build Lambda ---
 
@@ -117,7 +130,7 @@ jobs:
           GOOGLE_CLIENT_SECRET_ARN: ${{ secrets.GOOGLE_CLIENT_SECRET_ARN }}
           ALARM_EMAIL: ${{ secrets.ALARM_EMAIL }}
           CUSTOM_DOMAIN: ${{ secrets.CUSTOM_DOMAIN }}
-          GITHUB_APP_ID: ${{ secrets.GITHUB_APP_ID }}
+          GITHUB_APP_ID: ${{ secrets.GH_APP_ID }}
 
       # --- Fetch CDK outputs for web build ---
 
