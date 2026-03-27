@@ -102,16 +102,16 @@ jobs:
       - name: CDK Deploy (infra stacks)
         working-directory: cdk
         run: |
-          # Api is deployed before Data so that any removed Data exports are
-          # no longer imported before Data tries to delete them. Api references
-          # the github installations table by name (not CFN cross-stack import)
-          # so it has no forward dependency on Data for that table.
+          # Deploy sequentially (--concurrency 1) so Api completes before Data
+          # starts. This ensures any removed Data exports are no longer imported
+          # by Api before Data tries to delete them.
           npx cdk deploy \
             EnterpriseBrainVectors \
             EnterpriseBrainAuth \
             EnterpriseBrainApi \
             EnterpriseBrainData \
-            --require-approval never
+            --require-approval never \
+            --concurrency 1
         env:
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET_ARN: ${{ secrets.GOOGLE_CLIENT_SECRET_ARN }}
