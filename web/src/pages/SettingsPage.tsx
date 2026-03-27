@@ -1,31 +1,74 @@
 import { useEffect, useState } from "react";
-import { getGitHubInstallations, type GitHubInstallation } from "../lib/api";
+import { getGitHubInstallations, disconnectGitHubInstallation, type GitHubInstallation } from "../lib/api";
 
 const GITHUB_APP_SLUG = import.meta.env.VITE_GITHUB_APP_SLUG as string | undefined;
 const installUrl = GITHUB_APP_SLUG
   ? `https://github.com/apps/${GITHUB_APP_SLUG}/installations/new`
   : null;
 
-function InstallationRow({ inst }: { inst: GitHubInstallation }) {
+function InstallationRow({
+  inst,
+  onDisconnect,
+}: {
+  inst: GitHubInstallation;
+  onDisconnect: (id: string) => void;
+}) {
   const icon = inst.accountType === "Organization" ? "🏢" : "👤";
   const date = new Date(inst.installedAt).toLocaleDateString();
+  const [disconnecting, setDisconnecting] = useState(false);
+  const [disconnectError, setDisconnectError] = useState("");
+
+  async function handleDisconnect() {
+    if (
+      !window.confirm(
+        `Disconnect ${inst.accountLogin} from Open Brain? This will stop capturing GitHub events for this account.`
+      )
+    ) {
+      return;
+    }
+    setDisconnecting(true);
+    setDisconnectError("");
+    try {
+      await disconnectGitHubInstallation(inst.installationId);
+      onDisconnect(inst.installationId);
+    } catch (e: unknown) {
+      setDisconnectError(e instanceof Error ? e.message : "Failed to disconnect");
+    } finally {
+      setDisconnecting(false);
+    }
+  }
+
   return (
-    <div className="flex items-center justify-between py-3 border-b border-gray-800 last:border-0">
-      <div className="flex items-center gap-3">
-        <span className="text-lg">{icon}</span>
-        <div>
-          <p className="text-white font-medium">{inst.accountLogin}</p>
-          <p className="text-gray-500 text-xs">{inst.accountType} · connected {date}</p>
+    <div className="py-3 border-b border-gray-800 last:border-0">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span className="text-lg">{icon}</span>
+          <div>
+            <p className="text-white font-medium">{inst.accountLogin}</p>
+            <p className="text-gray-500 text-xs">{inst.accountType} · connected {date}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-4">
+          <a
+            href={`https://github.com/settings/installations/${inst.installationId}`}
+            target="_blank"
+            rel="noreferrer"
+            className="text-gray-500 hover:text-gray-300 text-xs"
+          >
+            Manage on GitHub ↗
+          </a>
+          <button
+            onClick={handleDisconnect}
+            disabled={disconnecting}
+            className="text-red-500 hover:text-red-400 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {disconnecting ? "Disconnecting…" : "Disconnect"}
+          </button>
         </div>
       </div>
-      <a
-        href={`https://github.com/settings/installations/${inst.installationId}`}
-        target="_blank"
-        rel="noreferrer"
-        className="text-gray-500 hover:text-gray-300 text-xs"
-      >
-        Manage on GitHub ↗
-      </a>
+      {disconnectError && (
+        <p className="text-red-400 text-xs mt-1 pl-9">{disconnectError}</p>
+      )}
     </div>
   );
 }
@@ -41,6 +84,10 @@ export function SettingsPage() {
       .catch((e: unknown) => setError(e instanceof Error ? e.message : "Failed to load"))
       .finally(() => setLoading(false));
   }, []);
+
+  function handleDisconnect(installationId: string) {
+    setInstallations((prev) => prev.filter((i) => i.installationId !== installationId));
+  }
 
   return (
     <div className="max-w-2xl mx-auto space-y-10">
@@ -82,7 +129,7 @@ export function SettingsPage() {
         ) : (
           <div className="border border-gray-800 rounded-lg px-4">
             {installations.map((inst) => (
-              <InstallationRow key={inst.installationId} inst={inst} />
+              <InstallationRow key={inst.installationId} inst={inst} onDisconnect={handleDisconnect} />
             ))}
           </div>
         )}

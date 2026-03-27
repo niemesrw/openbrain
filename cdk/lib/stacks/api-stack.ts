@@ -248,7 +248,7 @@ export class ApiStack extends cdk.Stack {
       apiName: "open-brain-mcp",
       corsPreflight: {
         allowOrigins: ["*"],
-        allowMethods: [apigwv2.CorsHttpMethod.POST, apigwv2.CorsHttpMethod.GET, apigwv2.CorsHttpMethod.OPTIONS],
+        allowMethods: [apigwv2.CorsHttpMethod.POST, apigwv2.CorsHttpMethod.GET, apigwv2.CorsHttpMethod.DELETE, apigwv2.CorsHttpMethod.OPTIONS],
         allowHeaders: ["Content-Type", "Authorization", "x-api-key"],
       },
     });
@@ -630,6 +630,11 @@ export class ApiStack extends cdk.Stack {
     this.api.addRoutes({
       path: "/github/installations",
       methods: [apigwv2.HttpMethod.GET],
+      integration: githubRestIntegration,
+    });
+    this.api.addRoutes({
+      path: "/github/installations/{installationId}",
+      methods: [apigwv2.HttpMethod.DELETE],
       integration: githubRestIntegration,
     });
 

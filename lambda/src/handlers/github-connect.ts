@@ -1,6 +1,7 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import {
   DynamoDBDocumentClient,
+  DeleteCommand,
   PutCommand,
   QueryCommand,
 } from "@aws-sdk/lib-dynamodb";
@@ -60,6 +61,22 @@ export async function handleGitHubConnect(
   }
 
   return { ok: true, accountLogin, accountType };
+}
+
+export async function handleGitHubDisconnect(
+  installationId: string,
+  user: UserContext
+): Promise<{ ok: boolean }> {
+  // Only allow the owner to disconnect — use ConditionExpression to enforce
+  await ddb.send(
+    new DeleteCommand({
+      TableName: GITHUB_INSTALLATIONS_TABLE,
+      Key: { installationId },
+      ConditionExpression: "userId = :uid",
+      ExpressionAttributeValues: { ":uid": user.userId },
+    })
+  );
+  return { ok: true };
 }
 
 export async function handleGitHubInstallations(

@@ -2,6 +2,7 @@ import type { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from "aws-lambda
 import { verifyAuth } from "./auth/verify";
 import {
   handleGitHubConnect,
+  handleGitHubDisconnect,
   handleGitHubInstallations,
 } from "./handlers/github-connect";
 
@@ -108,6 +109,52 @@ export async function handler(
     } catch (e) {
       console.error(
         "GitHub installations error:",
+        e instanceof Error ? e.message : String(e)
+      );
+      return {
+        statusCode: 500,
+        headers: JSON_HEADERS,
+        body: JSON.stringify({ error: "Internal error" }),
+      };
+    }
+  }
+
+  // DELETE /github/installations/{installationId} — unlink a GitHub App installation
+  if (method === "DELETE" && path.startsWith("/github/installations/")) {
+    const installationId = path.slice("/github/installations/".length);
+
+    if (!installationId) {
+      return {
+        statusCode: 400,
+        headers: JSON_HEADERS,
+        body: JSON.stringify({ error: "installationId is required" }),
+      };
+    }
+
+    let user;
+    try {
+      user = await verifyAuth(event.headers ?? {});
+    } catch {
+      return unauthorized();
+    }
+
+    try {
+      const result = await handleGitHubDisconnect(installationId, user);
+      return {
+        statusCode: 200,
+        headers: JSON_HEADERS,
+        body: JSON.stringify(result),
+      };
+    } catch (e) {
+      if (e instanceof Error && e.name === "ConditionalCheckFailedException") {
+        return {
+          statusCode: 404,
+          headers: JSON_HEADERS,
+          body: JSON.stringify({ error: "Installation not found or not owned by you" }),
+        };
+      }
+      console.error(
+        "GitHub disconnect error:",
         e instanceof Error ? e.message : String(e)
       );
       return {

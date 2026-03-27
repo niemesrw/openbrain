@@ -10,6 +10,7 @@ jest.mock("@aws-sdk/lib-dynamodb", () => {
   (from as any).__mockSend = send;
   return {
     DynamoDBDocumentClient: { from },
+    DeleteCommand: jest.fn((input: unknown) => ({ input })),
     PutCommand: jest.fn((input: unknown) => ({ input })),
     QueryCommand: jest.fn((input: unknown) => ({ input })),
   };
@@ -24,6 +25,7 @@ jest.mock("../../services/github-app", () => ({
 
 import {
   handleGitHubConnect,
+  handleGitHubDisconnect,
   handleGitHubInstallations,
 } from "../github-connect";
 import { getInstallationDetails } from "../../services/github-app";
@@ -79,6 +81,28 @@ describe("handleGitHubConnect", () => {
     await expect(
       handleGitHubConnect({ installationId: "123" }, USER)
     ).rejects.toThrow("ProvisionedThroughputExceededException");
+  });
+});
+
+describe("handleGitHubDisconnect", () => {
+  it("successfully deletes the installation when userId matches", async () => {
+    mockSend.mockResolvedValue({});
+    const result = await handleGitHubDisconnect("123", USER);
+    expect(result).toEqual({ ok: true });
+    const deleteInput = mockSend.mock.calls[0][0].input;
+    expect(deleteInput.Key).toEqual({ installationId: "123" });
+    expect(deleteInput.ConditionExpression).toBe("userId = :uid");
+    expect(deleteInput.ExpressionAttributeValues[":uid"]).toBe(USER.userId);
+  });
+
+  it("throws ConditionalCheckFailedException when userId does not match", async () => {
+    const err = Object.assign(new Error("ConditionalCheckFailedException"), {
+      name: "ConditionalCheckFailedException",
+    });
+    mockSend.mockRejectedValue(err);
+    await expect(
+      handleGitHubDisconnect("123", USER)
+    ).rejects.toMatchObject({ name: "ConditionalCheckFailedException" });
   });
 });
 

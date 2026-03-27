@@ -131,3 +131,22 @@ export async function getGitHubInstallations(): Promise<GitHubInstallation[]> {
   const data = await res.json();
   return data.installations ?? [];
 }
+
+export async function disconnectGitHubInstallation(installationId: string): Promise<void> {
+  const token = await getIdToken();
+  const apiUrl = getApiUrl();
+  const res = await fetch(`${apiUrl}/github/installations/${installationId}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    let message = `GitHub disconnect error: ${res.status}`;
+    try {
+      const body = await res.json() as { error?: string };
+      if (body && typeof body.error === "string") message = body.error;
+    } catch {
+      // ignore, use status-based message
+    }
+    throw new Error(message);
+  }
+}
