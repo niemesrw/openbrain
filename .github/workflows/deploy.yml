@@ -117,6 +117,7 @@ jobs:
           GOOGLE_CLIENT_SECRET_ARN: ${{ secrets.GOOGLE_CLIENT_SECRET_ARN }}
           ALARM_EMAIL: ${{ secrets.ALARM_EMAIL }}
           CUSTOM_DOMAIN: ${{ secrets.CUSTOM_DOMAIN }}
+          GITHUB_APP_ID: ${{ secrets.GITHUB_APP_ID }}
 
       # --- Fetch CDK outputs for web build ---
 

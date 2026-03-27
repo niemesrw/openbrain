@@ -501,7 +501,10 @@ export class ApiStack extends cdk.Stack {
     const githubInstallationsTableName = "openbrain-github-installations";
     const githubInstallationsTableArn = `arn:aws:dynamodb:${this.region}:${this.account}:table/${githubInstallationsTableName}`;
 
-    // GitHub Agent Lambda — SQS consumer (Phase 1: stub; Phase 2: LLM extraction + brain capture)
+    // GitHub App private key — stored in Secrets Manager, referenced by name
+    const githubAppPrivateKeySecretName = "openbrain/github-app-private-key";
+
+    // GitHub Agent Lambda — SQS consumer: LLM extraction + brain capture
     const githubAgentHandler = new lambdaNode.NodejsFunction(this, "GitHubAgentHandler", {
       runtime: lambda.Runtime.NODEJS_22_X,
       entry: path.join(__dirname, "..", "..", "..", "lambda", "src", "github-agent.ts"),
@@ -511,6 +514,10 @@ export class ApiStack extends cdk.Stack {
       environment: {
         VECTOR_BUCKET_NAME: vectorBucketName,
         GITHUB_INSTALLATIONS_TABLE: githubInstallationsTableName,
+        EMBEDDING_MODEL_ID: "amazon.titan-embed-text-v2:0",
+        METADATA_MODEL_ID: "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+        GITHUB_APP_ID: process.env.GITHUB_APP_ID ?? "",
+        GITHUB_APP_PRIVATE_KEY_SECRET_NAME: githubAppPrivateKeySecretName,
       },
       bundling: {
         externalModules: ["@aws-sdk/*"],
@@ -524,6 +531,37 @@ export class ApiStack extends cdk.Stack {
     githubAgentHandler.addToRolePolicy(new iam.PolicyStatement({
       actions: ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:Scan"],
       resources: [githubInstallationsTableArn, `${githubInstallationsTableArn}/index/*`],
+    }));
+    githubAgentHandler.addToRolePolicy(new iam.PolicyStatement({
+      actions: [
+        "s3vectors:CreateIndex",
+        "s3vectors:QueryVectors",
+        "s3vectors:PutVectors",
+        "s3vectors:GetVectors",
+        "s3vectors:DeleteVectors",
+        "s3vectors:ListVectors",
+        "s3vectors:ListIndexes",
+      ],
+      resources: [
+        `arn:aws:s3vectors:${this.region}:${this.account}:bucket/${vectorBucketName}`,
+        `arn:aws:s3vectors:${this.region}:${this.account}:bucket/${vectorBucketName}/*`,
+      ],
+    }));
+    githubAgentHandler.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["bedrock:InvokeModel"],
+      resources: [
+        `arn:aws:bedrock:${this.region}::foundation-model/amazon.titan-embed-text-v2:0`,
+        `arn:aws:bedrock:${this.region}:${this.account}:inference-profile/us.anthropic.claude-haiku-4-5-20251001-v1:0`,
+        `arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0`,
+        `arn:aws:bedrock:us-east-2::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0`,
+        `arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0`,
+      ],
+    }));
+    githubAgentHandler.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["secretsmanager:GetSecretValue"],
+      resources: [
+        `arn:aws:secretsmanager:${this.region}:${this.account}:secret:${githubAppPrivateKeySecretName}*`,
+      ],
     }));
 
     // GitHub REST Lambda — authenticated endpoints for installation management
