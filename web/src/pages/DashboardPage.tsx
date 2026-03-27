@@ -5,12 +5,13 @@ import {
   updateThought,
   deleteThought,
 } from "../lib/brain-api";
-import { chatWithBrain, type ChatMessage } from "../lib/api";
+import { chatWithBrain, getInsight, type ChatMessage, type InsightData } from "../lib/api";
 import type { Thought, BrainStats, Message, Scope } from "../lib/brain-types";
 import { FilterChips } from "../components/FilterChips";
 import { ThoughtCard } from "../components/ThoughtCard";
 import { StatsBar } from "../components/StatsBar";
 import { BrainInput } from "../components/BrainInput";
+import { InsightCard } from "../components/InsightCard";
 
 function makeBrainMessage(text: string, thoughts?: Thought[]): Message {
   return {
@@ -24,6 +25,8 @@ function makeBrainMessage(text: string, thoughts?: Thought[]): Message {
 
 export function DashboardPage() {
   const [stats, setStats] = useState<BrainStats | null>(null);
+  const [insight, setInsight] = useState<InsightData | null>(null);
+  const [insightDismissed, setInsightDismissed] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [history, setHistory] = useState<ChatMessage[]>([]);
   const [recentThoughts, setRecentThoughts] = useState<Thought[]>([]);
@@ -41,6 +44,7 @@ export function DashboardPage() {
 
   useEffect(() => {
     getStats().then(setStats).catch(() => {});
+    getInsight().then(setInsight).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -155,6 +159,15 @@ export function DashboardPage() {
     setHistory([]);
   };
 
+  const handleInsightExplore = (topic: string) => {
+    setInsightDismissed(true);
+    setMode("browse");
+    setLimit(20);
+    setBrowseStale(true);
+    setActiveType(null);
+    setActiveTopic(topic);
+  };
+
   const topTopics = useMemo(
     () =>
       stats
@@ -169,6 +182,16 @@ export function DashboardPage() {
   return (
     <div className="pb-32">
       <StatsBar stats={stats} onTypeClick={handleTypeClick} />
+
+      {insight && !insightDismissed && (
+        <div className="mt-4">
+          <InsightCard
+            insight={insight}
+            onExplore={handleInsightExplore}
+            onDismiss={() => setInsightDismissed(true)}
+          />
+        </div>
+      )}
 
       {mode === "chat" && messages.length > 0 ? (
         <div className="mt-5 space-y-4">

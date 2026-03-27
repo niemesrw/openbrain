@@ -124,6 +124,10 @@ The brain can store any personal context. Have the user export data from service
 
 After migration, suggest the user test by asking a different AI client about something that was just migrated.
 
+## AWS CLI
+
+Always use `--profile blanxlait-ai` for all AWS CLI commands in this repo.
+
 ## Infrastructure
 
 ### AWS Accounts (BLANXLAIT org)
@@ -188,6 +192,16 @@ The server implements the MCP Authorization spec (OAuth 2.1 discovery, Dynamic C
 - `lambda/src/auth/verify.ts` — Shared JWT + API key verification (used by MCP Lambda and authorizer)
 
 **Reference implementation:** [empires-security/mcp-oauth2-aws-cognito](https://github.com/empires-security/mcp-oauth2-aws-cognito) — our OAuth implementation was modeled after this repo, which demonstrates provider-agnostic OAuth 2.1 for MCP servers with Cognito. Refer to it for additional context on DCR bridging, CIMD flows, and the authorization proxy pattern.
+
+## PR Checklist
+
+Before submitting a pull request, ensure:
+
+1. **Tests** — New Lambda handlers must have unit tests in `lambda/src/handlers/__tests__/`. Run `cd lambda && npm test` to verify all tests pass.
+2. **New routes** — Any new API route must be wired in both `lambda/src/index.ts` (handler + auth) and `cdk/lib/stacks/api-stack.ts` (HTTP API route).
+3. **Performance** — Routes on hot paths (e.g., dashboard load) must not add additional full-index `listAllVectors` scans without a caching strategy. Copilot will flag these.
+4. **Error handling** — Use `err instanceof Error ? err.message : String(err)` when logging errors to handle non-Error throws correctly.
+5. **Web build** — If `web/` files changed, run `cd web && npm run build` to ensure the SPA builds cleanly before deploying via CDK.
 
 ## Troubleshooting
 

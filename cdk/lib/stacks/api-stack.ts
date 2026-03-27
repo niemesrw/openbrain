@@ -238,6 +238,13 @@ export class ApiStack extends cdk.Stack {
       integration,
     });
 
+    // Insight route — proactive brain summary (auth handled in-Lambda)
+    this.api.addRoutes({
+      path: "/insight",
+      methods: [apigwv2.HttpMethod.GET],
+      integration,
+    });
+
     // Chat route (LLM + brain tools)
     const chatIntegration = new apigwv2Integrations.HttpLambdaIntegration(
       "ChatIntegration",

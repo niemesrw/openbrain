@@ -31,6 +31,27 @@ export async function chatWithBrain(
   return res.json();
 }
 
+export interface InsightData {
+  headline: string;
+  body: string;
+  topic: string;
+  count: number;
+  since: number;
+}
+
+export async function getInsight(): Promise<InsightData | null> {
+  const token = await getIdToken();
+  const apiUrl = getApiUrl();
+
+  const res = await fetch(`${apiUrl}/insight`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!res.ok) return null;
+  const data = await res.json();
+  return data.insight ?? null;
+}
+
 interface McpResponse {
   jsonrpc: "2.0";
   id: number;

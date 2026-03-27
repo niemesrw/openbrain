@@ -7,6 +7,7 @@ import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/
 import { z } from "zod";
 import { verifyAuth } from "./auth/verify";
 import { executeTool } from "./tool-executor";
+import { handleInsight } from "./handlers/insight";
 import type { UserContext } from "./types";
 
 // --- Tool registration ---
@@ -191,6 +192,40 @@ export async function handler(
   const method = event.requestContext.http.method;
 
   // Health check — GET with no auth required
+  if (method === "GET" && event.rawPath === "/health") {
+    return {
+      statusCode: 200,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "ok", name: "open-brain-mcp" }),
+    };
+  }
+
+  // Insight endpoint — GET /insight, auth required
+  if (method === "GET" && event.rawPath === "/insight") {
+    let user: UserContext;
+    try {
+      user = await verifyAuth(event.headers ?? {});
+    } catch {
+      return { statusCode: 401, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ error: "Unauthorized" }) };
+    }
+    try {
+      const insight = await handleInsight(user);
+      return {
+        statusCode: 200,
+        headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+        body: JSON.stringify({ insight }),
+      };
+    } catch (e: unknown) {
+      if (e instanceof Error) {
+        console.error("Insight error:", e.message, e.stack);
+      } else {
+        console.error("Insight error (non-Error):", String(e));
+      }
+      return { statusCode: 500, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ insight: null }) };
+    }
+  }
+
+  // Health check — GET /mcp with no auth required
   if (method === "GET") {
     return {
       statusCode: 200,
