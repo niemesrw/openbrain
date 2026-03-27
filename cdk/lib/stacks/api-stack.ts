@@ -276,6 +276,7 @@ export class ApiStack extends cdk.Stack {
         actions: [
           "cognito-idp:CreateUserPoolClient",
           "cognito-idp:DescribeUserPoolClient",
+          "cognito-idp:UpdateUserPoolClient",
         ],
         resources: [userPool.userPoolArn],
       })
