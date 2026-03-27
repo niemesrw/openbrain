@@ -14,11 +14,13 @@ const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const idTokenVerifier = CognitoJwtVerifier.create({
   userPoolId: USER_POOL_ID,
   tokenUse: "id",
+  clientId: null, // accept tokens from any client in the pool (DCR clients have dynamic IDs)
 });
 
 const accessTokenVerifier = CognitoJwtVerifier.create({
   userPoolId: USER_POOL_ID,
   tokenUse: "access",
+  clientId: null, // accept tokens from any client in the pool (DCR clients have dynamic IDs)
 });
 
 /**
