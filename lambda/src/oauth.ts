@@ -9,7 +9,7 @@ import {
   UpdateUserPoolClientCommand,
 } from "@aws-sdk/client-cognito-identity-provider";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
+import { DynamoDBDocumentClient, PutCommand, GetCommand } from "@aws-sdk/lib-dynamodb";
 import { isUrlClientId, resolveClientId } from "./oauth/cimd";
 
 const USER_POOL_ID = process.env.USER_POOL_ID!;
@@ -82,53 +82,94 @@ async function handleAuthServerMetadata(event: APIGatewayProxyEventV2): Promise<
   }
 }
 
+const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
+
+function isLoopbackUri(uri: string): boolean {
+  try {
+    return LOOPBACK_HOSTS.has(new URL(uri).hostname);
+  } catch {
+    return false;
+  }
+}
+
 /**
- * Per RFC 8252 Section 7.3, authorization servers MUST allow any port for
- * loopback redirect URIs. Cognito doesn't support this, so we bridge the gap
- * by updating the Cognito client's CallbackURLs to include the exact
- * redirect_uri when it's a loopback URL with a specific port.
+ * Per RFC 8252 §7.3, authorization servers MUST allow any port for loopback
+ * redirect URIs. Cognito requires exact URL matches, so we bridge the gap by
+ * updating the Cognito client's CallbackURLs to include the requested URI.
+ *
+ * Security: only updates clients managed by our DCR (checked via DynamoDB).
+ * Pruning: replaces old ephemeral-port loopback URLs with the current one,
+ * keeping only the canonical (port-less) entries + the active port.
+ * Concurrency: retries on conflict up to 3 times.
  */
 async function ensureLoopbackRedirectUri(cognitoClientId: string, redirectUri: string): Promise<void> {
   try {
     const parsed = new URL(redirectUri);
-    const isLoopback = parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1";
-    if (!isLoopback || !parsed.port) return; // no port = already matches generic registration
+    if (!LOOPBACK_HOSTS.has(parsed.hostname) || !parsed.port) return;
 
-    const describeResult = await cognito.send(
-      new DescribeUserPoolClientCommand({
-        UserPoolId: USER_POOL_ID,
-        ClientId: cognitoClientId,
+    // Only update DCR-managed clients — reject arbitrary client IDs
+    const dcrRecord = await ddb.send(
+      new GetCommand({
+        TableName: DCR_CLIENTS_TABLE,
+        Key: { clientId: cognitoClientId },
       })
     );
+    if (!dcrRecord.Item) return; // not a DCR client, skip
 
-    const client = describeResult.UserPoolClient!;
-    const existingCallbacks = client.CallbackURLs ?? [];
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const describeResult = await cognito.send(
+          new DescribeUserPoolClientCommand({
+            UserPoolId: USER_POOL_ID,
+            ClientId: cognitoClientId,
+          })
+        );
 
-    if (existingCallbacks.includes(redirectUri)) return; // already registered
+        const client = describeResult.UserPoolClient!;
+        const existingCallbacks = client.CallbackURLs ?? [];
 
-    await cognito.send(
-      new UpdateUserPoolClientCommand({
-        UserPoolId: USER_POOL_ID,
-        ClientId: cognitoClientId,
-        // Must re-send all existing config when updating
-        ClientName: client.ClientName,
-        CallbackURLs: [...existingCallbacks, redirectUri],
-        LogoutURLs: client.LogoutURLs,
-        AllowedOAuthFlows: client.AllowedOAuthFlows,
-        AllowedOAuthFlowsUserPoolClient: client.AllowedOAuthFlowsUserPoolClient,
-        AllowedOAuthScopes: client.AllowedOAuthScopes,
-        SupportedIdentityProviders: client.SupportedIdentityProviders,
-        ExplicitAuthFlows: client.ExplicitAuthFlows,
-        PreventUserExistenceErrors: client.PreventUserExistenceErrors,
-        TokenValidityUnits: client.TokenValidityUnits,
-        AccessTokenValidity: client.AccessTokenValidity,
-        IdTokenValidity: client.IdTokenValidity,
-        RefreshTokenValidity: client.RefreshTokenValidity,
-      })
-    );
+        if (existingCallbacks.includes(redirectUri)) return;
+
+        // Prune old ephemeral-port loopback URLs, keep canonical (no port) ones
+        const prunedCallbacks = existingCallbacks.filter((url) => {
+          try {
+            const u = new URL(url);
+            return !LOOPBACK_HOSTS.has(u.hostname) || !u.port;
+          } catch {
+            return true;
+          }
+        });
+
+        // Cognito UpdateUserPoolClient replaces the full client config —
+        // all fields not included are reset to defaults. We must re-send
+        // the fields we want to preserve.
+        await cognito.send(
+          new UpdateUserPoolClientCommand({
+            UserPoolId: USER_POOL_ID,
+            ClientId: cognitoClientId,
+            ClientName: client.ClientName,
+            CallbackURLs: [...prunedCallbacks, redirectUri],
+            LogoutURLs: client.LogoutURLs,
+            AllowedOAuthFlows: client.AllowedOAuthFlows,
+            AllowedOAuthFlowsUserPoolClient: client.AllowedOAuthFlowsUserPoolClient,
+            AllowedOAuthScopes: client.AllowedOAuthScopes,
+            SupportedIdentityProviders: client.SupportedIdentityProviders,
+            ExplicitAuthFlows: client.ExplicitAuthFlows,
+            PreventUserExistenceErrors: client.PreventUserExistenceErrors,
+            TokenValidityUnits: client.TokenValidityUnits,
+            AccessTokenValidity: client.AccessTokenValidity,
+            IdTokenValidity: client.IdTokenValidity,
+            RefreshTokenValidity: client.RefreshTokenValidity,
+          })
+        );
+        return;
+      } catch (error: any) {
+        if (attempt < 2 && error?.$metadata?.httpStatusCode === 409) continue;
+        throw error;
+      }
+    }
   } catch (error: any) {
     console.error("Failed to update Cognito client callback URLs:", error.message);
-    // Non-fatal — Cognito will reject the redirect if this fails
   }
 }
 

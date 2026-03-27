@@ -1,18 +1,24 @@
 import type { APIGatewayProxyEventV2, APIGatewayProxyStructuredResultV2 } from "aws-lambda";
 
 // Mock AWS SDK clients before importing handler
-jest.mock("@aws-sdk/client-cognito-identity-provider");
+const mockCognitoSend = jest.fn();
+jest.mock("@aws-sdk/client-cognito-identity-provider", () => ({
+  CognitoIdentityProviderClient: jest.fn().mockImplementation(() => ({ send: mockCognitoSend })),
+  CreateUserPoolClientCommand: jest.fn(),
+  DescribeUserPoolClientCommand: jest.fn(),
+  UpdateUserPoolClientCommand: jest.fn(),
+}));
 jest.mock("@aws-sdk/client-dynamodb");
+const mockDdbSend = jest.fn();
 jest.mock("@aws-sdk/lib-dynamodb", () => {
   const actual = jest.requireActual("@aws-sdk/lib-dynamodb");
   return {
     ...actual,
     DynamoDBDocumentClient: {
-      from: jest.fn().mockReturnValue({
-        send: jest.fn(),
-      }),
+      from: jest.fn().mockReturnValue({ send: mockDdbSend }),
     },
     PutCommand: actual.PutCommand,
+    GetCommand: actual.GetCommand,
   };
 });
 
@@ -178,6 +184,120 @@ describe("OAuth handler", () => {
 
       const result = await handler(event) as APIGatewayProxyStructuredResultV2;
       expect(result.statusCode).toBe(404);
+    });
+  });
+
+  describe("GET /oauth/authorize — loopback redirect URI", () => {
+    beforeEach(() => {
+      // Pre-load Cognito metadata so authorize handler doesn't need to fetch
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          issuer: "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_TestPool",
+          authorization_endpoint: "https://openbrain-test.auth.us-east-1.amazoncognito.com/oauth2/authorize",
+          token_endpoint: "https://openbrain-test.auth.us-east-1.amazoncognito.com/oauth2/token",
+        }),
+      });
+    });
+
+    it("updates Cognito CallbackURLs for loopback redirect with port when client is DCR-managed", async () => {
+      // First call: auth server metadata fetch (triggers metadata load)
+      // Then: DDB GetCommand returns DCR record
+      mockDdbSend.mockResolvedValueOnce({ Item: { clientId: "test-client-123" } });
+      // Then: Cognito DescribeUserPoolClient
+      mockCognitoSend.mockResolvedValueOnce({
+        UserPoolClient: {
+          ClientName: "Test",
+          CallbackURLs: ["http://127.0.0.1/callback", "http://localhost/callback"],
+          AllowedOAuthFlows: ["code"],
+          AllowedOAuthFlowsUserPoolClient: true,
+          AllowedOAuthScopes: ["openid"],
+          SupportedIdentityProviders: ["COGNITO", "Google"],
+        },
+      });
+      // Then: Cognito UpdateUserPoolClient
+      mockCognitoSend.mockResolvedValueOnce({});
+
+      // First trigger metadata load
+      const metaEvent = makeEvent({
+        rawPath: "/.well-known/oauth-authorization-server",
+        requestContext: { http: { method: "GET" } } as any,
+      });
+      await handler(metaEvent);
+
+      // Now test authorize with loopback + port
+      const event = makeEvent({
+        rawPath: "/oauth/authorize",
+        rawQueryString: "client_id=test-client-123&redirect_uri=http%3A%2F%2F127.0.0.1%3A54321%2Fcallback&response_type=code",
+        queryStringParameters: {
+          client_id: "test-client-123",
+          redirect_uri: "http://127.0.0.1:54321/callback",
+          response_type: "code",
+        },
+        requestContext: { http: { method: "GET" } } as any,
+      });
+
+      const result = await handler(event) as APIGatewayProxyStructuredResultV2;
+
+      expect(result.statusCode).toBe(302);
+      // Should have called DDB to check DCR ownership
+      expect(mockDdbSend).toHaveBeenCalled();
+      // Should have called Cognito to describe + update the client
+      expect(mockCognitoSend).toHaveBeenCalledTimes(2);
+    });
+
+    it("skips update for non-DCR clients", async () => {
+      // DDB GetCommand returns no item — not a DCR client
+      mockDdbSend.mockResolvedValueOnce({ Item: undefined });
+
+      // Trigger metadata load first
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          authorization_endpoint: "https://openbrain-test.auth.us-east-1.amazoncognito.com/oauth2/authorize",
+          token_endpoint: "https://openbrain-test.auth.us-east-1.amazoncognito.com/oauth2/token",
+        }),
+      });
+      const metaEvent = makeEvent({
+        rawPath: "/.well-known/oauth-authorization-server",
+        requestContext: { http: { method: "GET" } } as any,
+      });
+      await handler(metaEvent);
+
+      const event = makeEvent({
+        rawPath: "/oauth/authorize",
+        rawQueryString: "client_id=static-client&redirect_uri=http%3A%2F%2F127.0.0.1%3A9999%2Fcallback",
+        queryStringParameters: {
+          client_id: "static-client",
+          redirect_uri: "http://127.0.0.1:9999/callback",
+        },
+        requestContext: { http: { method: "GET" } } as any,
+      });
+
+      const result = await handler(event) as APIGatewayProxyStructuredResultV2;
+
+      expect(result.statusCode).toBe(302);
+      // Should NOT have called Cognito — not a DCR client
+      expect(mockCognitoSend).not.toHaveBeenCalled();
+    });
+
+    it("skips update for non-loopback redirect URIs", async () => {
+      const event = makeEvent({
+        rawPath: "/oauth/authorize",
+        rawQueryString: "client_id=test-client&redirect_uri=https%3A%2F%2Fexample.com%2Fcallback",
+        queryStringParameters: {
+          client_id: "test-client",
+          redirect_uri: "https://example.com/callback",
+        },
+        requestContext: { http: { method: "GET" } } as any,
+      });
+
+      const result = await handler(event) as APIGatewayProxyStructuredResultV2;
+
+      expect(result.statusCode).toBe(302);
+      // Should not touch DDB or Cognito for non-loopback URIs
+      expect(mockDdbSend).not.toHaveBeenCalled();
+      expect(mockCognitoSend).not.toHaveBeenCalled();
     });
   });
 });
