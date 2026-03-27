@@ -254,9 +254,8 @@ async function handleToken(event: APIGatewayProxyEventV2): Promise<APIGatewayPro
   if (isUrlClientId(clientId ?? undefined)) {
     try {
       const mapping = await resolveClientId(clientId!);
-      // Replace with Cognito credentials
+      // Replace URL-based client_id with the mapped Cognito client_id
       params.set("client_id", mapping.clientId);
-      params.set("client_secret", mapping.clientSecret);
     } catch (error: any) {
       return json(400, {
         error: "invalid_client_metadata",
@@ -342,7 +341,7 @@ async function handleRegister(event: APIGatewayProxyEventV2): Promise<APIGateway
       new CreateUserPoolClientCommand({
         UserPoolId: USER_POOL_ID,
         ClientName: clientName,
-        GenerateSecret: true,
+        GenerateSecret: false,
         AllowedOAuthFlows: ["code"],
         AllowedOAuthFlowsUserPoolClient: true,
         AllowedOAuthScopes: ["openid", "profile", "email"],
@@ -362,14 +361,12 @@ async function handleRegister(event: APIGatewayProxyEventV2): Promise<APIGateway
 
     const client = result.UserPoolClient!;
 
-    const registration = {
+    const registration: Record<string, any> = {
       client_id: client.ClientId,
-      client_secret: client.ClientSecret,
       client_id_issued_at: Math.floor(Date.now() / 1000),
-      client_secret_expires_at: 0,
       redirect_uris: body.redirect_uris,
       grant_types: ["authorization_code", "refresh_token"],
-      token_endpoint_auth_method: "client_secret_post",
+      token_endpoint_auth_method: "none",
       response_types: ["code"],
       client_name: clientName,
       scope: "openid profile email",
@@ -382,7 +379,6 @@ async function handleRegister(event: APIGatewayProxyEventV2): Promise<APIGateway
         TableName: DCR_CLIENTS_TABLE,
         Item: {
           clientId: client.ClientId!,
-          clientSecret: client.ClientSecret!,
           clientName,
           redirectUris: JSON.stringify(body.redirect_uris),
           scope: "openid profile email",
