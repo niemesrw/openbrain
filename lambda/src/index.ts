@@ -46,6 +46,7 @@ function createMcpServer(user: UserContext): McpServer {
       type: z.string().optional().describe("Filter by type: observation, task, idea, reference, person_note"),
       topic: z.string().optional().describe("Filter by topic"),
       scope: READ_SCOPE_ENUM,
+      tenant_id: z.string().optional().describe("Filter shared thoughts by tenant (userId). Thoughts without tenant_id are always included for backward compatibility."),
       _format: FORMAT_ENUM,
     },
   }, async (args) => ({
@@ -125,6 +126,7 @@ function createMcpServer(user: UserContext): McpServer {
       hours: z.number().default(24).describe("Look back this many hours (default 24)"),
       agent: z.string().optional().describe("Filter to a specific agent name"),
       limit: z.number().default(50).describe("Max thoughts to return (default 50)"),
+      tenant_id: z.string().optional().describe("Filter shared thoughts by tenant (userId)."),
       _format: FORMAT_ENUM,
     },
   }, async (args) => ({

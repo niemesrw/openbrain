@@ -68,6 +68,8 @@ export interface VectorMetadata {
   dates_mentioned?: string;
   display_name?: string;
   agent_id?: string;
+  /** Tenant identifier — set on all shared captures for multi-tenant filtering */
+  tenant_id?: string;
 }
 
 export async function queryVectors(

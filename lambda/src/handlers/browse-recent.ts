@@ -13,7 +13,7 @@ export async function handleBrowseRecent(
   args: BrowseArgs,
   user: UserContext
 ): Promise<string> {
-  const { limit = 10, type, topic, scope = "private", _format } = args;
+  const { limit = 10, type, topic, scope = "private", tenant_id, _format } = args;
 
   const indexes = resolveIndexes(user.userId, scope);
 
@@ -35,6 +35,16 @@ export async function handleBrowseRecent(
       const topics = v.metadata.topics;
       return Array.isArray(topics) && topics.includes(topic);
     });
+  }
+  // tenant_id filter applies to shared results — backward-compatible: thoughts without
+  // tenant_id (captured before this feature) are always included when filtering
+  if (tenant_id) {
+    all = all.filter(
+      (v) =>
+        v._indexName === `private-${user.userId}` ||
+        !v.metadata.tenant_id ||
+        v.metadata.tenant_id === tenant_id
+    );
   }
 
   // Sort by created_at descending, take limit

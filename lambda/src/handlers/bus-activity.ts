@@ -1,6 +1,5 @@
 import { listAllVectors } from "../services/vectors";
 import type { BusActivityArgs, UserContext } from "../types";
-import type { VectorMetadata } from "../services/vectors";
 
 export async function handleBusActivity(
   args: BusActivityArgs,
@@ -9,6 +8,7 @@ export async function handleBusActivity(
   const hours = args.hours ?? 24;
   const limit = args.limit ?? 50;
   const agentFilter = args.agent;
+  const tenantFilter = args.tenant_id;
   const _format = args._format;
 
   const cutoff = Date.now() - hours * 60 * 60 * 1000;
@@ -24,9 +24,10 @@ export async function handleBusActivity(
     .sort((a, b) => (b.metadata.created_at ?? 0) - (a.metadata.created_at ?? 0));
 
   if (agentFilter) {
-    recent = recent.filter(
-      (v) => (v.metadata as any).agent_id === agentFilter
-    );
+    recent = recent.filter((v) => v.metadata.agent_id === agentFilter);
+  }
+  if (tenantFilter) {
+    recent = recent.filter((v) => v.metadata.tenant_id === tenantFilter);
   }
 
   recent = recent.slice(0, limit);
@@ -34,10 +35,7 @@ export async function handleBusActivity(
   // Group by user/agent
   const byActor = new Map<string, { count: number; latest: number }>();
   for (const v of recent) {
-    const m = v.metadata as VectorMetadata & {
-      display_name?: string;
-      agent_id?: string;
-    };
+    const m = v.metadata;
     const actor = m.agent_id
       ? `${m.display_name || "unknown"}/${m.agent_id}`
       : m.display_name || m.user_id || "anonymous";
@@ -67,10 +65,7 @@ export async function handleBusActivity(
         last_active: new Date(stats.latest).toISOString(),
       })),
       recent: recent.slice(0, 10).map((v) => {
-        const m = v.metadata as VectorMetadata & {
-          display_name?: string;
-          agent_id?: string;
-        };
+        const m = v.metadata;
         return {
           content: (m.content || "").slice(0, 200),
           agent: m.agent_id
@@ -97,10 +92,7 @@ export async function handleBusActivity(
 
   lines.push("", "Recent thoughts:");
   for (const v of recent.slice(0, 10)) {
-    const m = v.metadata as VectorMetadata & {
-      display_name?: string;
-      agent_id?: string;
-    };
+    const m = v.metadata;
     const actor = m.agent_id
       ? `${m.display_name || "?"}/${m.agent_id}`
       : m.display_name || "anonymous";

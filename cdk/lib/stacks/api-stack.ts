@@ -52,7 +52,7 @@ export class ApiStack extends cdk.Stack {
 
     // Main MCP handler Lambda
     this.handler = new lambdaNode.NodejsFunction(this, "McpHandler", {
-      runtime: lambda.Runtime.NODEJS_20_X,
+      runtime: lambda.Runtime.NODEJS_22_X,
       entry: path.join(__dirname, "..", "..", "..", "lambda", "src", "index.ts"),
       handler: "handler",
       memorySize: 512,
@@ -114,7 +114,7 @@ export class ApiStack extends cdk.Stack {
 
     // Chat handler Lambda (LLM + brain tools via Bedrock Converse)
     const chatHandler = new lambdaNode.NodejsFunction(this, "ChatHandler", {
-      runtime: lambda.Runtime.NODEJS_20_X,
+      runtime: lambda.Runtime.NODEJS_22_X,
       entry: path.join(__dirname, "..", "..", "..", "lambda", "src", "chat.ts"),
       handler: "handler",
       memorySize: 512,
@@ -171,7 +171,7 @@ export class ApiStack extends cdk.Stack {
 
     // Custom Lambda authorizer (supports both JWT and API key)
     const authorizerFn = new lambdaNode.NodejsFunction(this, "AuthorizerFn", {
-      runtime: lambda.Runtime.NODEJS_20_X,
+      runtime: lambda.Runtime.NODEJS_22_X,
       entry: path.join(
         __dirname,
         "..",
@@ -226,6 +226,14 @@ export class ApiStack extends cdk.Stack {
       },
     });
 
+    // Apply throttle via L1 escape hatch — HttpApiProps has no defaultStageOptions in CDK v2
+    // 50 req/s sustained, 200 burst — protects against runaway agents spiking Bedrock costs
+    const cfnStage = this.api.defaultStage!.node.defaultChild as apigwv2.CfnStage;
+    cfnStage.defaultRouteSettings = {
+      throttlingRateLimit: 50,
+      throttlingBurstLimit: 200,
+    };
+
     const integration = new apigwv2Integrations.HttpLambdaIntegration(
       "McpIntegration",
       this.handler
@@ -259,7 +267,7 @@ export class ApiStack extends cdk.Stack {
 
     // OAuth handler Lambda (discovery, authorization proxy, DCR)
     const oauthHandler = new lambdaNode.NodejsFunction(this, "OAuthHandler", {
-      runtime: lambda.Runtime.NODEJS_20_X,
+      runtime: lambda.Runtime.NODEJS_22_X,
       entry: path.join(__dirname, "..", "..", "..", "lambda", "src", "oauth.ts"),
       handler: "handler",
       memorySize: 256,
@@ -334,7 +342,7 @@ export class ApiStack extends cdk.Stack {
 
     // Background agent runner (scheduled hourly)
     const agentRunner = new lambdaNode.NodejsFunction(this, "AgentRunner", {
-      runtime: lambda.Runtime.NODEJS_20_X,
+      runtime: lambda.Runtime.NODEJS_22_X,
       entry: path.join(__dirname, "..", "..", "..", "lambda", "src", "agent-runner.ts"),
       handler: "handler",
       memorySize: 512,

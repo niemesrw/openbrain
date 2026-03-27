@@ -132,6 +132,24 @@ describe("handleCaptureThought", () => {
     expect(result).toContain("Action items: Follow up with team");
   });
 
+  it("sets tenant_id on shared captures for multi-tenant scoping", async () => {
+    await handleCaptureThought({ text: "Team update", scope: "shared" }, USER);
+
+    expect(mockPutVector).toHaveBeenCalledWith(
+      "shared",
+      expect.any(String),
+      EMBEDDING,
+      expect.objectContaining({ tenant_id: USER.userId })
+    );
+  });
+
+  it("does not set tenant_id on private captures", async () => {
+    await handleCaptureThought({ text: "Private note" }, USER);
+
+    const call = mockPutVector.mock.calls[0][3];
+    expect(call).not.toHaveProperty("tenant_id");
+  });
+
   it("serializes action_items and dates_mentioned as JSON strings", async () => {
     mockExtractMetadata.mockResolvedValue({
       type: "task",

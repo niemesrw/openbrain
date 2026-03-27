@@ -18,9 +18,26 @@ env:
   AWS_REGION: us-east-1
   MANAGEMENT_ACCOUNT: '982682372189'
   AI_ACCOUNT: '057122451218'
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
+  test:
+    name: Lambda unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Lambda dependencies
+        working-directory: lambda
+        run: npm ci
+      - name: Run Lambda tests
+        working-directory: lambda
+        run: npm test
+
   deploy:
+    needs: test
     runs-on: ubuntu-latest
 
     steps:
@@ -28,7 +45,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       # --- AWS Auth (two-hop: OIDC → management → AI account) ---
 

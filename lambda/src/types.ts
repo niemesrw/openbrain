@@ -15,6 +15,8 @@ export interface S3VectorMetadata {
   content: string;
   action_items: string;
   dates_mentioned: string;
+  /** Tenant identifier — set to userId on all shared captures for future multi-org filtering */
+  tenant_id?: string;
 }
 
 export interface UserContext {
@@ -39,6 +41,7 @@ export interface BrowseArgs {
   type?: string;
   topic?: string;
   scope?: "private" | "shared" | "all";
+  tenant_id?: string;
   _format?: "json";
 }
 
@@ -84,6 +87,7 @@ export interface BusActivityArgs {
   hours?: number;
   agent?: string;
   limit?: number;
+  tenant_id?: string;
   _format?: "json";
 }
 

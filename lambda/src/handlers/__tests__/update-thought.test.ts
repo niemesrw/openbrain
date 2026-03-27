@@ -167,4 +167,29 @@ describe("handleUpdateThought", () => {
 
     jest.restoreAllMocks();
   });
+
+  it("sets tenant_id on shared thought updates", async () => {
+    mockGetVector.mockResolvedValue(EXISTING_VECTOR);
+
+    await handleUpdateThought(
+      { id: THOUGHT_ID, text: "updated shared", scope: "shared" },
+      USER
+    );
+
+    expect(mockPutVector).toHaveBeenCalledWith(
+      "shared",
+      THOUGHT_ID,
+      expect.any(Array),
+      expect.objectContaining({ tenant_id: USER.userId })
+    );
+  });
+
+  it("does not set tenant_id on private thought updates", async () => {
+    mockGetVector.mockResolvedValue(EXISTING_VECTOR);
+
+    await handleUpdateThought({ id: THOUGHT_ID, text: "updated private" }, USER);
+
+    const call = mockPutVector.mock.calls[0][3];
+    expect(call).not.toHaveProperty("tenant_id");
+  });
 });

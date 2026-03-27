@@ -83,6 +83,7 @@ const CHAT_TOOLS: Tool[] = [
             limit: { type: "number", description: "Number of recent thoughts (default 10)" },
             type: { type: "string", description: "Filter by type" },
             topic: { type: "string", description: "Filter by topic" },
+            tenant_id: { type: "string", description: "Filter shared thoughts by tenant (userId)" },
           },
         },
       },

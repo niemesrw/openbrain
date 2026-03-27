@@ -40,6 +40,7 @@ export async function handleUpdateThought(
     ...(scope === "shared" && {
       display_name: user.displayName || "anonymous",
       ...(user.agentName && { agent_id: user.agentName }),
+      tenant_id: user.userId,
     }),
   });
 

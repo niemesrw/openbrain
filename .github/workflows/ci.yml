@@ -1,0 +1,95 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+    paths-ignore:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+      - '*.md'
+      - 'docs/**'
+      - 'skills/**'
+
+jobs:
+  test-lambda:
+    name: Lambda unit tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Lambda dependencies
+        working-directory: lambda
+        run: npm ci
+
+      - name: Run Lambda tests
+        working-directory: lambda
+        run: npm test
+
+  build-web:
+    name: Web build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install web dependencies
+        working-directory: web
+        # package-lock.json is generated on macOS ARM64 and lacks linux-x64 Rollup
+        # binaries — npm ci fails. Match deploy.yml and use a clean npm install.
+        run: rm -rf node_modules package-lock.json && npm install
+
+      - name: Build web
+        working-directory: web
+        run: npm run build
+        env:
+          VITE_API_URL: https://placeholder.example.com
+          VITE_USER_POOL_ID: us-east-1_placeholder
+          VITE_WEB_CLIENT_ID: placeholder
+          VITE_COGNITO_DOMAIN: https://placeholder.auth.us-east-1.amazoncognito.com
+
+  synth-cdk:
+    name: CDK synth
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Lambda dependencies
+        working-directory: lambda
+        run: npm ci
+
+      - name: Install web dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Create web dist placeholder
+        working-directory: web
+        run: mkdir -p dist && echo '<!doctype html><html><body>placeholder</body></html>' > dist/index.html
+
+      - name: Install CDK dependencies
+        working-directory: cdk
+        run: npm ci
+
+      - name: CDK synth
+        working-directory: cdk
+        run: npx cdk synth --all --quiet
+        env:
+          GOOGLE_CLIENT_ID: placeholder
+          GOOGLE_CLIENT_SECRET_ARN: arn:aws:secretsmanager:us-east-1:000000000000:secret:placeholder
