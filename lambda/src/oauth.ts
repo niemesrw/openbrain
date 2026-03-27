@@ -5,6 +5,8 @@ import type {
 import {
   CognitoIdentityProviderClient,
   CreateUserPoolClientCommand,
+  DescribeUserPoolClientCommand,
+  UpdateUserPoolClientCommand,
 } from "@aws-sdk/client-cognito-identity-provider";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
@@ -80,6 +82,56 @@ async function handleAuthServerMetadata(event: APIGatewayProxyEventV2): Promise<
   }
 }
 
+/**
+ * Per RFC 8252 Section 7.3, authorization servers MUST allow any port for
+ * loopback redirect URIs. Cognito doesn't support this, so we bridge the gap
+ * by updating the Cognito client's CallbackURLs to include the exact
+ * redirect_uri when it's a loopback URL with a specific port.
+ */
+async function ensureLoopbackRedirectUri(cognitoClientId: string, redirectUri: string): Promise<void> {
+  try {
+    const parsed = new URL(redirectUri);
+    const isLoopback = parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1";
+    if (!isLoopback || !parsed.port) return; // no port = already matches generic registration
+
+    const describeResult = await cognito.send(
+      new DescribeUserPoolClientCommand({
+        UserPoolId: USER_POOL_ID,
+        ClientId: cognitoClientId,
+      })
+    );
+
+    const client = describeResult.UserPoolClient!;
+    const existingCallbacks = client.CallbackURLs ?? [];
+
+    if (existingCallbacks.includes(redirectUri)) return; // already registered
+
+    await cognito.send(
+      new UpdateUserPoolClientCommand({
+        UserPoolId: USER_POOL_ID,
+        ClientId: cognitoClientId,
+        // Must re-send all existing config when updating
+        ClientName: client.ClientName,
+        CallbackURLs: [...existingCallbacks, redirectUri],
+        LogoutURLs: client.LogoutURLs,
+        AllowedOAuthFlows: client.AllowedOAuthFlows,
+        AllowedOAuthFlowsUserPoolClient: client.AllowedOAuthFlowsUserPoolClient,
+        AllowedOAuthScopes: client.AllowedOAuthScopes,
+        SupportedIdentityProviders: client.SupportedIdentityProviders,
+        ExplicitAuthFlows: client.ExplicitAuthFlows,
+        PreventUserExistenceErrors: client.PreventUserExistenceErrors,
+        TokenValidityUnits: client.TokenValidityUnits,
+        AccessTokenValidity: client.AccessTokenValidity,
+        IdTokenValidity: client.IdTokenValidity,
+        RefreshTokenValidity: client.RefreshTokenValidity,
+      })
+    );
+  } catch (error: any) {
+    console.error("Failed to update Cognito client callback URLs:", error.message);
+    // Non-fatal — Cognito will reject the redirect if this fails
+  }
+}
+
 async function handleAuthorize(event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> {
   const params = event.queryStringParameters ?? {};
   const clientId = params.client_id;
@@ -104,11 +156,13 @@ async function handleAuthorize(event: APIGatewayProxyEventV2): Promise<APIGatewa
     }
   }
 
+  let resolvedClientId: string | undefined;
+
   if (isUrlClientId(clientId)) {
     try {
       const mapping = await resolveClientId(clientId!);
-      authUrl.searchParams.set("client_id", mapping.clientId);
-      // redirect_uri validation is handled by Cognito itself
+      resolvedClientId = mapping.clientId;
+      authUrl.searchParams.set("client_id", resolvedClientId);
     } catch (error: any) {
       return json(400, {
         error: "invalid_client_metadata",
@@ -116,7 +170,14 @@ async function handleAuthorize(event: APIGatewayProxyEventV2): Promise<APIGatewa
       });
     }
   } else if (clientId) {
+    resolvedClientId = clientId;
     authUrl.searchParams.set("client_id", clientId);
+  }
+
+  // RFC 8252 §7.3: allow any port for loopback redirect URIs.
+  // Cognito requires exact match, so add the specific port to the client's callback URLs.
+  if (resolvedClientId && params.redirect_uri) {
+    await ensureLoopbackRedirectUri(resolvedClientId, params.redirect_uri);
   }
 
   return {
