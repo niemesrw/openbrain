@@ -178,6 +178,17 @@ Triggered on push to `main`. Deploys all 5 CDK stacks to the AI account (`057122
 
 Manual-only (`workflow_dispatch`). Uses OIDC to AWS management account to fetch test credentials from Secrets Manager, then runs the integration test suite in `tests/`.
 
+## MCP OAuth
+
+The server implements the MCP Authorization spec (OAuth 2.1 discovery, Dynamic Client Registration, authorization/token proxying) so MCP clients can authenticate automatically via Google OAuth without manual token management.
+
+**Key files:**
+- `lambda/src/oauth.ts` — OAuth Lambda handler (discovery, auth proxy, DCR)
+- `lambda/src/oauth/cimd.ts` — Client ID Metadata Document validation + SSRF protection
+- `lambda/src/auth/verify.ts` — Shared JWT + API key verification (used by MCP Lambda and authorizer)
+
+**Reference implementation:** [empires-security/mcp-oauth2-aws-cognito](https://github.com/empires-security/mcp-oauth2-aws-cognito) — our OAuth implementation was modeled after this repo, which demonstrates provider-agnostic OAuth 2.1 for MCP servers with Cognito. Refer to it for additional context on DCR bridging, CIMD flows, and the authorization proxy pattern.
+
 ## Troubleshooting
 
 If tools return errors, check CloudWatch Logs for the Lambda function. Common issues:
