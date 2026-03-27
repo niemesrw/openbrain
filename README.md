@@ -176,6 +176,98 @@ Pre-built instructions for each AI client — teach it to search before answerin
 
 ## Optional Add-ons
 
+### Telegram Bot
+
+Capture thoughts, search, browse, and get insights from Telegram — full feature parity with the web dashboard.
+
+#### 1. Create a bot with BotFather
+
+```
+/newbot → follow prompts → copy the bot token
+```
+
+#### 2. Store the token in Secrets Manager
+
+```bash
+aws secretsmanager create-secret \
+  --name openbrain/telegram/bot-token \
+  --secret-string "YOUR_BOT_TOKEN_HERE"
+# Add --profile <your-aws-profile> if needed
+```
+
+Copy the secret ARN from the output.
+
+#### 3. Deploy with the Telegram bot token ARN
+
+```bash
+cd cdk
+npx cdk deploy --all \
+  -c googleClientId=... \
+  -c googleClientSecretArn=... \
+  -c telegramBotTokenSecretArn=arn:aws:secretsmanager:us-east-1:...
+```
+
+This deploys `EnterpriseBrainTelegram` (new stack) which adds a `/webhook/telegram` route to the existing API.
+
+#### 4. Register the webhook
+
+After deploy, get the webhook URL from CDK outputs (`TelegramWebhookUrl`) and the webhook secret ARN (`TelegramWebhookSecretArn`), then register:
+
+```bash
+# Get the webhook secret value
+WEBHOOK_SECRET=$(aws secretsmanager get-secret-value \
+  --secret-id arn:aws:secretsmanager:us-east-1:... \
+  --query SecretString --output text)
+# Add --profile <your-aws-profile> if needed
+
+# Register with Telegram
+curl -X POST "https://api.telegram.org/bot<TOKEN>/setWebhook" \
+  -H "Content-Type: application/json" \
+  -d "{\"url\": \"<WEBHOOK_URL>\", \"secret_token\": \"$WEBHOOK_SECRET\"}"
+```
+
+#### 5. Link your account
+
+1. Open the web dashboard → click **Connect Telegram** → generate a code
+2. Send `/link <code>` to your bot in Telegram
+3. Done — your bot is now connected to your brain
+
+#### Bot commands
+
+| Command | Description |
+|---------|-------------|
+| `/start` | Welcome message + link instructions |
+| `/link <code>` | Link your Telegram account |
+| `/capture <text>` | Save a private thought |
+| `/search <query>` | Semantic search |
+| `/browse` | Last 5 recent thoughts |
+| `/insight` | Surface a proactive insight |
+| *(plain text)* | Captures as private thought |
+
+#### 6. Set bot description in BotFather (optional)
+
+Makes it easy for users to know what the bot does before they start it. Send these to [@BotFather](https://t.me/BotFather):
+
+**`/setdescription`** — shown on the bot's profile page:
+```
+Your personal Open Brain assistant. Capture thoughts, search your knowledge base, and surface insights — all from Telegram.
+```
+
+**`/setabouttext`** — shown in the chat list before the first message:
+```
+Capture and search your Open Brain knowledge base from Telegram.
+```
+
+**`/setcommands`** — registers commands for autocomplete:
+```
+start - Welcome + setup instructions
+link - Link your account: /link <code>
+capture - Save a thought: /capture <text>
+search - Search your brain: /search <query>
+browse - Show recent thoughts
+insight - Surface a pattern or insight
+```
+
 ### Google Meet Ingestion
 
 Automatically captures Gemini-generated meeting summaries as shared thoughts. See [`google-meet/README.md`](google-meet/README.md).

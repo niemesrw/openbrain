@@ -8,6 +8,7 @@ import { z } from "zod";
 import { verifyAuth } from "./auth/verify";
 import { executeTool } from "./tool-executor";
 import { handleInsight } from "./handlers/insight";
+import { handleTelegramLink } from "./handlers/telegram-link";
 import type { UserContext } from "./types";
 
 // --- Tool registration ---
@@ -200,6 +201,27 @@ export async function handler(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: "ok", name: "open-brain-mcp" }),
     };
+  }
+
+  // Telegram link token — POST /telegram/link, auth required
+  if (method === "POST" && event.rawPath === "/telegram/link") {
+    let user: UserContext;
+    try {
+      user = await verifyAuth(event.headers ?? {});
+    } catch {
+      return { statusCode: 401, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ error: "Unauthorized" }) };
+    }
+    try {
+      const result = await handleTelegramLink({}, user);
+      return {
+        statusCode: 200,
+        headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+        body: JSON.stringify(result),
+      };
+    } catch (e: unknown) {
+      console.error("Telegram link error:", e instanceof Error ? e.message : String(e));
+      return { statusCode: 500, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ error: "Failed to generate link code" }) };
+    }
   }
 
   // Insight endpoint — GET /insight, auth required
