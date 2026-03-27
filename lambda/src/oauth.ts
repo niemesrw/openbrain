@@ -63,7 +63,7 @@ async function handleAuthServerMetadata(event: APIGatewayProxyEventV2): Promise<
     cognitoAuthEndpoint = metadata.authorization_endpoint;
     cognitoTokenEndpoint = metadata.token_endpoint;
 
-    // Patch for MCP spec compliance
+    // Patch for MCP spec compliance and interoperability with all MCP clients
     metadata.registration_endpoint = `${baseUrl}/register`;
     metadata.code_challenge_methods_supported = ["S256"];
     metadata.client_id_metadata_document_supported = true;
@@ -71,6 +71,12 @@ async function handleAuthServerMetadata(event: APIGatewayProxyEventV2): Promise<
     // advertises "phone" but our DCR clients don't include it, causing
     // invalid_scope errors when clients request all advertised scopes)
     metadata.scopes_supported = ["openid", "profile", "email"];
+    // MCP requires authorization_code + PKCE; implicit ("token") is
+    // deprecated in OAuth 2.1 and should not be advertised
+    metadata.grant_types_supported = ["authorization_code", "refresh_token"];
+    metadata.response_types_supported = ["code"];
+    // DCR creates public clients (no secret) per RFC 8252
+    metadata.token_endpoint_auth_methods_supported = ["none", "client_secret_post"];
 
     // Override endpoints to our proxy
     metadata.authorization_endpoint = `${baseUrl}/oauth/authorize`;
