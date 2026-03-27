@@ -314,6 +314,16 @@ export class ApiStack extends cdk.Stack {
       methods: [apigwv2.HttpMethod.POST],
       integration: oauthIntegration,
     });
+    this.api.addRoutes({
+      path: "/.well-known/mcp.json",
+      methods: [apigwv2.HttpMethod.GET],
+      integration: oauthIntegration,
+    });
+    this.api.addRoutes({
+      path: "/llms.txt",
+      methods: [apigwv2.HttpMethod.GET],
+      integration: oauthIntegration,
+    });
 
     // Background agent runner (scheduled hourly)
     const agentRunner = new lambdaNode.NodejsFunction(this, "AgentRunner", {
