@@ -1,4 +1,5 @@
 import { useState } from "react";
+import ReactMarkdown from "react-markdown";
 import type { Thought } from "../lib/brain-types";
 
 const TYPE_COLORS: Record<string, string> = {
@@ -96,9 +97,9 @@ export function ThoughtCard({ thought, onUpdate, onDelete }: ThoughtCardProps) {
               autoFocus
             />
           ) : (
-            <p className="text-gray-200 text-sm whitespace-pre-wrap flex-1">
-              {thought.content}
-            </p>
+            <div className="text-gray-200 text-sm flex-1 prose prose-invert prose-sm max-w-none prose-p:my-1 prose-li:my-0">
+              <ReactMarkdown>{thought.content}</ReactMarkdown>
+            </div>
           )}
           <div className="flex items-center gap-2 shrink-0">
             {thought.scope === "private" ? (
