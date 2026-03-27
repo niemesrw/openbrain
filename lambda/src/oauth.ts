@@ -166,6 +166,9 @@ async function ensureLoopbackRedirectUri(cognitoClientId: string, redirectUri: s
             RefreshTokenValidity: client.RefreshTokenValidity,
           })
         );
+        // Brief delay for Cognito to propagate the updated callback URLs
+        // to its authorize endpoint (eventual consistency).
+        await new Promise((r) => setTimeout(r, 2000));
         return;
       } catch (error: any) {
         if (attempt < 2 && error?.$metadata?.httpStatusCode === 409) continue;
