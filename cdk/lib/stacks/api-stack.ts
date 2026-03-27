@@ -189,6 +189,10 @@ export class ApiStack extends cdk.Stack {
         USER_POOL_ID: userPool.userPoolId,
         REGION: this.region,
         AGENT_KEYS_TABLE: agentKeysTable.tableName,
+        // Kept to preserve cross-stack CloudFormation references from auth stack.
+        // The verifier no longer checks these — it accepts any client in the pool.
+        CLI_CLIENT_ID: cliClient.userPoolClientId,
+        WEB_CLIENT_ID: webClient.userPoolClientId,
       },
       bundling: {
         minify: true,
