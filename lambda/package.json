@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.750.0",
+    "@aws-sdk/client-cognito-identity-provider": "^3.1018.0",
     "@aws-sdk/client-dynamodb": "^3.750.0",
     "@aws-sdk/client-s3vectors": "^3.750.0",
     "@aws-sdk/lib-dynamodb": "^3.750.0",

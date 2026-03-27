@@ -54,69 +54,35 @@ This creates five stacks:
 |-------|----------------|
 | `EnterpriseBrainVectors` | S3 vector bucket + `shared` index |
 | `EnterpriseBrainAuth` | Cognito user pool + Google OAuth |
-| `EnterpriseBrainData` | DynamoDB tables (agent keys, user profiles) |
-| `EnterpriseBrainApi` | API Gateway (JWT + API key auth) + Lambda MCP server |
+| `EnterpriseBrainData` | DynamoDB tables (agent keys, user profiles, DCR clients) |
+| `EnterpriseBrainApi` | API Gateway + Lambda MCP server + OAuth discovery/proxy |
 | `EnterpriseBrainWeb` | S3 + CloudFront web dashboard |
 
 The API URL is printed at the end of the deploy.
 
-### 2. Create a user
+### 2. Connect Your AIs
 
-```bash
-aws cognito-idp admin-create-user \
-  --user-pool-id YOUR_POOL_ID \
-  --username you@yourorg.com \
-  --temporary-password TempPass1!
-
-aws cognito-idp admin-set-user-password \
-  --user-pool-id YOUR_POOL_ID \
-  --username you@yourorg.com \
-  --password YourPassword1! \
-  --permanent
-```
-
-### 3. Connect Your AIs
-
-Get a token:
-
-```bash
-aws cognito-idp initiate-auth \
-  --auth-flow USER_PASSWORD_AUTH \
-  --client-id YOUR_CLI_CLIENT_ID \
-  --auth-parameters USERNAME=you@yourorg.com,PASSWORD=YourPassword1!
-```
-
-Use the `IdToken` as a Bearer token in all MCP client configs.
+The MCP server supports OAuth 2.1 with automatic discovery — MCP clients handle authentication automatically. Just point them at the endpoint and sign in with Google when prompted.
 
 #### Claude Code
 
 ```bash
-claude mcp add --transport http open-brain \
-  https://YOUR_API_ID.execute-api.us-east-1.amazonaws.com/mcp \
-  --header "Authorization: Bearer YOUR_ID_TOKEN"
+claude mcp add --transport http open-brain https://YOUR_DOMAIN/mcp
 ```
+
+Claude Code discovers OAuth automatically, opens your browser for Google sign-in, and stores tokens securely.
 
 #### Claude Desktop
 
 1. Settings → Connectors → **Add custom connector**
 2. Name: `Open Brain`
-3. URL: `https://YOUR_API_ID.execute-api.us-east-1.amazonaws.com/mcp`
-4. Auth: Bearer token → paste your `IdToken`
-5. Paste `skills/claude-desktop.md` into Project Instructions
-
-#### ChatGPT (paid plans)
-
-1. Settings → Apps & Connectors → Advanced settings → **Developer Mode ON**
-2. Settings → Apps & Connectors → **Create**
-3. Name: `Open Brain`, URL: your API URL, Auth: Bearer token
-4. Copy `skills/chatgpt-instructions.md` into Custom Instructions or a Custom GPT
+3. URL: `https://YOUR_DOMAIN/mcp`
+4. Paste `skills/claude-desktop.md` into Project Instructions
 
 #### Gemini CLI
 
 ```bash
-gemini mcp add -t http open-brain \
-  https://YOUR_API_ID.execute-api.us-east-1.amazonaws.com/mcp \
-  -H "Authorization: Bearer YOUR_ID_TOKEN"
+gemini mcp add -t http open-brain https://YOUR_DOMAIN/mcp
 ```
 
 #### Other MCP Clients (Cursor, VS Code, Windsurf)
@@ -126,18 +92,20 @@ gemini mcp add -t http open-brain \
   "mcpServers": {
     "open-brain": {
       "command": "npx",
-      "args": [
-        "mcp-remote",
-        "https://YOUR_API_ID.execute-api.us-east-1.amazonaws.com/mcp",
-        "--header",
-        "Authorization: Bearer ${BRAIN_TOKEN}"
-      ],
-      "env": {
-        "BRAIN_TOKEN": "your-id-token"
-      }
+      "args": ["mcp-remote", "https://YOUR_DOMAIN/mcp"]
     }
   }
 }
+```
+
+#### Manual token (API key auth)
+
+For clients that don't support OAuth discovery, create an agent API key via the `create_agent` tool, then pass it as a header:
+
+```bash
+claude mcp add --transport http open-brain \
+  https://YOUR_DOMAIN/mcp \
+  --header "X-Api-Key: ob_YOUR_API_KEY"
 ```
 
 ### AWS Architecture

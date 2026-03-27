@@ -38,6 +38,8 @@ const logoutUrls = parseStringOrArray(app.node.tryGetContext("logoutUrls"), [
   "http://localhost:5173/login",
 ]);
 
+const customDomain = app.node.tryGetContext("customDomain") ?? process.env.CUSTOM_DOMAIN;
+
 const vectors = new VectorStorageStack(app, "EnterpriseBrainVectors", { env });
 const auth = new AuthStack(app, "EnterpriseBrainAuth", {
   env,
@@ -56,6 +58,8 @@ const api = new ApiStack(app, "EnterpriseBrainApi", {
   agentKeysTable: data.agentKeysTable,
   usersTable: data.usersTable,
   agentTasksTable: data.agentTasksTable,
+  dcrClientsTable: data.dcrClientsTable,
+  customDomain,
   alarmEmail: app.node.tryGetContext("alarmEmail") ?? process.env.ALARM_EMAIL,
 });
 
@@ -65,7 +69,6 @@ api.addDependency(data);
 
 // Web SPA — build web/ first, then deploy
 // Only instantiate when web/dist/ exists (after `cd web && npm run build`)
-const customDomain = app.node.tryGetContext("customDomain") ?? process.env.CUSTOM_DOMAIN;
 const web = new WebStack(app, "EnterpriseBrainWeb", {
   env,
   customDomain,

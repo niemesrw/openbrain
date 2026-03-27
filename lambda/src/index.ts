@@ -5,7 +5,7 @@ import type {
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { z } from "zod";
-import { extractUserContext } from "./auth/context";
+import { verifyAuth } from "./auth/verify";
 import { executeTool } from "./tool-executor";
 import type { UserContext } from "./types";
 
@@ -199,14 +199,18 @@ export async function handler(
     };
   }
 
-  // Extract user from custom authorizer context
+  // Verify auth directly (not via API Gateway authorizer) so we control the 401 response
   let user: UserContext;
   try {
-    user = extractUserContext(event);
+    user = await verifyAuth(event.headers ?? {});
   } catch {
+    const domain = process.env.CUSTOM_DOMAIN || event.requestContext.domainName;
     return {
       statusCode: 401,
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "WWW-Authenticate": `Bearer resource_metadata="https://${domain}/.well-known/oauth-protected-resource"`,
+      },
       body: JSON.stringify({ jsonrpc: "2.0", id: null, error: { code: -32600, message: "Unauthorized" } }),
     };
   }

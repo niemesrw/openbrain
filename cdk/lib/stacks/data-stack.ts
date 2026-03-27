@@ -6,6 +6,7 @@ export class DataStack extends cdk.Stack {
   public readonly agentKeysTable: dynamodb.Table;
   public readonly usersTable: dynamodb.Table;
   public readonly agentTasksTable: dynamodb.Table;
+  public readonly dcrClientsTable: dynamodb.Table;
 
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
@@ -43,6 +44,28 @@ export class DataStack extends cdk.Stack {
       sortKey: { name: "taskId", type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       removalPolicy: cdk.RemovalPolicy.RETAIN,
+    });
+
+    // DCR Clients table — stores dynamic client registrations (MCP OAuth)
+    // PK: clientId (Cognito app client ID)
+    // GSI: cimd-url-index on cimdUrl for CIMD URL→Cognito mapping lookups
+    this.dcrClientsTable = new dynamodb.Table(this, "DcrClientsTable", {
+      tableName: "openbrain-dcr-clients",
+      partitionKey: { name: "clientId", type: dynamodb.AttributeType.STRING },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+      timeToLiveAttribute: "expiresAt",
+    });
+
+    this.dcrClientsTable.addGlobalSecondaryIndex({
+      indexName: "cimd-url-index",
+      partitionKey: { name: "cimdUrl", type: dynamodb.AttributeType.STRING },
+      projectionType: dynamodb.ProjectionType.ALL,
+    });
+
+    new cdk.CfnOutput(this, "DcrClientsTableName", {
+      value: this.dcrClientsTable.tableName,
+      exportName: "BrainDcrClientsTableName",
     });
 
     new cdk.CfnOutput(this, "AgentTasksTableName", {

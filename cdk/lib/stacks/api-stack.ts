@@ -24,6 +24,8 @@ interface ApiStackProps extends cdk.StackProps {
   agentKeysTable: dynamodb.Table;
   usersTable: dynamodb.Table;
   agentTasksTable: dynamodb.Table;
+  dcrClientsTable: dynamodb.Table;
+  customDomain?: string;
   alarmEmail?: string;
 }
 
@@ -43,6 +45,8 @@ export class ApiStack extends cdk.Stack {
       agentKeysTable,
       usersTable,
       agentTasksTable,
+      dcrClientsTable,
+      customDomain,
       alarmEmail,
     } = props;
 
@@ -60,6 +64,8 @@ export class ApiStack extends cdk.Stack {
         AGENT_KEYS_TABLE: agentKeysTable.tableName,
         USERS_TABLE: usersTable.tableName,
         AGENT_TASKS_TABLE: agentTasksTable.tableName,
+        USER_POOL_ID: userPool.userPoolId,
+        ...(customDomain && { CUSTOM_DOMAIN: customDomain }),
       },
       bundling: {
         externalModules: ["@aws-sdk/*"],
@@ -183,8 +189,6 @@ export class ApiStack extends cdk.Stack {
         USER_POOL_ID: userPool.userPoolId,
         REGION: this.region,
         AGENT_KEYS_TABLE: agentKeysTable.tableName,
-        CLI_CLIENT_ID: cliClient.userPoolClientId,
-        WEB_CLIENT_ID: webClient.userPoolClientId,
       },
       bundling: {
         minify: true,
@@ -213,7 +217,7 @@ export class ApiStack extends cdk.Stack {
       apiName: "open-brain-mcp",
       corsPreflight: {
         allowOrigins: ["*"],
-        allowMethods: [apigwv2.CorsHttpMethod.POST, apigwv2.CorsHttpMethod.GET],
+        allowMethods: [apigwv2.CorsHttpMethod.POST, apigwv2.CorsHttpMethod.GET, apigwv2.CorsHttpMethod.OPTIONS],
         allowHeaders: ["Content-Type", "Authorization", "x-api-key"],
       },
     });
@@ -223,18 +227,10 @@ export class ApiStack extends cdk.Stack {
       this.handler
     );
 
-    // Authenticated route
+    // MCP route — auth handled in-Lambda (returns 401 + WWW-Authenticate for OAuth discovery)
     this.api.addRoutes({
       path: "/mcp",
-      methods: [apigwv2.HttpMethod.POST],
-      integration,
-      authorizer,
-    });
-
-    // Health check (no auth)
-    this.api.addRoutes({
-      path: "/mcp",
-      methods: [apigwv2.HttpMethod.GET],
+      methods: [apigwv2.HttpMethod.POST, apigwv2.HttpMethod.GET],
       integration,
     });
 
@@ -248,6 +244,70 @@ export class ApiStack extends cdk.Stack {
       methods: [apigwv2.HttpMethod.POST],
       integration: chatIntegration,
       authorizer,
+    });
+
+    // OAuth handler Lambda (discovery, authorization proxy, DCR)
+    const oauthHandler = new lambdaNode.NodejsFunction(this, "OAuthHandler", {
+      runtime: lambda.Runtime.NODEJS_20_X,
+      entry: path.join(__dirname, "..", "..", "..", "lambda", "src", "oauth.ts"),
+      handler: "handler",
+      memorySize: 256,
+      timeout: cdk.Duration.seconds(15),
+      environment: {
+        USER_POOL_ID: userPool.userPoolId,
+        REGION: this.region,
+        DCR_CLIENTS_TABLE: dcrClientsTable.tableName,
+        ...(customDomain && { CUSTOM_DOMAIN: customDomain }),
+      },
+      bundling: {
+        externalModules: ["@aws-sdk/*"],
+        minify: true,
+        sourceMap: true,
+      },
+    });
+
+    // OAuth Lambda needs to create Cognito app clients (DCR)
+    oauthHandler.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: [
+          "cognito-idp:CreateUserPoolClient",
+          "cognito-idp:DescribeUserPoolClient",
+        ],
+        resources: [userPool.userPoolArn],
+      })
+    );
+    dcrClientsTable.grantReadWriteData(oauthHandler);
+
+    const oauthIntegration = new apigwv2Integrations.HttpLambdaIntegration(
+      "OAuthIntegration",
+      oauthHandler,
+    );
+
+    // OAuth discovery + proxy routes (no auth required)
+    this.api.addRoutes({
+      path: "/.well-known/oauth-protected-resource",
+      methods: [apigwv2.HttpMethod.GET],
+      integration: oauthIntegration,
+    });
+    this.api.addRoutes({
+      path: "/.well-known/oauth-authorization-server",
+      methods: [apigwv2.HttpMethod.GET],
+      integration: oauthIntegration,
+    });
+    this.api.addRoutes({
+      path: "/oauth/authorize",
+      methods: [apigwv2.HttpMethod.GET],
+      integration: oauthIntegration,
+    });
+    this.api.addRoutes({
+      path: "/oauth/token",
+      methods: [apigwv2.HttpMethod.POST],
+      integration: oauthIntegration,
+    });
+    this.api.addRoutes({
+      path: "/register",
+      methods: [apigwv2.HttpMethod.POST],
+      integration: oauthIntegration,
     });
 
     // Background agent runner (scheduled hourly)
