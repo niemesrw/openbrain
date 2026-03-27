@@ -10,7 +10,7 @@ describe("OAuth discovery", () => {
     const body = await res.json();
     expect(body.resource).toContain("/mcp");
     expect(body.authorization_servers).toHaveLength(1);
-    expect(body.authorization_servers[0]).toContain("/.well-known/oauth-authorization-server");
+    expect(body.authorization_servers[0]).toBe(config.apiUrl);
     expect(body.bearer_methods_supported).toContain("header");
     expect(body.scopes_supported).toContain("openid");
   });
@@ -28,8 +28,8 @@ describe("OAuth discovery", () => {
     // Authorization and token endpoints should point to our proxy
     expect(body.authorization_endpoint).toContain("/oauth/authorize");
     expect(body.token_endpoint).toContain("/oauth/token");
-    // Original Cognito fields should be preserved
-    expect(body.issuer).toContain("cognito-idp");
+    // issuer overridden to our baseUrl for RFC 8414 compliance
+    expect(body.issuer).toBe(config.apiUrl);
     expect(body.jwks_uri).toBeDefined();
   });
 

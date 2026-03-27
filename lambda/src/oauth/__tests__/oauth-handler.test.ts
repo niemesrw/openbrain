@@ -83,7 +83,7 @@ describe("OAuth handler", () => {
       expect(result.statusCode).toBe(200);
       expect(body.resource).toBe("https://openbrain.example.com/mcp");
       expect(body.authorization_servers).toEqual([
-        "https://openbrain.example.com/.well-known/oauth-authorization-server",
+        "https://openbrain.example.com",
       ]);
       expect(body.bearer_methods_supported).toEqual(["header"]);
       expect(body.scopes_supported).toContain("openid");
@@ -116,8 +116,8 @@ describe("OAuth handler", () => {
       expect(body.token_endpoint).toBe("https://openbrain.example.com/oauth/token");
       expect(body.code_challenge_methods_supported).toEqual(["S256"]);
       expect(body.client_id_metadata_document_supported).toBe(true);
-      // Original Cognito fields preserved
-      expect(body.issuer).toContain("cognito-idp");
+      // issuer overridden to baseUrl for RFC 8414 compliance
+      expect(body.issuer).toBe("https://openbrain.example.com");
       expect(body.jwks_uri).toContain("jwks.json");
     });
 

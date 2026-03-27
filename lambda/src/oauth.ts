@@ -44,7 +44,7 @@ function handleProtectedResourceMetadata(event: APIGatewayProxyEventV2): APIGate
   const baseUrl = getBaseUrl(event);
   return json(200, {
     resource: `${baseUrl}/mcp`,
-    authorization_servers: [`${baseUrl}/.well-known/oauth-authorization-server`],
+    authorization_servers: [baseUrl],
     bearer_methods_supported: ["header"],
     scopes_supported: ["openid", "profile", "email"],
   });
@@ -64,6 +64,9 @@ async function handleAuthServerMetadata(event: APIGatewayProxyEventV2): Promise<
     cognitoTokenEndpoint = metadata.token_endpoint;
 
     // Patch for MCP spec compliance and interoperability with all MCP clients
+    // Override issuer to match baseUrl so it aligns with what's advertised in
+    // authorization_servers per RFC 9728 — RFC 8414 clients reject a mismatch
+    metadata.issuer = baseUrl;
     metadata.registration_endpoint = `${baseUrl}/register`;
     metadata.code_challenge_methods_supported = ["S256"];
     metadata.client_id_metadata_document_supported = true;
