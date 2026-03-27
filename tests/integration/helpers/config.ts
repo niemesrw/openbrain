@@ -17,6 +17,9 @@ export interface TestConfig {
   password: string;
   clientId: string;
   userPoolId: string;
+  /** Optional second test user for multi-tenancy isolation tests */
+  usernameB?: string;
+  passwordB?: string;
 }
 
 let cached: TestConfig | undefined;
@@ -32,6 +35,8 @@ export async function getConfig(): Promise<TestConfig> {
       password: process.env.OPENBRAIN_PASSWORD!,
       clientId: process.env.OPENBRAIN_CLIENT_ID!,
       userPoolId: process.env.OPENBRAIN_USER_POOL_ID!,
+      usernameB: process.env.OPENBRAIN_USERNAME_B,
+      passwordB: process.env.OPENBRAIN_PASSWORD_B,
     };
     return cached;
   }
@@ -48,6 +53,8 @@ export async function getConfig(): Promise<TestConfig> {
     password: secret.password,
     clientId: secret.client_id,
     userPoolId: secret.user_pool_id,
+    usernameB: secret.username_b,
+    passwordB: secret.password_b,
   };
   return cached;
 }

@@ -1,5 +1,5 @@
 import { getConfig } from "./config.js";
-import { getToken } from "./auth.js";
+import { getToken, getTokenB } from "./auth.js";
 
 let _rpcId = 1;
 
@@ -17,6 +17,27 @@ export async function mcp<T = unknown>(
 ): Promise<McpResponse<T>> {
   const config = await getConfig();
   const token = await getToken();
+  const id = _rpcId++;
+
+  const res = await fetch(`${config.apiUrl}/mcp`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ jsonrpc: "2.0", id, method, params }),
+  });
+
+  return res.json() as Promise<McpResponse<T>>;
+}
+
+/** Makes an authenticated MCP JSON-RPC call as user B. */
+export async function mcpB<T = unknown>(
+  method: string,
+  params?: Record<string, unknown>
+): Promise<McpResponse<T>> {
+  const config = await getConfig();
+  const token = await getTokenB();
   const id = _rpcId++;
 
   const res = await fetch(`${config.apiUrl}/mcp`, {
