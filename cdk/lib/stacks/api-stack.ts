@@ -521,7 +521,7 @@ export class ApiStack extends cdk.Stack {
         GITHUB_INSTALLATIONS_TABLE: githubInstallationsTableName,
         EMBEDDING_MODEL_ID: "amazon.titan-embed-text-v2:0",
         METADATA_MODEL_ID: "us.anthropic.claude-haiku-4-5-20251001-v1:0",
-        GITHUB_APP_ID: process.env.GITHUB_APP_ID ?? "",
+        GITHUB_APP_ID: process.env.GITHUB_APP_ID ?? "3202126",
         GITHUB_APP_PRIVATE_KEY_SECRET_NAME: githubAppPrivateKeySecretName,
       },
       bundling: {
@@ -580,7 +580,7 @@ export class ApiStack extends cdk.Stack {
         USER_POOL_ID: userPool.userPoolId,
         AGENT_KEYS_TABLE: agentKeysTableName,
         GITHUB_INSTALLATIONS_TABLE: githubInstallationsTableName,
-        GITHUB_APP_ID: process.env.GITHUB_APP_ID ?? "",
+        GITHUB_APP_ID: process.env.GITHUB_APP_ID ?? "3202126",
         GITHUB_APP_PRIVATE_KEY_SECRET_NAME: githubAppPrivateKeySecretName,
       },
       bundling: {
