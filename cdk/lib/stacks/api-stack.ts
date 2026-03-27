@@ -9,6 +9,9 @@ import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as events from "aws-cdk-lib/aws-events";
 import * as targets from "aws-cdk-lib/aws-events-targets";
+import * as sqs from "aws-cdk-lib/aws-sqs";
+import * as lambdaEventSources from "aws-cdk-lib/aws-lambda-event-sources";
+import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
 import * as cloudwatch from "aws-cdk-lib/aws-cloudwatch";
 import * as cwActions from "aws-cdk-lib/aws-cloudwatch-actions";
 import * as sns from "aws-cdk-lib/aws-sns";
@@ -25,6 +28,7 @@ interface ApiStackProps extends cdk.StackProps {
   usersTable: dynamodb.Table;
   agentTasksTable: dynamodb.Table;
   dcrClientsTable: dynamodb.Table;
+  githubInstallationsTable: dynamodb.Table;
   customDomain?: string;
   alarmEmail?: string;
 }
@@ -46,6 +50,7 @@ export class ApiStack extends cdk.Stack {
       usersTable,
       agentTasksTable,
       dcrClientsTable,
+      githubInstallationsTable,
       customDomain,
       alarmEmail,
     } = props;
@@ -415,6 +420,125 @@ export class ApiStack extends cdk.Stack {
       comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
       treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
     }).addAlarmAction(new cwActions.SnsAction(alarmTopic));
+
+    // -------------------------------------------------------------------------
+    // GitHub Agent — webhook ingestion, installation registry, SQS fan-out
+    // -------------------------------------------------------------------------
+
+    // SQS — dead-letter queue + main events queue
+    const githubEventsDlq = new sqs.Queue(this, "GitHubEventsDlq", {
+      queueName: "github-events-dlq",
+      retentionPeriod: cdk.Duration.days(14),
+    });
+
+    const githubEventsQueue = new sqs.Queue(this, "GitHubEventsQueue", {
+      queueName: "github-events",
+      visibilityTimeout: cdk.Duration.seconds(300),
+      deadLetterQueue: {
+        queue: githubEventsDlq,
+        maxReceiveCount: 3,
+      },
+    });
+
+    // Webhook secret — stored in Secrets Manager, referenced by name so the
+    // plaintext value is never embedded in the CloudFormation template.
+    const githubWebhookSecret = secretsmanager.Secret.fromSecretNameV2(
+      this,
+      "GitHubWebhookSecret",
+      "openbrain/github-webhook-secret"
+    );
+
+    // Webhook Lambda — public endpoint, validates GitHub HMAC, enqueues events
+    const githubWebhookHandler = new lambdaNode.NodejsFunction(this, "GitHubWebhookHandler", {
+      runtime: lambda.Runtime.NODEJS_22_X,
+      entry: path.join(__dirname, "..", "..", "..", "lambda", "src", "github-webhook.ts"),
+      handler: "handler",
+      memorySize: 256,
+      timeout: cdk.Duration.seconds(10),
+      environment: {
+        GITHUB_EVENTS_QUEUE_URL: githubEventsQueue.queueUrl,
+        GITHUB_WEBHOOK_SECRET_NAME: "openbrain/github-webhook-secret",
+      },
+      bundling: {
+        externalModules: ["@aws-sdk/*"],
+        minify: true,
+        sourceMap: true,
+      },
+    });
+    githubEventsQueue.grantSendMessages(githubWebhookHandler);
+    githubWebhookSecret.grantRead(githubWebhookHandler);
+
+    // GitHub Agent Lambda — SQS consumer (Phase 1: stub; Phase 2: LLM extraction + brain capture)
+    const githubAgentHandler = new lambdaNode.NodejsFunction(this, "GitHubAgentHandler", {
+      runtime: lambda.Runtime.NODEJS_22_X,
+      entry: path.join(__dirname, "..", "..", "..", "lambda", "src", "github-agent.ts"),
+      handler: "handler",
+      memorySize: 512,
+      timeout: cdk.Duration.seconds(300),
+      environment: {
+        VECTOR_BUCKET_NAME: vectorBucketName,
+        GITHUB_INSTALLATIONS_TABLE: githubInstallationsTable.tableName,
+      },
+      bundling: {
+        externalModules: ["@aws-sdk/*"],
+        minify: true,
+        sourceMap: true,
+      },
+    });
+    githubAgentHandler.addEventSource(
+      new lambdaEventSources.SqsEventSource(githubEventsQueue, { batchSize: 10 })
+    );
+    githubInstallationsTable.grantReadData(githubAgentHandler);
+
+    // GitHub REST Lambda — authenticated endpoints for installation management
+    const githubRestHandler = new lambdaNode.NodejsFunction(this, "GitHubRestHandler", {
+      runtime: lambda.Runtime.NODEJS_22_X,
+      entry: path.join(__dirname, "..", "..", "..", "lambda", "src", "github.ts"),
+      handler: "handler",
+      memorySize: 256,
+      timeout: cdk.Duration.seconds(15),
+      environment: {
+        USER_POOL_ID: userPool.userPoolId,
+        AGENT_KEYS_TABLE: agentKeysTable.tableName,
+        GITHUB_INSTALLATIONS_TABLE: githubInstallationsTable.tableName,
+      },
+      bundling: {
+        externalModules: ["@aws-sdk/*"],
+        minify: true,
+        sourceMap: true,
+      },
+    });
+    agentKeysTable.grantReadData(githubRestHandler);
+    githubInstallationsTable.grantReadWriteData(githubRestHandler);
+
+    // API routes
+    const githubWebhookIntegration = new apigwv2Integrations.HttpLambdaIntegration(
+      "GitHubWebhookIntegration",
+      githubWebhookHandler
+    );
+    const githubRestIntegration = new apigwv2Integrations.HttpLambdaIntegration(
+      "GitHubRestIntegration",
+      githubRestHandler
+    );
+
+    // POST /github/webhook — public, GitHub HMAC validated in-Lambda
+    this.api.addRoutes({
+      path: "/github/webhook",
+      methods: [apigwv2.HttpMethod.POST],
+      integration: githubWebhookIntegration,
+    });
+
+    // POST /github/connect, GET /github/installations — auth handled in-Lambda
+    this.api.addRoutes({
+      path: "/github/connect",
+      methods: [apigwv2.HttpMethod.POST],
+      integration: githubRestIntegration,
+    });
+    this.api.addRoutes({
+      path: "/github/installations",
+      methods: [apigwv2.HttpMethod.GET],
+      integration: githubRestIntegration,
+    });
 
     // Outputs
     new cdk.CfnOutput(this, "ApiUrl", {

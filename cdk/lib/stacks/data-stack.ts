@@ -7,6 +7,7 @@ export class DataStack extends cdk.Stack {
   public readonly usersTable: dynamodb.Table;
   public readonly agentTasksTable: dynamodb.Table;
   public readonly dcrClientsTable: dynamodb.Table;
+  public readonly githubInstallationsTable: dynamodb.Table;
 
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
@@ -60,6 +61,22 @@ export class DataStack extends cdk.Stack {
     this.dcrClientsTable.addGlobalSecondaryIndex({
       indexName: "cimd-url-index",
       partitionKey: { name: "cimdUrl", type: dynamodb.AttributeType.STRING },
+      projectionType: dynamodb.ProjectionType.ALL,
+    });
+
+    // GitHub Installations table — maps GitHub App installation IDs to Open Brain users
+    // PK: installationId (GitHub installation ID as string)
+    // GSI: user-id-index on userId for user-scoped lookups
+    this.githubInstallationsTable = new dynamodb.Table(this, "GitHubInstallationsTable", {
+      tableName: "openbrain-github-installations",
+      partitionKey: { name: "installationId", type: dynamodb.AttributeType.STRING },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+    });
+
+    this.githubInstallationsTable.addGlobalSecondaryIndex({
+      indexName: "user-id-index",
+      partitionKey: { name: "userId", type: dynamodb.AttributeType.STRING },
       projectionType: dynamodb.ProjectionType.ALL,
     });
 

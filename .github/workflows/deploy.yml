@@ -62,6 +62,21 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
           role-chaining: true
 
+      # --- Store GitHub App webhook secret in Secrets Manager ---
+      # CDK references the secret by name rather than embedding its value in the CF template.
+      - name: Upsert GitHub webhook secret in Secrets Manager
+        run: |
+          aws secretsmanager describe-secret \
+            --secret-id openbrain/github-webhook-secret > /dev/null 2>&1 \
+          && aws secretsmanager put-secret-value \
+            --secret-id openbrain/github-webhook-secret \
+            --secret-string "$GH_APP_WEBHOOK_SECRET" \
+          || aws secretsmanager create-secret \
+            --name openbrain/github-webhook-secret \
+            --secret-string "$GH_APP_WEBHOOK_SECRET"
+        env:
+          GH_APP_WEBHOOK_SECRET: ${{ secrets.GH_APP_WEBHOOK_SECRET }}
+
       # --- Build Lambda ---
 
       - name: Install Lambda dependencies
