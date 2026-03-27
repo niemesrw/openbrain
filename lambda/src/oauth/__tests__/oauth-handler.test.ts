@@ -175,6 +175,43 @@ describe("OAuth handler", () => {
     });
   });
 
+  describe("GET /.well-known/mcp.json", () => {
+    it("returns MCP server card with required fields", async () => {
+      const event = makeEvent({
+        rawPath: "/.well-known/mcp.json",
+        requestContext: { http: { method: "GET" } } as any,
+      });
+
+      const result = await handler(event) as APIGatewayProxyStructuredResultV2;
+      const body = JSON.parse(result.body as string);
+
+      expect(result.statusCode).toBe(200);
+      expect(body.serverInfo.name).toBe("open-brain");
+      expect(body.transport.type).toBe("streamable-http");
+      expect(body.transport.endpoint).toBe("/mcp");
+      expect(body.authentication.required).toBe(true);
+      expect(body.authentication.schemes).toContain("oauth2");
+      expect(body.tools).toEqual(["dynamic"]);
+    });
+  });
+
+  describe("GET /llms.txt", () => {
+    it("returns markdown with correct content type", async () => {
+      const event = makeEvent({
+        rawPath: "/llms.txt",
+        requestContext: { http: { method: "GET" } } as any,
+      });
+
+      const result = await handler(event) as APIGatewayProxyStructuredResultV2;
+
+      expect(result.statusCode).toBe(200);
+      expect(result.headers?.["Content-Type"]).toContain("text/markdown");
+      expect(result.body).toContain("# Open Brain");
+      expect(result.body).toContain("search_thoughts");
+      expect(result.body).toContain("/mcp");
+    });
+  });
+
   describe("unknown routes", () => {
     it("returns 404 for unknown path", async () => {
       const event = makeEvent({

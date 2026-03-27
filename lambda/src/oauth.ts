@@ -407,6 +407,76 @@ async function handleRegister(event: APIGatewayProxyEventV2): Promise<APIGateway
   }
 }
 
+// --- MCP Server Card (SEP-1649) ---
+
+function handleMcpServerCard(_event: APIGatewayProxyEventV2): APIGatewayProxyResultV2 {
+  return json(200, {
+    $schema: "https://static.modelcontextprotocol.io/schemas/mcp-server-card/v1.json",
+    version: "1.0",
+    protocolVersion: "2025-06-18",
+    serverInfo: {
+      name: "open-brain",
+      title: "Open Brain",
+      version: "2.0.0",
+    },
+    description: "Personal AI knowledge base with semantic search. One brain shared across all your AI clients.",
+    documentationUrl: "https://github.com/BLANXLAIT/openbrain",
+    transport: {
+      type: "streamable-http",
+      endpoint: "/mcp",
+    },
+    authentication: {
+      required: true,
+      schemes: ["oauth2", "apiKey"],
+    },
+    tools: ["dynamic"],
+    capabilities: {},
+  });
+}
+
+// --- llms.txt ---
+
+function handleLlmsTxt(event: APIGatewayProxyEventV2): APIGatewayProxyResultV2 {
+  const baseUrl = getBaseUrl(event);
+  const body = `# Open Brain
+
+> Personal AI knowledge base with semantic search. One brain shared across Claude, ChatGPT, Gemini, Cursor — all your AI clients.
+
+Open Brain is an MCP server that stores thoughts, decisions, notes, and memories as vector embeddings with semantic search. Connect any MCP-compatible AI client and authenticate via Google OAuth automatically.
+
+## MCP Server
+
+- [MCP Endpoint](${baseUrl}/mcp): Streamable HTTP transport, OAuth 2.1 auth
+- [Server Card](${baseUrl}/.well-known/mcp.json): MCP server discovery metadata
+- [OAuth Discovery](${baseUrl}/.well-known/oauth-protected-resource): OAuth protected resource metadata
+- [GitHub Repository](https://github.com/BLANXLAIT/openbrain): Source code and setup guide
+
+## Tools
+
+- search_thoughts: Semantic search — finds thoughts by meaning
+- browse_recent: Browse chronologically, filter by type or topic
+- stats: Overview — total thoughts, types, topics, people
+- capture_thought: Save a thought from any connected AI
+- update_thought: Edit an existing thought (re-embeds + re-extracts metadata)
+- delete_thought: Remove a thought by ID (ownership verified)
+- create_agent: Register a new agent and generate an API key
+- list_agents: Show all agents for the authenticated user
+- revoke_agent: Disable an agent's API key
+- bus_activity: Monitor shared feed — activity grouped by agent
+
+## Optional
+
+- [Skills for Claude Desktop](https://github.com/BLANXLAIT/openbrain/blob/main/skills/claude-desktop.md): Project instructions
+- [Skills for ChatGPT](https://github.com/BLANXLAIT/openbrain/blob/main/skills/chatgpt-instructions.md): Custom GPT instructions
+`;
+
+  return {
+    statusCode: 200,
+    headers: { "Content-Type": "text/markdown; charset=utf-8", "Cache-Control": "public, max-age=86400" },
+    body,
+  };
+}
+
 // Helper to pre-load Cognito metadata for proxy endpoints
 async function loadCognitoMetadata(): Promise<void> {
   if (cognitoAuthEndpoint && cognitoTokenEndpoint) return;
@@ -446,6 +516,12 @@ export async function handler(
   }
   if (method === "POST" && path === "/register") {
     return handleRegister(event);
+  }
+  if (method === "GET" && path === "/.well-known/mcp.json") {
+    return handleMcpServerCard(event);
+  }
+  if (method === "GET" && path === "/llms.txt") {
+    return handleLlmsTxt(event);
   }
 
   return json(404, { error: "not_found" });
