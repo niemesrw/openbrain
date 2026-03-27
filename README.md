@@ -358,3 +358,4 @@ openbrain/
 The Open Brain concept and MCP server design are the work of [Nate B. Jones](https://www.youtube.com/@DoingAIDifferently). His [original video](https://www.youtube.com/watch?v=2JiMmye2ezg) and [Substack newsletter](https://natesnewsletter.substack.com/) walk through the philosophy. This repo implements the idea on AWS serverless infrastructure (S3 Vectors, Bedrock, Cognito) — one brain, every AI.
 
 The MCP OAuth implementation (discovery, DCR, authorization proxy) was modeled after [empires-security/mcp-oauth2-aws-cognito](https://github.com/empires-security/mcp-oauth2-aws-cognito), which demonstrates provider-agnostic OAuth 2.1 for MCP servers with Cognito as the backing authorization server.
+
