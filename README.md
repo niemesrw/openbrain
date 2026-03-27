@@ -268,6 +268,42 @@ browse - Show recent thoughts
 insight - Surface a pattern or insight
 ```
 
+### GitHub Integration
+
+Automatically captures pull requests, pushes, and releases from any connected GitHub account or organization.
+
+#### 1. Create a GitHub App
+
+Go to your org's GitHub App settings and create an app with:
+- **Webhook URL:** `https://YOUR_DOMAIN/webhooks/github`
+- **Webhook secret:** any random string
+- **Permissions:** Repository contents (read), Pull requests (read), Metadata (read)
+- **Subscribe to events:** Pull request, Push, Release
+- **Setup URL:** `https://YOUR_DOMAIN/github/callback`
+- Check **"Redirect on update"**
+
+#### 2. Store secrets in GitHub Actions
+
+Add these repository secrets:
+
+| Secret | Value |
+|--------|-------|
+| `GH_APP_ID` | Your GitHub App's numeric ID |
+| `GH_APP_PRIVATE_KEY` | The app's private key (PEM) |
+| `GH_APP_WEBHOOK_SECRET` | The webhook secret you chose |
+| `GITHUB_APP_SLUG` | Your app's slug (e.g. `openbrain-agent`) |
+
+The deploy pipeline automatically upserts the private key and webhook secret into Secrets Manager and injects the slug into the web build.
+
+#### 3. Connect as a user
+
+1. Open the web dashboard → **Settings**
+2. Click **Connect GitHub**
+3. Install the app on your account or organization
+4. You'll be redirected back to the dashboard — the account appears in Settings automatically
+
+GitHub activity (PRs, pushes, releases) now flows into your brain as private thoughts.
+
 ### Google Meet Ingestion
 
 Automatically captures Gemini-generated meeting summaries as shared thoughts. See [`google-meet/README.md`](google-meet/README.md).
