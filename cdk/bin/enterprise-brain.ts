@@ -61,6 +61,11 @@ const api = new ApiStack(app, "EnterpriseBrainApi", {
 
 api.addDependency(vectors);
 api.addDependency(auth);
+// Data must deploy after Api so that Api's old Fn::ImportValue references
+// to Data exports are cleared before Data tries to remove those exports.
+// Api no longer has cross-stack imports from Data, so this is safe and
+// does not create a cycle.
+data.addDependency(api);
 
 // Web SPA — build web/ first, then deploy
 // Only instantiate when web/dist/ exists (after `cd web && npm run build`)
