@@ -254,6 +254,12 @@ describe("OAuth handler", () => {
       });
       // Then: Cognito UpdateUserPoolClient
       mockCognitoSend.mockResolvedValueOnce({});
+      // Then: Cognito DescribeUserPoolClient poll — returns updated URLs so poll exits immediately
+      mockCognitoSend.mockResolvedValueOnce({
+        UserPoolClient: {
+          CallbackURLs: ["http://127.0.0.1/callback", "http://localhost/callback", "http://127.0.0.1:54321/callback"],
+        },
+      });
 
       // First trigger metadata load
       const metaEvent = makeEvent({
@@ -279,8 +285,8 @@ describe("OAuth handler", () => {
       expect(result.statusCode).toBe(302);
       // Should have called DDB to check DCR ownership
       expect(mockDdbSend).toHaveBeenCalled();
-      // Should have called Cognito to describe + update the client
-      expect(mockCognitoSend).toHaveBeenCalledTimes(2);
+      // Should have called Cognito to describe + update + at least one poll describe
+      expect(mockCognitoSend).toHaveBeenCalledTimes(3);
     });
 
     it("skips update for non-DCR clients", async () => {

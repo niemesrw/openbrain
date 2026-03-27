@@ -5,9 +5,12 @@ import {
   SecretsManagerClient,
   GetSecretValueCommand,
 } from "@aws-sdk/client-secrets-manager";
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { DynamoDBDocumentClient, DeleteCommand } from "@aws-sdk/lib-dynamodb";
 
 const sqs = new SQSClient({});
 const sm = new SecretsManagerClient({});
+const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
 // Cached at Lambda warm-start — secret is stable between deploys
 let cachedWebhookSecret: string | undefined;
@@ -24,6 +27,7 @@ async function getWebhookSecret(): Promise<string> {
 }
 
 const RELEVANT_EVENTS = new Set([
+  "installation",
   "pull_request",
   "pull_request_review",
   "push",
@@ -77,6 +81,30 @@ export async function handler(
   }
 
   const installationId = (payload.installation as { id?: number } | undefined)?.id;
+
+  // Handle installation lifecycle events inline (fast DynamoDB op, no SQS needed)
+  if (eventType === "installation") {
+    if (payload.action === "deleted") {
+      if (installationId) {
+        const tableName = process.env.GITHUB_INSTALLATIONS_TABLE;
+        if (!tableName) {
+          console.error("[github-webhook] GITHUB_INSTALLATIONS_TABLE env var is not set");
+          return { statusCode: 500, body: JSON.stringify({ error: "Server configuration error" }) };
+        }
+        await ddb.send(
+          new DeleteCommand({
+            TableName: tableName,
+            Key: { installationId: String(installationId) },
+          })
+        );
+        console.log("[github-webhook] Deleted installation record", { installationId });
+      }
+    } else {
+      console.log("[github-webhook] Ignoring installation action", { action: payload.action });
+    }
+    return { statusCode: 200, body: JSON.stringify({ status: "ok" }) };
+  }
+
   if (!installationId) {
     // Events without an installation ID can't be routed to a user — drop them
     console.warn("[github-webhook] Event missing installation.id, ignoring", { eventType });

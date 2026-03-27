@@ -175,9 +175,20 @@ async function ensureLoopbackRedirectUri(cognitoClientId: string, redirectUri: s
             RefreshTokenValidity: client.RefreshTokenValidity,
           })
         );
-        // Brief delay for Cognito to propagate the updated callback URLs
-        // to its authorize endpoint (eventual consistency).
-        await new Promise((r) => setTimeout(r, 2000));
+        // Poll until Cognito propagates the new callback URL (eventual consistency).
+        // Times out after 5s and falls through — same behaviour as a fixed sleep but
+        // much faster on the happy path (usually 1-3 polls).
+        const deadline = Date.now() + 5000;
+        while (Date.now() < deadline) {
+          await new Promise((r) => setTimeout(r, 300));
+          const check = await cognito.send(
+            new DescribeUserPoolClientCommand({
+              UserPoolId: USER_POOL_ID,
+              ClientId: cognitoClientId,
+            })
+          );
+          if (check.UserPoolClient?.CallbackURLs?.includes(redirectUri)) return;
+        }
         return;
       } catch (error: any) {
         if (attempt < 2 && error?.$metadata?.httpStatusCode === 409) continue;

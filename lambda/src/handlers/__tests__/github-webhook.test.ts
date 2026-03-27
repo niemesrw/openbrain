@@ -1,6 +1,7 @@
 import { createHmac } from "crypto";
 import { SQSClient } from "@aws-sdk/client-sqs";
 import { SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
+import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
 
 jest.mock("@aws-sdk/client-sqs", () => {
   const send = jest.fn();
@@ -22,10 +23,25 @@ jest.mock("@aws-sdk/client-secrets-manager", () => {
   };
 });
 
+jest.mock("@aws-sdk/client-dynamodb", () => {
+  return { DynamoDBClient: jest.fn(() => ({})) };
+});
+
+jest.mock("@aws-sdk/lib-dynamodb", () => {
+  const send = jest.fn();
+  const from = jest.fn(() => ({ send }));
+  (from as any).__mockSend = send;
+  return {
+    DynamoDBDocumentClient: { from },
+    DeleteCommand: jest.fn((input: unknown) => ({ input })),
+  };
+});
+
 import { handler, verifySignature } from "../../github-webhook";
 
 const mockSqsSend = (SQSClient as any).__mockSend as jest.Mock;
 const mockSmSend = (SecretsManagerClient as any).__mockSend as jest.Mock;
+const mockDdbSend = (DynamoDBDocumentClient as any).from.__mockSend as jest.Mock;
 
 const WEBHOOK_SECRET = "test-secret";
 const QUEUE_URL = "https://sqs.us-east-1.amazonaws.com/123/test-queue";
@@ -34,13 +50,18 @@ function sign(body: string, secret = WEBHOOK_SECRET): string {
   return "sha256=" + createHmac("sha256", secret).update(body).digest("hex");
 }
 
+const INSTALLATIONS_TABLE = "openbrain-github-installations";
+
 beforeEach(() => {
   mockSqsSend.mockReset();
   mockSqsSend.mockResolvedValue({});
   mockSmSend.mockReset();
   mockSmSend.mockResolvedValue({ SecretString: WEBHOOK_SECRET });
+  mockDdbSend.mockReset();
+  mockDdbSend.mockResolvedValue({});
   process.env.GITHUB_WEBHOOK_SECRET_NAME = "openbrain/github-webhook-secret";
   process.env.GITHUB_EVENTS_QUEUE_URL = QUEUE_URL;
+  process.env.GITHUB_INSTALLATIONS_TABLE = INSTALLATIONS_TABLE;
 });
 
 describe("verifySignature", () => {
@@ -147,5 +168,26 @@ describe("handler", () => {
     const result = await handler(event as any) as Result;
     expect(result.statusCode).toBe(200);
     expect(mockSqsSend).toHaveBeenCalledTimes(1);
+  });
+
+  it("installation deleted: deletes DynamoDB record and returns 200", async () => {
+    const body = JSON.stringify({ action: "deleted", installation: { id: 99 } });
+    const result = await handler(makeEvent(body, "installation") as any) as Result;
+    expect(result.statusCode).toBe(200);
+    expect(JSON.parse(result.body).status).toBe("ok");
+    expect(mockDdbSend).toHaveBeenCalledTimes(1);
+    const deleteInput = mockDdbSend.mock.calls[0][0].input;
+    expect(deleteInput.TableName).toBe(INSTALLATIONS_TABLE);
+    expect(deleteInput.Key).toEqual({ installationId: "99" });
+    expect(mockSqsSend).not.toHaveBeenCalled();
+  });
+
+  it("installation created: ignores and returns 200 without touching DynamoDB or SQS", async () => {
+    const body = JSON.stringify({ action: "created", installation: { id: 55 } });
+    const result = await handler(makeEvent(body, "installation") as any) as Result;
+    expect(result.statusCode).toBe(200);
+    expect(JSON.parse(result.body).status).toBe("ok");
+    expect(mockDdbSend).not.toHaveBeenCalled();
+    expect(mockSqsSend).not.toHaveBeenCalled();
   });
 });

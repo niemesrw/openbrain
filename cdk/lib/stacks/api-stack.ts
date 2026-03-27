@@ -476,6 +476,11 @@ export class ApiStack extends cdk.Stack {
       "openbrain/github-webhook-secret"
     );
 
+    // GitHub installations table — referenced by name to avoid a cross-stack
+    // CFN import that would constrain deployment order when Data stack changes.
+    const githubInstallationsTableName = "openbrain-github-installations";
+    const githubInstallationsTableArn = `arn:aws:dynamodb:${this.region}:${this.account}:table/${githubInstallationsTableName}`;
+
     // Webhook Lambda — public endpoint, validates GitHub HMAC, enqueues events
     const githubWebhookHandler = new lambdaNode.NodejsFunction(this, "GitHubWebhookHandler", {
       runtime: lambda.Runtime.NODEJS_22_X,
@@ -486,6 +491,7 @@ export class ApiStack extends cdk.Stack {
       environment: {
         GITHUB_EVENTS_QUEUE_URL: githubEventsQueue.queueUrl,
         GITHUB_WEBHOOK_SECRET_NAME: "openbrain/github-webhook-secret",
+        GITHUB_INSTALLATIONS_TABLE: githubInstallationsTableName,
       },
       bundling: {
         externalModules: ["@aws-sdk/*"],
@@ -495,11 +501,10 @@ export class ApiStack extends cdk.Stack {
     });
     githubEventsQueue.grantSendMessages(githubWebhookHandler);
     githubWebhookSecret.grantRead(githubWebhookHandler);
-
-    // GitHub installations table — referenced by name to avoid a cross-stack
-    // CFN import that would constrain deployment order when Data stack changes.
-    const githubInstallationsTableName = "openbrain-github-installations";
-    const githubInstallationsTableArn = `arn:aws:dynamodb:${this.region}:${this.account}:table/${githubInstallationsTableName}`;
+    githubWebhookHandler.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["dynamodb:DeleteItem"],
+      resources: [githubInstallationsTableArn],
+    }));
 
     // GitHub App private key — stored in Secrets Manager, referenced by name
     const githubAppPrivateKeySecretName = "openbrain/github-app-private-key";
