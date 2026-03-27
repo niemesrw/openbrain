@@ -28,7 +28,6 @@ interface ApiStackProps extends cdk.StackProps {
   usersTable: dynamodb.Table;
   agentTasksTable: dynamodb.Table;
   dcrClientsTable: dynamodb.Table;
-  githubInstallationsTable: dynamodb.Table;
   customDomain?: string;
   alarmEmail?: string;
 }
@@ -50,7 +49,6 @@ export class ApiStack extends cdk.Stack {
       usersTable,
       agentTasksTable,
       dcrClientsTable,
-      githubInstallationsTable,
       customDomain,
       alarmEmail,
     } = props;
@@ -468,6 +466,11 @@ export class ApiStack extends cdk.Stack {
     githubEventsQueue.grantSendMessages(githubWebhookHandler);
     githubWebhookSecret.grantRead(githubWebhookHandler);
 
+    // GitHub installations table — referenced by name to avoid a cross-stack
+    // CFN import that would constrain deployment order when Data stack changes.
+    const githubInstallationsTableName = "openbrain-github-installations";
+    const githubInstallationsTableArn = `arn:aws:dynamodb:${this.region}:${this.account}:table/${githubInstallationsTableName}`;
+
     // GitHub Agent Lambda — SQS consumer (Phase 1: stub; Phase 2: LLM extraction + brain capture)
     const githubAgentHandler = new lambdaNode.NodejsFunction(this, "GitHubAgentHandler", {
       runtime: lambda.Runtime.NODEJS_22_X,
@@ -477,7 +480,7 @@ export class ApiStack extends cdk.Stack {
       timeout: cdk.Duration.seconds(300),
       environment: {
         VECTOR_BUCKET_NAME: vectorBucketName,
-        GITHUB_INSTALLATIONS_TABLE: githubInstallationsTable.tableName,
+        GITHUB_INSTALLATIONS_TABLE: githubInstallationsTableName,
       },
       bundling: {
         externalModules: ["@aws-sdk/*"],
@@ -488,7 +491,10 @@ export class ApiStack extends cdk.Stack {
     githubAgentHandler.addEventSource(
       new lambdaEventSources.SqsEventSource(githubEventsQueue, { batchSize: 10 })
     );
-    githubInstallationsTable.grantReadData(githubAgentHandler);
+    githubAgentHandler.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:Scan"],
+      resources: [githubInstallationsTableArn, `${githubInstallationsTableArn}/index/*`],
+    }));
 
     // GitHub REST Lambda — authenticated endpoints for installation management
     const githubRestHandler = new lambdaNode.NodejsFunction(this, "GitHubRestHandler", {
@@ -500,7 +506,7 @@ export class ApiStack extends cdk.Stack {
       environment: {
         USER_POOL_ID: userPool.userPoolId,
         AGENT_KEYS_TABLE: agentKeysTable.tableName,
-        GITHUB_INSTALLATIONS_TABLE: githubInstallationsTable.tableName,
+        GITHUB_INSTALLATIONS_TABLE: githubInstallationsTableName,
       },
       bundling: {
         externalModules: ["@aws-sdk/*"],
@@ -509,7 +515,10 @@ export class ApiStack extends cdk.Stack {
       },
     });
     agentKeysTable.grantReadData(githubRestHandler);
-    githubInstallationsTable.grantReadWriteData(githubRestHandler);
+    githubRestHandler.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Query", "dynamodb:UpdateItem", "dynamodb:DeleteItem"],
+      resources: [githubInstallationsTableArn, `${githubInstallationsTableArn}/index/*`],
+    }));
 
     // API routes
     const githubWebhookIntegration = new apigwv2Integrations.HttpLambdaIntegration(

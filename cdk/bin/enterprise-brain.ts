@@ -59,7 +59,6 @@ const api = new ApiStack(app, "EnterpriseBrainApi", {
   usersTable: data.usersTable,
   agentTasksTable: data.agentTasksTable,
   dcrClientsTable: data.dcrClientsTable,
-  githubInstallationsTable: data.githubInstallationsTable,
   customDomain,
   alarmEmail: app.node.tryGetContext("alarmEmail") ?? process.env.ALARM_EMAIL,
 });
