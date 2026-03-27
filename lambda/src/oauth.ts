@@ -67,6 +67,10 @@ async function handleAuthServerMetadata(event: APIGatewayProxyEventV2): Promise<
     metadata.registration_endpoint = `${baseUrl}/register`;
     metadata.code_challenge_methods_supported = ["S256"];
     metadata.client_id_metadata_document_supported = true;
+    // Override scopes to match what DCR clients are granted (Cognito
+    // advertises "phone" but our DCR clients don't include it, causing
+    // invalid_scope errors when clients request all advertised scopes)
+    metadata.scopes_supported = ["openid", "profile", "email"];
 
     // Override endpoints to our proxy
     metadata.authorization_endpoint = `${baseUrl}/oauth/authorize`;
