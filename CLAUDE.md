@@ -2,6 +2,90 @@
 
 This repo implements the [Open Brain guide](https://promptkit.natebjones.com/20260224_uq1_guide_main) by Nate B. Jones.
 
+---
+
+## For Agents (Claude Code Action in GitHub)
+
+If you are running as a GitHub Actions agent (not a local Claude Code session), read this section first. It contains everything you need to do work safely in this repo.
+
+### Workflow
+
+- **Always create a feature branch** — never push to `main` directly
+- Branch naming: `feat/`, `fix/`, `chore/` prefix (e.g. `feat/slack-webhook`)
+- Open a PR against `main` when your work is ready
+- Run tests and build before opening the PR — CI will catch failures but do not open a known-broken PR
+
+### Before Writing Any Code
+
+1. Read the relevant existing files — do not guess at patterns
+2. Check `lambda/src/index.ts` to understand how routes and auth are wired
+3. Check `cdk/lib/stacks/api-stack.ts` to understand how Lambdas and routes are declared
+4. Run `cd lambda && npm test` to confirm baseline passes before making changes
+
+### Lambda File Organization
+
+```
+lambda/src/
+├── index.ts                  # MCP protocol entry point
+├── github-webhook.ts         # GitHub webhook entry point (separate Lambda)
+├── github-agent.ts           # GitHub SQS agent entry point (separate Lambda)
+├── github.ts                 # GitHub REST entry point (separate Lambda)
+├── oauth.ts                  # OAuth entry point (separate Lambda)
+├── handlers/                 # Business logic — one file per feature
+│   ├── __tests__/            # Unit tests live here, co-located with handlers
+│   ├── github-connect.ts
+│   ├── capture-thought.ts
+│   └── ...
+└── services/                 # Shared clients (DynamoDB, S3 Vectors, Bedrock, GitHub App)
+```
+
+New Lambda handlers go in `handlers/`. Entry point files (`github.ts`, etc.) import from handlers and wire auth.
+
+### Adding a New API Route — Required Steps (both files, always)
+
+1. **`lambda/src/index.ts`** (or the relevant entry point) — add the route handler + auth check
+2. **`cdk/lib/stacks/api-stack.ts`** — add the HTTP API route pointing to the correct Lambda integration
+
+Missing either step = route works locally but 404s or 401s in production.
+
+### DynamoDB Table Names (hardcoded — do not invent new ones)
+
+| Table | Purpose |
+|-------|---------|
+| `openbrain-agent-keys` | Agent API keys |
+| `openbrain-users` | User profiles |
+| `openbrain-agent-tasks` | Agent task queue |
+| `openbrain-dcr-clients` | OAuth DCR clients |
+| `openbrain-github-installations` | GitHub App installation → userId mapping |
+
+Table ARNs follow the pattern: `arn:aws:dynamodb:${region}:${account}:table/${tableName}`
+
+### CDK Rules — Critical
+
+- **Do not create cross-stack CloudFormation imports/exports** — use hardcoded resource names/ARNs instead (see existing pattern in `api-stack.ts`)
+- Stack deploy order is enforced: `Vectors → Auth → Api → Data`. Do not add dependencies that reverse this.
+- IAM permissions for Lambda → DynamoDB use inline `addToRolePolicy` calls, not `table.grantReadWriteData()` — this avoids cross-stack refs
+
+### Environment Variables Available in Lambdas
+
+Each Lambda only has the env vars explicitly set in `api-stack.ts`. Check there before using `process.env.*`. Never assume a variable is available — read the stack definition first.
+
+### PR Checklist (must pass before opening PR)
+
+1. `cd lambda && npm test` — all tests pass
+2. `cd web && npm run build` — if any `web/` files changed
+3. New handlers have unit tests in `lambda/src/handlers/__tests__/`
+4. New routes wired in both `index.ts` (or entry point) AND `api-stack.ts`
+5. Error logging uses `err instanceof Error ? err.message : String(err)`
+
+### What You Don't Have Access To
+
+- AWS CLI / CloudWatch logs (no AWS credentials in GitHub Actions for read access)
+- MCP tools (Open Brain brain search/capture — local Claude Code only)
+- `--profile blanxlait-ai` (local dev only)
+
+---
+
 ## Repo Purpose
 
 Everything a user needs to set up their own Open Brain on AWS.
