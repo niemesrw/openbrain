@@ -409,8 +409,7 @@ async function handleRegister(event: APIGatewayProxyEventV2): Promise<APIGateway
 
 // --- MCP Server Card (SEP-1649) ---
 
-function handleMcpServerCard(event: APIGatewayProxyEventV2): APIGatewayProxyResultV2 {
-  const baseUrl = getBaseUrl(event);
+function handleMcpServerCard(_event: APIGatewayProxyEventV2): APIGatewayProxyResultV2 {
   return json(200, {
     $schema: "https://static.modelcontextprotocol.io/schemas/mcp-server-card/v1.json",
     version: "1.0",
@@ -428,14 +427,10 @@ function handleMcpServerCard(event: APIGatewayProxyEventV2): APIGatewayProxyResu
     },
     authentication: {
       required: true,
-      schemes: [
-        { type: "oauth2", description: "Google OAuth via Cognito (automatic via MCP OAuth discovery)" },
-        { type: "apiKey", header: "X-Api-Key", description: "Agent API key (ob_... prefix)" },
-      ],
+      schemes: ["oauth2", "apiKey"],
     },
-    capabilities: {
-      tools: ["dynamic"],
-    },
+    tools: ["dynamic"],
+    capabilities: {},
   });
 }
 
@@ -477,7 +472,7 @@ Open Brain is an MCP server that stores thoughts, decisions, notes, and memories
 
   return {
     statusCode: 200,
-    headers: { "Content-Type": "text/markdown; charset=utf-8", "Cache-Control": "public, max-age=3600" },
+    headers: { "Content-Type": "text/markdown; charset=utf-8", "Cache-Control": "public, max-age=86400" },
     body,
   };
 }

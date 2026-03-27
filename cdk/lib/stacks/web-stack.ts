@@ -100,8 +100,7 @@ export class WebStack extends cdk.Stack {
             "/llms.txt": {
               origin: apiOrigin,
               allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD,
-              cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
-              originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
+              cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
               viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
             },
             "/register": {

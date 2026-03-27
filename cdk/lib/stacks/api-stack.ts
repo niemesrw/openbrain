@@ -321,7 +321,7 @@ export class ApiStack extends cdk.Stack {
     });
     this.api.addRoutes({
       path: "/llms.txt",
-      methods: [apigwv2.HttpMethod.GET],
+      methods: [apigwv2.HttpMethod.GET, apigwv2.HttpMethod.HEAD],
       integration: oauthIntegration,
     });
 
