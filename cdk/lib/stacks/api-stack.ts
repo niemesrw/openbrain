@@ -5,7 +5,6 @@ import * as apigwv2 from "aws-cdk-lib/aws-apigatewayv2";
 import * as apigwv2Integrations from "aws-cdk-lib/aws-apigatewayv2-integrations";
 import * as apigwv2Authorizers from "aws-cdk-lib/aws-apigatewayv2-authorizers";
 import * as cognito from "aws-cdk-lib/aws-cognito";
-import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as events from "aws-cdk-lib/aws-events";
 import * as targets from "aws-cdk-lib/aws-events-targets";
@@ -24,10 +23,6 @@ interface ApiStackProps extends cdk.StackProps {
   userPool: cognito.UserPool;
   webClient: cognito.UserPoolClient;
   cliClient: cognito.UserPoolClient;
-  agentKeysTable: dynamodb.Table;
-  usersTable: dynamodb.Table;
-  agentTasksTable: dynamodb.Table;
-  dcrClientsTable: dynamodb.Table;
   customDomain?: string;
   alarmEmail?: string;
 }
@@ -45,13 +40,21 @@ export class ApiStack extends cdk.Stack {
       userPool,
       webClient,
       cliClient,
-      agentKeysTable,
-      usersTable,
-      agentTasksTable,
-      dcrClientsTable,
       customDomain,
       alarmEmail,
     } = props;
+
+    // Data stack tables — referenced by hardcoded name to avoid cross-stack
+    // CloudFormation imports that would block Data from removing old exports.
+    const agentKeysTableName = "openbrain-agent-keys";
+    const usersTableName = "openbrain-users";
+    const agentTasksTableName = "openbrain-agent-tasks";
+    const dcrClientsTableName = "openbrain-dcr-clients";
+
+    const agentKeysTableArn = `arn:aws:dynamodb:${this.region}:${this.account}:table/${agentKeysTableName}`;
+    const usersTableArn = `arn:aws:dynamodb:${this.region}:${this.account}:table/${usersTableName}`;
+    const agentTasksTableArn = `arn:aws:dynamodb:${this.region}:${this.account}:table/${agentTasksTableName}`;
+    const dcrClientsTableArn = `arn:aws:dynamodb:${this.region}:${this.account}:table/${dcrClientsTableName}`;
 
     // Main MCP handler Lambda
     this.handler = new lambdaNode.NodejsFunction(this, "McpHandler", {
@@ -64,9 +67,9 @@ export class ApiStack extends cdk.Stack {
         VECTOR_BUCKET_NAME: vectorBucketName,
         EMBEDDING_MODEL_ID: "amazon.titan-embed-text-v2:0",
         METADATA_MODEL_ID: "us.anthropic.claude-haiku-4-5-20251001-v1:0",
-        AGENT_KEYS_TABLE: agentKeysTable.tableName,
-        USERS_TABLE: usersTable.tableName,
-        AGENT_TASKS_TABLE: agentTasksTable.tableName,
+        AGENT_KEYS_TABLE: agentKeysTableName,
+        USERS_TABLE: usersTableName,
+        AGENT_TASKS_TABLE: agentTasksTableName,
         USER_POOL_ID: userPool.userPoolId,
         ...(customDomain && { CUSTOM_DOMAIN: customDomain }),
       },
@@ -111,9 +114,18 @@ export class ApiStack extends cdk.Stack {
     );
 
     // DynamoDB permissions for main handler
-    agentKeysTable.grantReadWriteData(this.handler);
-    usersTable.grantReadData(this.handler);
-    agentTasksTable.grantReadWriteData(this.handler);
+    this.handler.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:Query", "dynamodb:Scan", "dynamodb:BatchGetItem", "dynamodb:BatchWriteItem"],
+      resources: [agentKeysTableArn, `${agentKeysTableArn}/index/*`],
+    }));
+    this.handler.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:Scan", "dynamodb:BatchGetItem"],
+      resources: [usersTableArn, `${usersTableArn}/index/*`],
+    }));
+    this.handler.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:Query", "dynamodb:Scan", "dynamodb:BatchGetItem", "dynamodb:BatchWriteItem"],
+      resources: [agentTasksTableArn, `${agentTasksTableArn}/index/*`],
+    }));
 
     // Chat handler Lambda (LLM + brain tools via Bedrock Converse)
     const chatHandler = new lambdaNode.NodejsFunction(this, "ChatHandler", {
@@ -127,9 +139,9 @@ export class ApiStack extends cdk.Stack {
         EMBEDDING_MODEL_ID: "amazon.titan-embed-text-v2:0",
         METADATA_MODEL_ID: "us.anthropic.claude-haiku-4-5-20251001-v1:0",
         CHAT_MODEL_ID: "us.anthropic.claude-haiku-4-5-20251001-v1:0",
-        AGENT_KEYS_TABLE: agentKeysTable.tableName,
-        USERS_TABLE: usersTable.tableName,
-        AGENT_TASKS_TABLE: agentTasksTable.tableName,
+        AGENT_KEYS_TABLE: agentKeysTableName,
+        USERS_TABLE: usersTableName,
+        AGENT_TASKS_TABLE: agentTasksTableName,
       },
       bundling: {
         externalModules: ["@aws-sdk/*"],
@@ -168,9 +180,18 @@ export class ApiStack extends cdk.Stack {
         ],
       })
     );
-    agentKeysTable.grantReadWriteData(chatHandler);
-    usersTable.grantReadData(chatHandler);
-    agentTasksTable.grantReadWriteData(chatHandler);
+    chatHandler.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:Query", "dynamodb:Scan", "dynamodb:BatchGetItem", "dynamodb:BatchWriteItem"],
+      resources: [agentKeysTableArn, `${agentKeysTableArn}/index/*`],
+    }));
+    chatHandler.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:Scan", "dynamodb:BatchGetItem"],
+      resources: [usersTableArn, `${usersTableArn}/index/*`],
+    }));
+    chatHandler.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:Query", "dynamodb:Scan", "dynamodb:BatchGetItem", "dynamodb:BatchWriteItem"],
+      resources: [agentTasksTableArn, `${agentTasksTableArn}/index/*`],
+    }));
 
     // Custom Lambda authorizer (supports both JWT and API key)
     const authorizerFn = new lambdaNode.NodejsFunction(this, "AuthorizerFn", {
@@ -191,7 +212,7 @@ export class ApiStack extends cdk.Stack {
       environment: {
         USER_POOL_ID: userPool.userPoolId,
         REGION: this.region,
-        AGENT_KEYS_TABLE: agentKeysTable.tableName,
+        AGENT_KEYS_TABLE: agentKeysTableName,
         // Kept to preserve cross-stack CloudFormation references from auth stack.
         // The verifier no longer checks these — it accepts any client in the pool.
         CLI_CLIENT_ID: cliClient.userPoolClientId,
@@ -204,7 +225,10 @@ export class ApiStack extends cdk.Stack {
     });
 
     // Authorizer needs to read agent keys for API key validation
-    agentKeysTable.grantReadData(authorizerFn);
+    authorizerFn.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:Scan", "dynamodb:BatchGetItem"],
+      resources: [agentKeysTableArn, `${agentKeysTableArn}/index/*`],
+    }));
 
     const authorizer = new apigwv2Authorizers.HttpLambdaAuthorizer(
       "BrainAuthorizer",
@@ -278,7 +302,7 @@ export class ApiStack extends cdk.Stack {
       environment: {
         USER_POOL_ID: userPool.userPoolId,
         REGION: this.region,
-        DCR_CLIENTS_TABLE: dcrClientsTable.tableName,
+        DCR_CLIENTS_TABLE: dcrClientsTableName,
         ...(customDomain && { CUSTOM_DOMAIN: customDomain }),
       },
       bundling: {
@@ -299,7 +323,10 @@ export class ApiStack extends cdk.Stack {
         resources: [userPool.userPoolArn],
       })
     );
-    dcrClientsTable.grantReadWriteData(oauthHandler);
+    oauthHandler.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:Query", "dynamodb:Scan", "dynamodb:BatchGetItem", "dynamodb:BatchWriteItem"],
+      resources: [dcrClientsTableArn, `${dcrClientsTableArn}/index/*`],
+    }));
 
     const oauthIntegration = new apigwv2Integrations.HttpLambdaIntegration(
       "OAuthIntegration",
@@ -355,7 +382,7 @@ export class ApiStack extends cdk.Stack {
         EMBEDDING_MODEL_ID: "amazon.titan-embed-text-v2:0",
         METADATA_MODEL_ID: "us.anthropic.claude-haiku-4-5-20251001-v1:0",
         CHAT_MODEL_ID: "us.anthropic.claude-haiku-4-5-20251001-v1:0",
-        AGENT_TASKS_TABLE: agentTasksTable.tableName,
+        AGENT_TASKS_TABLE: agentTasksTableName,
       },
       bundling: {
         externalModules: ["@aws-sdk/*"],
@@ -364,7 +391,10 @@ export class ApiStack extends cdk.Stack {
       },
     });
 
-    agentTasksTable.grantReadWriteData(agentRunner);
+    agentRunner.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:Query", "dynamodb:Scan", "dynamodb:BatchGetItem", "dynamodb:BatchWriteItem"],
+      resources: [agentTasksTableArn, `${agentTasksTableArn}/index/*`],
+    }));
 
     agentRunner.addToRolePolicy(
       new iam.PolicyStatement({
@@ -505,7 +535,7 @@ export class ApiStack extends cdk.Stack {
       timeout: cdk.Duration.seconds(15),
       environment: {
         USER_POOL_ID: userPool.userPoolId,
-        AGENT_KEYS_TABLE: agentKeysTable.tableName,
+        AGENT_KEYS_TABLE: agentKeysTableName,
         GITHUB_INSTALLATIONS_TABLE: githubInstallationsTableName,
       },
       bundling: {
@@ -514,7 +544,10 @@ export class ApiStack extends cdk.Stack {
         sourceMap: true,
       },
     });
-    agentKeysTable.grantReadData(githubRestHandler);
+    githubRestHandler.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:Scan", "dynamodb:BatchGetItem"],
+      resources: [agentKeysTableArn, `${agentKeysTableArn}/index/*`],
+    }));
     githubRestHandler.addToRolePolicy(new iam.PolicyStatement({
       actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Query", "dynamodb:UpdateItem", "dynamodb:DeleteItem"],
       resources: [githubInstallationsTableArn, `${githubInstallationsTableArn}/index/*`],

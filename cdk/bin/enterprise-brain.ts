@@ -55,17 +55,12 @@ const api = new ApiStack(app, "EnterpriseBrainApi", {
   userPool: auth.userPool,
   webClient: auth.webClient,
   cliClient: auth.cliClient,
-  agentKeysTable: data.agentKeysTable,
-  usersTable: data.usersTable,
-  agentTasksTable: data.agentTasksTable,
-  dcrClientsTable: data.dcrClientsTable,
   customDomain,
   alarmEmail: app.node.tryGetContext("alarmEmail") ?? process.env.ALARM_EMAIL,
 });
 
 api.addDependency(vectors);
 api.addDependency(auth);
-api.addDependency(data);
 
 // Web SPA — build web/ first, then deploy
 // Only instantiate when web/dist/ exists (after `cd web && npm run build`)
