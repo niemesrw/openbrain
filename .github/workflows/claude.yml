@@ -19,12 +19,17 @@ jobs:
       issues: write
       id-token: write
       actions: read
-      workflows: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
         with:
           fetch-depth: 1
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git credentials
+        run: |
+          git config --global credential.helper store
+          echo "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com" > ~/.git-credentials
 
       - name: Configure Open Brain MCP
         run: |
