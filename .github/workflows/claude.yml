@@ -52,6 +52,7 @@ jobs:
           additional_permissions: |
             actions: read
           show_full_output: true
+          claude_args: "--dangerously-skip-permissions"
           prompt: |
             ${{ github.event_name == 'issues' && format('
               You have been assigned issue #{0}: {1}
