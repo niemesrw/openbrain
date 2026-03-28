@@ -2,11 +2,13 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import {
   browseRecent,
   getStats,
+  captureThought,
   updateThought,
   deleteThought,
 } from "../lib/brain-api";
 import { chatWithBrain, getInsight, type ChatMessage, type InsightData } from "../lib/api";
 import type { Thought, BrainStats, Message, Scope } from "../lib/brain-types";
+import { ErrorAlert } from "../components/ErrorAlert";
 import { FilterChips } from "../components/FilterChips";
 import { ThoughtCard } from "../components/ThoughtCard";
 import { StatsBar } from "../components/StatsBar";
@@ -38,6 +40,9 @@ export function DashboardPage() {
   const [hasMore, setHasMore] = useState(false);
   const [mode, setMode] = useState<"browse" | "chat">("browse");
   const [browseStale, setBrowseStale] = useState(true);
+  const [captureLoading, setCaptureLoading] = useState(false);
+  const [captureError, setCaptureError] = useState<string | null>(null);
+  const [captureSuccess, setCaptureSuccess] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const requestIdRef = useRef(0);
   const chatIdRef = useRef(0);
@@ -110,6 +115,24 @@ export function DashboardPage() {
       ]);
     } finally {
       if (chatId === chatIdRef.current) setChatLoading(false);
+    }
+  };
+
+  const handleCapture = async (text: string, scope: Scope) => {
+    setCaptureLoading(true);
+    setCaptureError(null);
+    setCaptureSuccess(false);
+    try {
+      await captureThought(text, scope);
+      setCaptureSuccess(true);
+      setTimeout(() => setCaptureSuccess(false), 3000);
+      setMode("browse");
+      setBrowseStale(true);
+      getStats().then(setStats).catch(() => {});
+    } catch (e: unknown) {
+      setCaptureError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCaptureLoading(false);
     }
   };
 
@@ -274,7 +297,23 @@ export function DashboardPage() {
         </>
       )}
 
-      <BrainInput onSubmit={handleSubmit} loading={chatLoading} />
+      {captureSuccess && (
+        <div className="fixed bottom-28 left-0 right-0 flex justify-center pointer-events-none z-10">
+          <div className="bg-emerald-800 text-emerald-200 px-4 py-2 rounded-lg text-sm shadow-lg">
+            Thought captured
+          </div>
+        </div>
+      )}
+      {captureError && (
+        <div className="fixed bottom-28 left-0 right-0 flex justify-center z-10">
+          <ErrorAlert message={captureError} className="cursor-pointer" onClick={() => setCaptureError(null)} />
+        </div>
+      )}
+      <BrainInput
+        onSubmit={handleSubmit}
+        onCapture={handleCapture}
+        loading={chatLoading || captureLoading}
+      />
     </div>
   );
 }
