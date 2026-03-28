@@ -3,14 +3,10 @@ name: Claude Code
 on:
   issues:
     types: [labeled]
-  pull_request_review:
-    types: [submitted]
 
 jobs:
   claude:
-    if: |
-      (github.event_name == 'issues' && github.event.label.name == 'claude') ||
-      (github.event_name == 'pull_request_review' && github.event.review.author_association == 'CONTRIBUTOR' && github.event.review.user.login == 'copilot-pull-request-reviewer')
+    if: github.event_name == 'issues' && github.event.label.name == 'claude'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:
@@ -89,7 +85,3 @@ jobs:
               STEP 5 — Capture completion to brain:
               - capture_thought("Completed issue #{0}: {1} — PR opened", scope: "shared")
             ', github.event.issue.number, github.event.issue.title) || '' }}
-            ${{ github.event_name == 'pull_request_review' && format('
-              Copilot has reviewed PR #{0} and left comments. Read all review comments carefully and address each one.
-              Push your fixes to the existing PR branch. Do not open a new PR.
-            ', github.event.pull_request.number) || '' }}
