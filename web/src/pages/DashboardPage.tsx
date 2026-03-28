@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
+import { useChat } from "ai/react";
 import {
   browseRecent,
   getStats,
@@ -6,8 +7,9 @@ import {
   updateThought,
   deleteThought,
 } from "../lib/brain-api";
-import { chatWithBrain, getInsight, type ChatMessage, type InsightData } from "../lib/api";
-import type { Thought, BrainStats, Message, Scope } from "../lib/brain-types";
+import { getInsight, type InsightData } from "../lib/api";
+import { getIdToken } from "../lib/auth";
+import type { Thought, BrainStats, Scope } from "../lib/brain-types";
 import { ErrorAlert } from "../components/ErrorAlert";
 import { FilterChips } from "../components/FilterChips";
 import { ThoughtCard } from "../components/ThoughtCard";
@@ -15,25 +17,14 @@ import { StatsBar } from "../components/StatsBar";
 import { BrainInput } from "../components/BrainInput";
 import { InsightCard } from "../components/InsightCard";
 
-function makeBrainMessage(text: string, thoughts?: Thought[]): Message {
-  return {
-    id: crypto.randomUUID(),
-    role: "brain",
-    text,
-    ...(thoughts && { thoughts }),
-    timestamp: Date.now(),
-  };
-}
+const CHAT_URL = import.meta.env.VITE_CHAT_URL ?? "";
 
 export function DashboardPage() {
   const [stats, setStats] = useState<BrainStats | null>(null);
   const [insight, setInsight] = useState<InsightData | null>(null);
   const [insightDismissed, setInsightDismissed] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [history, setHistory] = useState<ChatMessage[]>([]);
   const [recentThoughts, setRecentThoughts] = useState<Thought[]>([]);
   const [browseLoading, setBrowseLoading] = useState(false);
-  const [chatLoading, setChatLoading] = useState(false);
   const [activeType, setActiveType] = useState<string | null>(null);
   const [activeTopic, setActiveTopic] = useState<string | null>(null);
   const [limit, setLimit] = useState(20);
@@ -45,7 +36,24 @@ export function DashboardPage() {
   const [captureSuccess, setCaptureSuccess] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const requestIdRef = useRef(0);
-  const chatIdRef = useRef(0);
+
+  const { messages, input, handleInputChange, handleSubmit: chatHandleSubmit, isLoading: chatLoading, setMessages, stop } = useChat({
+    api: CHAT_URL,
+    fetch: async (url, init) => {
+      const token = await getIdToken();
+      return fetch(url, {
+        ...init,
+        headers: {
+          ...(init?.headers as Record<string, string>),
+          Authorization: `Bearer ${token}`,
+        },
+      });
+    },
+    onFinish: () => {
+      setBrowseStale(true);
+      getStats().then(setStats).catch(() => {});
+    },
+  });
 
   useEffect(() => {
     getStats().then(setStats).catch(() => {});
@@ -84,38 +92,10 @@ export function DashboardPage() {
     }
   }, [messages, mode]);
 
-  const handleSubmit = async (text: string) => {
+  const handleChatSubmit = () => {
+    if (!input.trim() || chatLoading) return;
     setMode("chat");
-    const chatId = ++chatIdRef.current;
-    const userMsg: Message = {
-      id: crypto.randomUUID(),
-      role: "user",
-      text,
-      timestamp: Date.now(),
-    };
-    setMessages((prev) => [...prev, userMsg]);
-    setChatLoading(true);
-
-    const newHistory: ChatMessage[] = [...history, { role: "user", content: text }];
-    setHistory(newHistory);
-
-    try {
-      const response = await chatWithBrain(newHistory);
-      if (chatId !== chatIdRef.current) return;
-      setHistory((prev) => [...prev, { role: "assistant", content: response.reply }]);
-      setMessages((prev) => [...prev, makeBrainMessage(response.reply)]);
-      setBrowseStale(true);
-      getStats().then(setStats).catch(() => {});
-    } catch (e: unknown) {
-      if (chatId !== chatIdRef.current) return;
-      const msg = e instanceof Error ? e.message : String(e);
-      setMessages((prev) => [
-        ...prev,
-        makeBrainMessage(`Something went wrong: ${msg}`),
-      ]);
-    } finally {
-      if (chatId === chatIdRef.current) setChatLoading(false);
-    }
+    chatHandleSubmit({ preventDefault: () => {} } as React.FormEvent<HTMLFormElement>);
   };
 
   const handleCapture = async (text: string, scope: Scope) => {
@@ -157,29 +137,20 @@ export function DashboardPage() {
 
   const handleEditThought = async (id: string, text: string, scope: Scope) => {
     await updateThought(id, text, scope);
-    const updateFn = (thoughts: Thought[]) =>
-      thoughts.map((t) => (t.id === id ? { ...t, content: text } : t));
-    setRecentThoughts(updateFn);
-    setMessages((prev) =>
-      prev.map((msg) => (msg.thoughts ? { ...msg, thoughts: updateFn(msg.thoughts) } : msg))
+    setRecentThoughts((thoughts) =>
+      thoughts.map((t) => (t.id === id ? { ...t, content: text } : t))
     );
   };
 
   const handleDeleteThought = async (id: string, scope: Scope) => {
     await deleteThought(id, scope);
-    const filterFn = (thoughts: Thought[]) => thoughts.filter((t) => t.id !== id);
-    setRecentThoughts(filterFn);
-    setMessages((prev) =>
-      prev.map((msg) => (msg.thoughts ? { ...msg, thoughts: filterFn(msg.thoughts) } : msg))
-    );
+    setRecentThoughts((thoughts) => thoughts.filter((t) => t.id !== id));
   };
 
   const handleBackToBrowse = () => {
-    ++chatIdRef.current;
-    setChatLoading(false);
+    stop();
     setMode("browse");
     setMessages([]);
-    setHistory([]);
   };
 
   const handleInsightExplore = (topic: string) => {
@@ -237,19 +208,7 @@ export function DashboardPage() {
                     : "bg-gray-800 text-gray-200"
                 }`}
               >
-                <p className="whitespace-pre-wrap">{msg.text}</p>
-                {msg.thoughts && (
-                  <div className="mt-3 space-y-2">
-                    {msg.thoughts.map((t, i) => (
-                      <ThoughtCard
-                        key={`${t.created_at}-${i}`}
-                        thought={t}
-                        onUpdate={handleEditThought}
-                        onDelete={handleDeleteThought}
-                      />
-                    ))}
-                  </div>
-                )}
+                <p className="whitespace-pre-wrap">{msg.content}</p>
               </div>
             </div>
           ))}
@@ -310,7 +269,9 @@ export function DashboardPage() {
         </div>
       )}
       <BrainInput
-        onSubmit={handleSubmit}
+        chatValue={input}
+        onChatChange={handleInputChange}
+        onChatSubmit={handleChatSubmit}
         onCapture={handleCapture}
         loading={chatLoading || captureLoading}
       />

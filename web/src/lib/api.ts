@@ -1,36 +1,5 @@
 import { getIdToken, getApiUrl } from "./auth";
 
-export interface ChatMessage {
-  role: "user" | "assistant";
-  content: string;
-}
-
-export interface ChatResponse {
-  reply: string;
-}
-
-export async function chatWithBrain(
-  messages: ChatMessage[],
-): Promise<ChatResponse> {
-  const token = await getIdToken();
-  const apiUrl = getApiUrl();
-
-  const res = await fetch(`${apiUrl}/chat`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ messages }),
-  });
-
-  if (!res.ok) {
-    const body = await res.json().catch(() => null);
-    throw new Error(body?.error || `Chat API error: ${res.status}`);
-  }
-  return res.json();
-}
-
 export interface InsightData {
   headline: string;
   body: string;

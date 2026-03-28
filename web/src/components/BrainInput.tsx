@@ -1,17 +1,22 @@
-import { useState, useRef, useEffect, type KeyboardEvent } from "react";
+import { useState, useRef, useEffect, type KeyboardEvent, type ChangeEvent } from "react";
 import type { Scope } from "../lib/brain-types";
 
 interface BrainInputProps {
-  onSubmit: (text: string) => void;
+  chatValue: string;
+  onChatChange: (e: ChangeEvent<HTMLTextAreaElement>) => void;
+  onChatSubmit: () => void;
   onCapture: (text: string, scope: Scope) => void;
   loading: boolean;
 }
 
-export function BrainInput({ onSubmit, onCapture, loading }: BrainInputProps) {
-  const [value, setValue] = useState("");
+export function BrainInput({ chatValue, onChatChange, onChatSubmit, onCapture, loading }: BrainInputProps) {
+  const [captureValue, setCaptureValue] = useState("");
   const [mode, setMode] = useState<"chat" | "capture">("chat");
   const [scope, setScope] = useState<Scope>("private");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const isCapture = mode === "capture";
+  const displayValue = isCapture ? captureValue : chatValue;
 
   // Auto-resize textarea
   useEffect(() => {
@@ -19,17 +24,24 @@ export function BrainInput({ onSubmit, onCapture, loading }: BrainInputProps) {
     if (!el) return;
     el.style.height = "auto";
     el.style.height = Math.min(el.scrollHeight, 160) + "px";
-  }, [value]);
+  }, [displayValue]);
+
+  const handleChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
+    if (isCapture) {
+      setCaptureValue(e.target.value);
+    } else {
+      onChatChange(e);
+    }
+  };
 
   const handleSubmit = () => {
-    const trimmed = value.trim();
-    if (!trimmed || loading) return;
-    if (mode === "capture") {
-      onCapture(trimmed, scope);
+    if (!displayValue.trim() || loading) return;
+    if (isCapture) {
+      onCapture(captureValue.trim(), scope);
+      setCaptureValue("");
     } else {
-      onSubmit(trimmed);
+      onChatSubmit();
     }
-    setValue("");
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -39,7 +51,6 @@ export function BrainInput({ onSubmit, onCapture, loading }: BrainInputProps) {
     }
   };
 
-  const isCapture = mode === "capture";
   const placeholder = isCapture
     ? "Save a thought, decision, or note to your brain..."
     : "Ask your brain something, or tell it what you're thinking...";
@@ -56,8 +67,8 @@ export function BrainInput({ onSubmit, onCapture, loading }: BrainInputProps) {
         >
           <textarea
             ref={textareaRef}
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
+            value={displayValue}
+            onChange={handleChange}
             onKeyDown={handleKeyDown}
             placeholder={placeholder}
             rows={1}
@@ -65,7 +76,7 @@ export function BrainInput({ onSubmit, onCapture, loading }: BrainInputProps) {
           />
           <button
             onClick={handleSubmit}
-            disabled={!value.trim() || loading}
+            disabled={!displayValue.trim() || loading}
             className={`absolute right-2 bottom-2 p-2 rounded-xl text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors ${
               isCapture
                 ? "bg-emerald-600 hover:bg-emerald-500"
