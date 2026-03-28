@@ -193,6 +193,17 @@ export class ApiStack extends cdk.Stack {
       resources: [agentTasksTableArn, `${agentTasksTableArn}/index/*`],
     }));
 
+    // Function URL for streaming chat responses (API Gateway does not support response streaming)
+    const chatFunctionUrl = chatHandler.addFunctionUrl({
+      authType: lambda.FunctionUrlAuthType.NONE,
+      invokeMode: lambda.InvokeMode.RESPONSE_STREAM,
+      cors: {
+        allowedOrigins: ["*"],
+        allowedMethods: [lambda.HttpMethod.POST],
+        allowedHeaders: ["Content-Type", "Authorization"],
+      },
+    });
+
     // Custom Lambda authorizer (supports both JWT and API key)
     const authorizerFn = new lambdaNode.NodejsFunction(this, "AuthorizerFn", {
       runtime: lambda.Runtime.NODEJS_22_X,
@@ -702,6 +713,10 @@ export class ApiStack extends cdk.Stack {
     new cdk.CfnOutput(this, "ApiUrl", {
       value: this.api.apiEndpoint,
       exportName: "BrainApiUrl",
+    });
+
+    new cdk.CfnOutput(this, "ChatStreamUrl", {
+      value: chatFunctionUrl.url,
     });
 
     this.apiEndpointHostname = cdk.Fn.select(2, cdk.Fn.split("/", this.api.apiEndpoint));
