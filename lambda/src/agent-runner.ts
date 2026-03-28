@@ -14,6 +14,8 @@ import {
 } from "@aws-sdk/client-dynamodb";
 import { handleSearchThoughts } from "./handlers/search-thoughts";
 import { handleCaptureThought } from "./handlers/capture-thought";
+import { handleBrowseRecent } from "./handlers/browse-recent";
+import { handleUpdateThought } from "./handlers/update-thought";
 import {
   getAllActiveTasks,
   updateTaskLastRun,
@@ -102,7 +104,7 @@ function isTaskDue(task: AgentTask): boolean {
   return Date.now() - task.lastRunAt >= windowMs;
 }
 
-const AGENT_TOOLS: Tool[] = [
+export const AGENT_TOOLS: Tool[] = [
   {
     toolSpec: {
       name: "web_fetch",
@@ -151,9 +153,44 @@ const AGENT_TOOLS: Tool[] = [
       },
     },
   },
+  {
+    toolSpec: {
+      name: "browse_recent",
+      description:
+        "List recent thoughts from the user's brain. Use to review recent entries before completing the task. Optionally filter by type or topic.",
+      inputSchema: {
+        json: {
+          type: "object",
+          properties: {
+            limit: { type: "number", description: "Max number of thoughts to return (default 10)" },
+            type: { type: "string", description: "Filter by thought type (observation, task, idea, reference, person_note)" },
+            topic: { type: "string", description: "Filter by topic tag" },
+          },
+          required: [],
+        },
+      },
+    },
+  },
+  {
+    toolSpec: {
+      name: "update_thought",
+      description:
+        "Edit an existing thought in the user's brain by ID. Use to update status or refine content.",
+      inputSchema: {
+        json: {
+          type: "object",
+          properties: {
+            id: { type: "string", description: "The ID of the thought to update" },
+            text: { type: "string", description: "The new content for the thought" },
+          },
+          required: ["id", "text"],
+        },
+      },
+    },
+  },
 ];
 
-async function executeAgentTool(
+export async function executeAgentTool(
   name: string,
   args: Record<string, unknown>,
   task: AgentTask,
@@ -203,6 +240,30 @@ async function executeAgentTool(
     );
   }
 
+  if (name === "browse_recent") {
+    const rawLimit = typeof args.limit === "number" ? args.limit : 10;
+    const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(rawLimit, 1), 50) : 10;
+    return handleBrowseRecent(
+      {
+        limit,
+        type: typeof args.type === "string" ? args.type : undefined,
+        topic: typeof args.topic === "string" ? args.topic : undefined,
+        scope: "private",
+        _format: "json",
+      },
+      ownerContext,
+    );
+  }
+
+  if (name === "update_thought") {
+    const id = args.id;
+    if (typeof id !== "string" || !id.trim()) {
+      throw new Error("id is required");
+    }
+    const text = args.text as string;
+    return handleUpdateThought({ id, text, scope: "private" }, ownerContext);
+  }
+
   throw new Error(`Unknown agent tool: ${name}`);
 }
 
@@ -213,7 +274,7 @@ async function executeTask(
   let resultCaptured = false;
   const systemPrompt: SystemContentBlock[] = [
     {
-      text: `You are a background agent executing a scheduled task for a user. Execute the action described below. Use web_fetch to get information from the internet. Use search_brain to find relevant context from the user's knowledge base. When you have a useful result, use capture_result to save a clear, concise summary. Be direct.`,
+      text: `You are a background agent executing a scheduled task for a user. Execute the action described below. Use web_fetch to get information from the internet. Use search_brain to find relevant context from the user's knowledge base. Use browse_recent to list recent thoughts by type or topic. Use update_thought to edit an existing thought by ID. When you have a useful result, use capture_result to save a clear, concise summary. Be direct.`,
     },
   ];
 
