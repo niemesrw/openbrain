@@ -3,6 +3,7 @@ import { generateEmbedding } from "../services/embeddings";
 import { extractMetadata } from "../services/metadata";
 import { ensurePrivateIndex, putVector } from "../services/vectors";
 import { fetchOgImage } from "../services/og-image";
+import { describeImage } from "../services/vision";
 import { validateThoughtText } from "./validate-thought-text";
 import type { CaptureArgs, UserContext } from "../types";
 
@@ -27,10 +28,21 @@ export async function handleCaptureThought(
   const resolvedMediaUrl =
     media_url ?? (source_url ? await fetchOgImage(source_url) : undefined);
 
+  // If there's an image but the text is sparse (short or just a URL), use vision to
+  // generate a richer description so the capture is semantically searchable
+  const isUrlOnly = /^https?:\/\/\S+$/.test(text.trim());
+  let content = text;
+  if (resolvedMediaUrl && (text.length < 50 || isUrlOnly)) {
+    const description = await describeImage(resolvedMediaUrl);
+    if (description) {
+      content = `${text}\n\n${description}`;
+    }
+  }
+
   // Generate embedding and extract metadata in parallel
   const [embedding, metadata] = await Promise.all([
-    generateEmbedding(text),
-    extractMetadata(text),
+    generateEmbedding(content),
+    extractMetadata(content),
   ]);
 
   const key = randomUUID();
@@ -42,7 +54,7 @@ export async function handleCaptureThought(
     ...(metadata.people.length > 0 && { people: metadata.people }),
     user_id: user.userId,
     created_at: Date.now(),
-    content: text,
+    content: content,
     action_items: JSON.stringify(metadata.action_items),
     dates_mentioned: JSON.stringify(metadata.dates_mentioned),
     ...(resolvedMediaUrl && { media_url: resolvedMediaUrl }),

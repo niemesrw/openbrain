@@ -3,17 +3,20 @@ import * as vectors from "../../services/vectors";
 import * as embeddings from "../../services/embeddings";
 import * as metadata from "../../services/metadata";
 import * as ogImage from "../../services/og-image";
+import * as vision from "../../services/vision";
 
 jest.mock("../../services/vectors");
 jest.mock("../../services/embeddings");
 jest.mock("../../services/metadata");
 jest.mock("../../services/og-image");
+jest.mock("../../services/vision");
 
 const mockEnsurePrivateIndex = vectors.ensurePrivateIndex as jest.MockedFunction<typeof vectors.ensurePrivateIndex>;
 const mockPutVector = vectors.putVector as jest.MockedFunction<typeof vectors.putVector>;
 const mockGenerateEmbedding = embeddings.generateEmbedding as jest.MockedFunction<typeof embeddings.generateEmbedding>;
 const mockExtractMetadata = metadata.extractMetadata as jest.MockedFunction<typeof metadata.extractMetadata>;
 const mockFetchOgImage = ogImage.fetchOgImage as jest.MockedFunction<typeof ogImage.fetchOgImage>;
+const mockDescribeImage = vision.describeImage as jest.MockedFunction<typeof vision.describeImage>;
 
 const USER = { userId: "user-123", displayName: "Alice" };
 const EMBEDDING = [0.1, 0.2, 0.3];
@@ -31,6 +34,7 @@ beforeEach(() => {
     dates_mentioned: [],
   });
   mockFetchOgImage.mockResolvedValue(undefined);
+  mockDescribeImage.mockResolvedValue(undefined);
 });
 
 describe("handleCaptureThought", () => {
@@ -277,5 +281,66 @@ describe("handleCaptureThought", () => {
 
     const call = mockPutVector.mock.calls[0][3];
     expect(call).not.toHaveProperty("source_url");
+  });
+
+  it("calls describeImage and appends description when text is short and media_url is present", async () => {
+    mockDescribeImage.mockResolvedValue("A scenic mountain landscape at sunset.");
+
+    await handleCaptureThought(
+      { text: "Nice photo", media_url: "https://example.com/photo.jpg" },
+      USER
+    );
+
+    expect(mockDescribeImage).toHaveBeenCalledWith("https://example.com/photo.jpg");
+    expect(mockGenerateEmbedding).toHaveBeenCalledWith("Nice photo\n\nA scenic mountain landscape at sunset.");
+    expect(mockExtractMetadata).toHaveBeenCalledWith("Nice photo\n\nA scenic mountain landscape at sunset.");
+    const call = mockPutVector.mock.calls[0][3];
+    expect(call.content).toBe("Nice photo\n\nA scenic mountain landscape at sunset.");
+  });
+
+  it("calls describeImage and appends description to URL-only text, preserving the URL", async () => {
+    mockDescribeImage.mockResolvedValue("A product photo showing blue sneakers.");
+
+    await handleCaptureThought(
+      { text: "https://example.com/image.jpg", media_url: "https://example.com/image.jpg" },
+      USER
+    );
+
+    expect(mockDescribeImage).toHaveBeenCalledWith("https://example.com/image.jpg");
+    const call = mockPutVector.mock.calls[0][3];
+    expect(call.content).toBe("https://example.com/image.jpg\n\nA product photo showing blue sneakers.");
+  });
+
+  it("does not call describeImage when text is long (≥50 chars)", async () => {
+    const longText = "This is a sufficiently long thought that should not trigger vision at all.";
+
+    await handleCaptureThought(
+      { text: longText, media_url: "https://example.com/photo.jpg" },
+      USER
+    );
+
+    expect(mockDescribeImage).not.toHaveBeenCalled();
+    const call = mockPutVector.mock.calls[0][3];
+    expect(call.content).toBe(longText);
+  });
+
+  it("does not call describeImage when no media_url is present", async () => {
+    await handleCaptureThought({ text: "Short" }, USER);
+
+    expect(mockDescribeImage).not.toHaveBeenCalled();
+  });
+
+  it("falls back to original text when describeImage returns undefined", async () => {
+    mockDescribeImage.mockResolvedValue(undefined);
+
+    await handleCaptureThought(
+      { text: "Brief note", media_url: "https://example.com/photo.jpg" },
+      USER
+    );
+
+    expect(mockDescribeImage).toHaveBeenCalled();
+    expect(mockGenerateEmbedding).toHaveBeenCalledWith("Brief note");
+    const call = mockPutVector.mock.calls[0][3];
+    expect(call.content).toBe("Brief note");
   });
 });
