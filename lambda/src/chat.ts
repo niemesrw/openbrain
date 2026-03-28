@@ -146,6 +146,7 @@ export const handler = awslambda.streamifyResponse(
     _context: Context,
   ) => {
     const sendError = (statusCode: number, message: string) => {
+      console.error(`[chat] sendError ${statusCode}: ${message}`);
       const httpStream = awslambda.HttpResponseStream.from(responseStream, {
         statusCode,
         headers: { "Content-Type": "application/json" },
@@ -154,10 +155,14 @@ export const handler = awslambda.streamifyResponse(
       httpStream.end();
     };
 
+    console.log("[chat] request received", { headers: Object.keys(event.headers ?? {}) });
+
     let user;
     try {
       user = await verifyAuth(event.headers ?? {});
-    } catch {
+      console.log("[chat] auth ok", { userId: user.userId });
+    } catch (e) {
+      console.error("[chat] auth failed", e instanceof Error ? e.message : String(e));
       sendError(401, "Unauthorized");
       return;
     }
@@ -175,6 +180,8 @@ export const handler = awslambda.streamifyResponse(
       sendError(400, "messages array is required");
       return;
     }
+
+    console.log("[chat] invoking bedrock", { model: CHAT_MODEL_ID, messageCount: messages.length });
 
     const httpStream = awslambda.HttpResponseStream.from(responseStream, {
       statusCode: 200,
