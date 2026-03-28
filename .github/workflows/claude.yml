@@ -34,12 +34,19 @@ jobs:
             ${{ github.event_name == 'issues' && format('
               You have been assigned issue #{0}: {1}
 
-              Read the issue carefully, implement the required changes following the patterns in CLAUDE.md, then:
-              1. Create a feature branch (feat/ or fix/ prefix)
-              2. Commit your changes with a descriptive message
-              3. Open a pull request against main with a clear title and description referencing the issue number
+              FIRST — assess scope before writing any code:
+              - Count how many files you will need to create or modify
+              - If the issue touches >8 files or spans multiple sub-systems, post a comment on the issue
+                listing the suggested sub-tasks, then stop. Do not attempt it.
+              - If the issue is appropriately scoped, proceed.
 
-              Do not ask for confirmation — implement and open the PR.
+              If proceeding:
+              1. Read CLAUDE.md "For Agents" section and all relevant existing files
+              2. Create a feature branch (feat/ or fix/ prefix)
+              3. Implement the changes, run `cd lambda && npm test` to confirm tests pass
+              4. Open a pull request against main referencing the issue number
+
+              Do not ask for confirmation — either implement and open the PR, or comment and stop.
             ', github.event.issue.number, github.event.issue.title) || '' }}
             ${{ github.event_name == 'pull_request_review' && format('
               Copilot has reviewed PR #{0} and left comments. Read all review comments carefully and address each one.

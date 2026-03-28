@@ -15,6 +15,21 @@ If you are running as a GitHub Actions agent (not a local Claude Code session), 
 - Open a PR against `main` when your work is ready
 - Run tests and build before opening the PR — CI will catch failures but do not open a known-broken PR
 
+### Scope Check — Do This First
+
+Before writing any code, assess the size of the issue:
+
+- **Small** (≤3 files changed, one clear feature): proceed directly
+- **Medium** (4–8 files, 2–3 sub-features): proceed, but commit incrementally
+- **Large** (>8 files, multiple sub-systems, or unclear boundaries): **stop**. Post a comment on the issue listing the sub-tasks needed, then close without implementing. Example comment:
+
+  > This issue is too large for a single implementation session. Suggested breakdown:
+  > - Sub-task A: [description]
+  > - Sub-task B: [description]
+  > Please create separate issues for each and label them `claude`.
+
+Do not attempt large issues — running out of turns produces nothing and wastes time.
+
 ### Before Writing Any Code
 
 1. Read the relevant existing files — do not guess at patterns
