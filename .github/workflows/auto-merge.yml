@@ -28,7 +28,7 @@ jobs:
           fi
           PR_NUMBER=$(echo "$PR_JSON" | jq -r '.number')
           PR_AUTHOR=$(echo "$PR_JSON" | jq -r '.author.login')
-          if [ "$PR_AUTHOR" != "claude" ] && [ "$PR_AUTHOR" != "claude[bot]" ]; then
+          if [[ "$PR_AUTHOR" != "claude" && "$PR_AUTHOR" != "claude[bot]" && "$PR_AUTHOR" != "app/claude" ]]; then
             echo "PR #$PR_NUMBER authored by $PR_AUTHOR (not Claude) — skipping auto-merge"
             exit 0
           fi
