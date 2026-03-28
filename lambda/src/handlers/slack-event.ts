@@ -1,12 +1,14 @@
 import type { APIGatewayProxyResultV2 } from "aws-lambda";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, QueryCommand } from "@aws-sdk/lib-dynamodb";
-import { handleSearchThoughts } from "./search-thoughts";
-import { handleCaptureThought } from "./capture-thought";
+import { LambdaClient, InvokeCommand } from "@aws-sdk/client-lambda";
 import type { UserContext } from "../types";
 
 const SLACK_INSTALLATIONS_TABLE = process.env.SLACK_INSTALLATIONS_TABLE!;
+const SLACK_DEFERRED_FUNCTION_NAME = process.env.SLACK_DEFERRED_FUNCTION_NAME!;
+
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
+const lambdaClient = new LambdaClient({});
 
 interface SlackInstallationRecord {
   teamId: string;
@@ -41,38 +43,27 @@ function buildUserContext(userId: string): UserContext {
   return { userId };
 }
 
-async function postMessage(token: string, channel: string, text: string): Promise<void> {
-  const resp = await fetch("https://slack.com/api/chat.postMessage", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ channel, text }),
-  });
-  if (!resp.ok) {
-    throw new Error(`Slack chat.postMessage HTTP error: ${resp.status}`);
-  }
-  const data = (await resp.json()) as { ok: boolean; error?: string };
-  if (!data.ok) {
-    throw new Error(`Slack chat.postMessage error: ${data.error ?? "unknown"}`);
-  }
-}
-
-async function postToResponseUrl(url: string, text: string): Promise<void> {
-  await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ response_type: "ephemeral", text }),
-  });
-}
-
 function slashResponse(text: string): APIGatewayProxyResultV2 {
   return {
     statusCode: 200,
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ response_type: "ephemeral", text }),
   };
+}
+
+/**
+ * Invoke the deferred Lambda asynchronously (InvocationType: Event).
+ * Lambda freezes the execution context once the handler returns, so brain
+ * work must run in a separate invocation rather than a void IIFE.
+ */
+async function invokeDeferred(payload: Record<string, unknown>): Promise<void> {
+  await lambdaClient.send(
+    new InvokeCommand({
+      FunctionName: SLACK_DEFERRED_FUNCTION_NAME,
+      InvocationType: "Event",
+      Payload: JSON.stringify(payload),
+    })
+  );
 }
 
 async function handleSlashCommand(
@@ -90,6 +81,10 @@ async function handleSlashCommand(
 
   if (!teamId || !slackUserId) {
     return slashResponse("Missing team or user ID.");
+  }
+
+  if (!responseUrl) {
+    return slashResponse("Slack did not provide a response URL. Please try running `/brain` again.");
   }
 
   const installation = await getInstallation(teamId, slackUserId);
@@ -111,49 +106,33 @@ async function handleSlashCommand(
 
   if (subcommand === "search") {
     if (!args) return slashResponse("Usage: `/brain search <query>`");
-    // Fire-and-forget: return ack immediately, post result to response_url to avoid Slack's 3s timeout
-    void (async () => {
-      try {
-        const result = await handleSearchThoughts(
-          { query: args, limit: 5, threshold: 0.5, scope: "private" },
-          user
-        );
-        if (responseUrl) await postToResponseUrl(responseUrl, result);
-      } catch (err) {
-        console.error("[slack-event] Search error:", err instanceof Error ? err.message : String(err));
-        if (responseUrl) await postToResponseUrl(responseUrl, "Sorry, something went wrong while searching your brain.");
-      }
-    })();
+    try {
+      await invokeDeferred({ type: "slash_search", query: args, userId: user.userId, responseUrl });
+    } catch (err) {
+      console.error("[slack-event] Failed to invoke deferred search:", err instanceof Error ? err.message : String(err));
+      return slashResponse("Something went wrong starting your search. Please try again.");
+    }
     return slashResponse("Searching your brain…");
   }
 
   if (subcommand === "capture") {
     if (!args) return slashResponse("Usage: `/brain capture <thought>`");
-    void (async () => {
-      try {
-        const result = await handleCaptureThought({ text: args, scope: "private" }, user);
-        if (responseUrl) await postToResponseUrl(responseUrl, result);
-      } catch (err) {
-        console.error("[slack-event] Capture error:", err instanceof Error ? err.message : String(err));
-        if (responseUrl) await postToResponseUrl(responseUrl, "Sorry, something went wrong while capturing your thought.");
-      }
-    })();
+    try {
+      await invokeDeferred({ type: "slash_capture", text: args, userId: user.userId, responseUrl });
+    } catch (err) {
+      console.error("[slack-event] Failed to invoke deferred capture:", err instanceof Error ? err.message : String(err));
+      return slashResponse("Something went wrong capturing your thought. Please try again.");
+    }
     return slashResponse("Capturing your thought…");
   }
 
   // Treat unrecognized text as a search query
-  void (async () => {
-    try {
-      const result = await handleSearchThoughts(
-        { query: text, limit: 5, threshold: 0.5, scope: "private" },
-        user
-      );
-      if (responseUrl) await postToResponseUrl(responseUrl, result);
-    } catch (err) {
-      console.error("[slack-event] Search error:", err instanceof Error ? err.message : String(err));
-      if (responseUrl) await postToResponseUrl(responseUrl, "Sorry, something went wrong while searching your brain.");
-    }
-  })();
+  try {
+    await invokeDeferred({ type: "slash_search", query: text, userId: user.userId, responseUrl });
+  } catch (err) {
+    console.error("[slack-event] Failed to invoke deferred search:", err instanceof Error ? err.message : String(err));
+    return slashResponse("Something went wrong starting your search. Please try again.");
+  }
   return slashResponse("Searching your brain…");
 }
 
@@ -171,21 +150,13 @@ async function handleDmMessage(
   const installation = await getInstallation(teamId, slackUserId);
   if (!installation) return; // user hasn't connected — silently ignore
 
-  const user = buildUserContext(installation.userId);
-  const token = installation.accessToken;
-
-  let responseText: string;
-  try {
-    responseText = await handleSearchThoughts(
-      { query: text, limit: 5, threshold: 0.5, scope: "private" },
-      user
-    );
-  } catch (err) {
-    console.error("[slack-event] Brain search error:", err instanceof Error ? err.message : String(err));
-    responseText = "Sorry, I encountered an error searching your brain.";
-  }
-
-  await postMessage(token, channel, responseText);
+  await invokeDeferred({
+    type: "dm_message",
+    text,
+    userId: installation.userId,
+    accessToken: installation.accessToken,
+    channel,
+  });
 }
 
 export async function handleSlackEvent(
@@ -199,8 +170,7 @@ export async function handleSlackEvent(
     if (payload.type === "event_callback") {
       const event = ((payload.event ?? {}) as Record<string, unknown>);
       if (event.type === "message" && event.channel_type === "im" && !event.bot_id) {
-        // Fire-and-forget: Slack requires 200 within 3 seconds
-        void handleDmMessage(payload, event);
+        await handleDmMessage(payload, event);
       }
     }
   } catch (err) {

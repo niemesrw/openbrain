@@ -702,6 +702,58 @@ export class ApiStack extends cdk.Stack {
       resources: [slackInstallationsTableArn, `${slackInstallationsTableArn}/index/*`],
     }));
 
+    // Slack Deferred Worker — invoked asynchronously by the webhook Lambda to
+    // perform brain search/capture after the 200 ack has been returned to Slack.
+    const slackDeferredHandler = new lambdaNode.NodejsFunction(this, "SlackDeferredHandler", {
+      runtime: lambda.Runtime.NODEJS_22_X,
+      entry: path.join(__dirname, "..", "..", "..", "lambda", "src", "slack-deferred.ts"),
+      handler: "handler",
+      memorySize: 512,
+      timeout: cdk.Duration.seconds(60),
+      environment: {
+        VECTOR_BUCKET_NAME: vectorBucketName,
+        EMBEDDING_MODEL_ID: "amazon.titan-embed-text-v2:0",
+        METADATA_MODEL_ID: "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      },
+      bundling: {
+        externalModules: ["@aws-sdk/*"],
+        minify: true,
+        sourceMap: true,
+      },
+    });
+    slackDeferredHandler.addToRolePolicy(new iam.PolicyStatement({
+      actions: [
+        "s3vectors:CreateIndex",
+        "s3vectors:QueryVectors",
+        "s3vectors:PutVectors",
+        "s3vectors:GetVectors",
+        "s3vectors:DeleteVectors",
+        "s3vectors:ListVectors",
+        "s3vectors:ListIndexes",
+      ],
+      resources: [
+        `arn:aws:s3vectors:${this.region}:${this.account}:bucket/${vectorBucketName}`,
+        `arn:aws:s3vectors:${this.region}:${this.account}:bucket/${vectorBucketName}/*`,
+      ],
+    }));
+    slackDeferredHandler.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["bedrock:InvokeModel"],
+      resources: [
+        `arn:aws:bedrock:${this.region}::foundation-model/amazon.titan-embed-text-v2:0`,
+        `arn:aws:bedrock:${this.region}:${this.account}:inference-profile/us.anthropic.claude-haiku-4-5-20251001-v1:0`,
+        `arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0`,
+        `arn:aws:bedrock:us-east-2::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0`,
+        `arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0`,
+      ],
+    }));
+
+    // Allow the webhook Lambda to invoke the deferred worker asynchronously
+    slackWebhookHandler.addEnvironment("SLACK_DEFERRED_FUNCTION_NAME", slackDeferredHandler.functionName);
+    slackWebhookHandler.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["lambda:InvokeFunction"],
+      resources: [slackDeferredHandler.functionArn],
+    }));
+
     const slackWebhookIntegration = new apigwv2Integrations.HttpLambdaIntegration(
       "SlackWebhookIntegration",
       slackWebhookHandler
