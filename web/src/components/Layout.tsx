@@ -25,6 +25,9 @@ export function Layout() {
               <Link to="/feed" className="text-gray-300 hover:text-white">
                 Feed
               </Link>
+              <Link to="/guide" className="text-gray-300 hover:text-white">
+                Guide
+              </Link>
               <Link to="/settings" className="text-gray-300 hover:text-white">
                 Settings
               </Link>
@@ -37,6 +40,9 @@ export function Layout() {
             </>
           ) : (
             <>
+              <Link to="/guide" className="text-gray-300 hover:text-white">
+                Guide
+              </Link>
               <Link to="/login" className="text-gray-300 hover:text-white">
                 Log in
               </Link>

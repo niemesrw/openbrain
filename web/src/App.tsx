@@ -9,6 +9,7 @@ import { FeedPage } from "./pages/FeedPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { GitHubCallbackPage } from "./pages/GitHubCallbackPage";
 import { SlackCallbackPage } from "./pages/SlackCallbackPage";
+import { GuidePage } from "./pages/GuidePage";
 
 export function App() {
   return (
@@ -16,6 +17,7 @@ export function App() {
       <Routes>
         <Route element={<Layout />}>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/guide" element={<GuidePage />} />
           <Route path="/signup" element={<SignupPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/callback" element={<CallbackPage />} />
