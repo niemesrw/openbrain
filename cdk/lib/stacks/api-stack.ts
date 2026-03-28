@@ -14,7 +14,7 @@ import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
 import * as cloudwatch from "aws-cdk-lib/aws-cloudwatch";
 import * as cwActions from "aws-cdk-lib/aws-cloudwatch-actions";
 import * as sns from "aws-cdk-lib/aws-sns";
-import * as snsSubscriptions from "aws-cdk-lib/aws-sns-subscriptions";
+
 import { Construct } from "constructs";
 import * as path from "path";
 
@@ -24,7 +24,6 @@ interface ApiStackProps extends cdk.StackProps {
   webClient: cognito.UserPoolClient;
   cliClient: cognito.UserPoolClient;
   customDomain?: string;
-  alarmEmail?: string;
   webOrigin?: string;
 }
 
@@ -42,7 +41,6 @@ export class ApiStack extends cdk.Stack {
       webClient,
       cliClient,
       customDomain,
-      alarmEmail,
       webOrigin,
     } = props;
 
@@ -448,13 +446,12 @@ export class ApiStack extends cdk.Stack {
       targets: [new targets.LambdaFunction(agentRunner)],
     });
 
-    // CloudWatch alarm + SNS alert on agent runner errors
+    // CloudWatch alarm + SNS topic for agent runner errors
+    // Email subscription intentionally omitted — it triggers a new confirmation
+    // email on every deploy. Subscribe via Slack webhook or similar instead.
     const alarmTopic = new sns.Topic(this, "AgentRunnerAlarmTopic", {
       displayName: "Open Brain Agent Runner Errors",
     });
-    if (alarmEmail) {
-      alarmTopic.addSubscription(new snsSubscriptions.EmailSubscription(alarmEmail));
-    }
     new cloudwatch.Alarm(this, "AgentRunnerErrorAlarm", {
       alarmName: "openbrain-agent-runner-errors",
       alarmDescription: "Agent runner Lambda is throwing errors",

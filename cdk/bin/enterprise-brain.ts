@@ -58,7 +58,6 @@ const api = new ApiStack(app, "EnterpriseBrainApi", {
   webClient: auth.webClient,
   cliClient: auth.cliClient,
   customDomain,
-  alarmEmail: app.node.tryGetContext("alarmEmail") ?? process.env.ALARM_EMAIL,
   webOrigin,
 });
 
