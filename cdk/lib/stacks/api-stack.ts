@@ -25,6 +25,7 @@ interface ApiStackProps extends cdk.StackProps {
   cliClient: cognito.UserPoolClient;
   customDomain?: string;
   alarmEmail?: string;
+  webOrigin?: string;
 }
 
 export class ApiStack extends cdk.Stack {
@@ -42,6 +43,7 @@ export class ApiStack extends cdk.Stack {
       cliClient,
       customDomain,
       alarmEmail,
+      webOrigin,
     } = props;
 
     // Data stack tables — referenced by hardcoded name to avoid cross-stack
@@ -142,6 +144,7 @@ export class ApiStack extends cdk.Stack {
         AGENT_KEYS_TABLE: agentKeysTableName,
         USERS_TABLE: usersTableName,
         AGENT_TASKS_TABLE: agentTasksTableName,
+        USER_POOL_ID: userPool.userPoolId,
       },
       bundling: {
         externalModules: ["@aws-sdk/*"],
@@ -198,9 +201,11 @@ export class ApiStack extends cdk.Stack {
       authType: lambda.FunctionUrlAuthType.NONE,
       invokeMode: lambda.InvokeMode.RESPONSE_STREAM,
       cors: {
-        allowedOrigins: ["*"],
+        allowedOrigins: webOrigin
+          ? [webOrigin, "http://localhost:5173"]
+          : ["*"],
         allowedMethods: [lambda.HttpMethod.POST],
-        allowedHeaders: ["Content-Type", "Authorization"],
+        allowedHeaders: ["Content-Type", "Authorization", "x-api-key"],
       },
     });
 

@@ -1,17 +1,37 @@
 import type {
   APIGatewayProxyEventV2,
-  APIGatewayProxyResultV2,
+  Context,
 } from "aws-lambda";
-import { createAnthropic } from "@ai-sdk/anthropic";
-import { streamText, tool, stepCountIs } from "ai";
+import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock";
+import { streamText, tool, type CoreMessage } from "ai";
 import { z } from "zod";
-import { extractUserContext } from "./auth/context";
+import { verifyAuth } from "./auth/verify";
 import { executeTool } from "./tool-executor";
 import type { UserContext } from "./types";
 
+// awslambda is a global in the Lambda Node.js runtime — not an npm package.
+declare const awslambda: {
+  streamifyResponse: (
+    handler: (
+      event: APIGatewayProxyEventV2,
+      responseStream: NodeJS.WritableStream,
+      context: Context,
+    ) => Promise<void>,
+  ) => unknown;
+  HttpResponseStream: {
+    from: (
+      responseStream: NodeJS.WritableStream,
+      metadata: { statusCode: number; headers?: Record<string, string> },
+    ) => NodeJS.WritableStream & { end: () => void };
+  };
+};
+
 const CHAT_MODEL_ID =
-  process.env.CHAT_MODEL_ID || "claude-haiku-4-5-20251001";
+  process.env.CHAT_MODEL_ID || "us.anthropic.claude-haiku-4-5-20251001-v1:0";
 const MAX_STEPS = 10;
+
+// Module-level singleton — Lambda keeps the module warm across invocations.
+const bedrock = createAmazonBedrock();
 
 const SYSTEM_PROMPT = `You are Open Brain, a personal knowledge assistant. You help users capture thoughts, search their memory, browse recent entries, and understand their brain's contents.
 
@@ -44,7 +64,7 @@ function buildTools(user: UserContext) {
     search_thoughts: tool({
       description:
         "Search the brain by meaning (semantic search). Use when the user asks about past decisions, people, projects, or context.",
-      inputSchema: z.object({
+      parameters: z.object({
         query: z.string().describe("What to search for"),
         limit: z.number().optional().describe("Max results (default 10)"),
         type: z
@@ -60,7 +80,7 @@ function buildTools(user: UserContext) {
     browse_recent: tool({
       description:
         "Browse recent thoughts chronologically. Use when the user asks what they've been thinking about lately.",
-      inputSchema: z.object({
+      parameters: z.object({
         limit: z
           .number()
           .optional()
@@ -77,13 +97,13 @@ function buildTools(user: UserContext) {
     stats: tool({
       description:
         "Get an overview of the brain — total thoughts, breakdown by type, top topics, people mentioned.",
-      inputSchema: z.object({}),
+      parameters: z.object({}),
       execute: async () => executeTool("stats", {}, user),
     }),
     capture_thought: tool({
       description:
         "Save a new thought to the brain. Use when the user shares something worth remembering — a decision, observation, idea, or note about a person.",
-      inputSchema: z.object({
+      parameters: z.object({
         text: z.string().describe("The thought to capture"),
         scope: z
           .enum(["private", "shared"])
@@ -95,25 +115,23 @@ function buildTools(user: UserContext) {
     schedule_task: tool({
       description:
         "Schedule a recurring background task. Use when the user wants something done automatically on a regular basis.",
-      inputSchema: z.object({
+      parameters: z.object({
         title: z.string().describe("Short task title"),
         schedule: z
           .string()
           .describe("Frequency: hourly, daily, weekly, every N hours"),
-        action: z
-          .string()
-          .describe("What to do — be specific and actionable"),
+        action: z.string().describe("What to do — be specific and actionable"),
       }),
       execute: async (args) => executeTool("schedule_task", args, user),
     }),
     list_tasks: tool({
       description: "List the user's active scheduled tasks.",
-      inputSchema: z.object({}),
+      parameters: z.object({}),
       execute: async () => executeTool("list_tasks", {}, user),
     }),
     cancel_task: tool({
       description: "Cancel a scheduled task by ID.",
-      inputSchema: z.object({
+      parameters: z.object({
         taskId: z.string().describe("Task ID to cancel"),
       }),
       execute: async (args) => executeTool("cancel_task", args, user),
@@ -121,54 +139,81 @@ function buildTools(user: UserContext) {
   };
 }
 
-interface ClientMessage {
-  role: "user" | "assistant";
-  content: string;
-}
+export const handler = awslambda.streamifyResponse(
+  async (
+    event: APIGatewayProxyEventV2,
+    responseStream: NodeJS.WritableStream,
+    _context: Context,
+  ) => {
+    const sendError = (statusCode: number, message: string) => {
+      const httpStream = awslambda.HttpResponseStream.from(responseStream, {
+        statusCode,
+        headers: { "Content-Type": "application/json" },
+      });
+      httpStream.write(JSON.stringify({ error: message }));
+      httpStream.end();
+    };
 
-export async function handler(
-  event: APIGatewayProxyEventV2,
-): Promise<APIGatewayProxyResultV2> {
-  const json = (status: number, body: Record<string, unknown>) => ({
-    statusCode: status,
-    headers: { "Content-Type": "application/json" } as Record<string, string>,
-    body: JSON.stringify(body),
-  });
+    let user;
+    try {
+      user = await verifyAuth(event.headers ?? {});
+    } catch {
+      sendError(401, "Unauthorized");
+      return;
+    }
 
-  let user;
-  try {
-    user = extractUserContext(event);
-  } catch {
-    return json(401, { error: "Unauthorized" });
-  }
+    let body: { messages?: CoreMessage[] };
+    try {
+      body = JSON.parse(event.body || "{}");
+    } catch {
+      sendError(400, "Invalid JSON body");
+      return;
+    }
 
-  let body;
-  try {
-    body = JSON.parse(event.body || "{}");
-  } catch {
-    return json(400, { error: "Invalid JSON body" });
-  }
+    const messages = body.messages ?? [];
+    if (messages.length === 0) {
+      sendError(400, "messages array is required");
+      return;
+    }
 
-  const clientMessages: ClientMessage[] = body.messages ?? [];
-  if (clientMessages.length === 0) {
-    return json(400, { error: "messages array is required" });
-  }
-
-  try {
-    const anthropic = createAnthropic();
-    const result = streamText({
-      model: anthropic(CHAT_MODEL_ID),
-      system: SYSTEM_PROMPT,
-      messages: clientMessages,
-      tools: buildTools(user),
-      stopWhen: stepCountIs(MAX_STEPS),
+    const httpStream = awslambda.HttpResponseStream.from(responseStream, {
+      statusCode: 200,
+      headers: {
+        "Content-Type": "text/event-stream; charset=utf-8",
+        "x-vercel-ai-data-stream": "v1",
+      },
     });
 
-    const reply = await result.text;
-    return json(200, { reply });
-  } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
-    console.error("Chat error:", message);
-    return json(500, { error: message });
-  }
-}
+    try {
+      const result = streamText({
+        model: bedrock(CHAT_MODEL_ID),
+        system: SYSTEM_PROMPT,
+        messages,
+        tools: buildTools(user),
+        maxSteps: MAX_STEPS,
+      });
+
+      const reader = result.toDataStream().getReader();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const canContinue = httpStream.write(value);
+        if (!canContinue) {
+          await new Promise<void>((resolve, reject) => {
+            httpStream.once("drain", resolve);
+            httpStream.once("error", reject);
+          });
+        }
+      }
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      console.error("Chat error:", message);
+      // Headers already sent — write error as a stream data event
+      httpStream.write(
+        new TextEncoder().encode(`3:${JSON.stringify(message)}\n`),
+      );
+    } finally {
+      httpStream.end();
+    }
+  },
+);

@@ -39,6 +39,8 @@ const logoutUrls = parseStringOrArray(app.node.tryGetContext("logoutUrls"), [
 ]);
 
 const customDomain = app.node.tryGetContext("customDomain") ?? process.env.CUSTOM_DOMAIN;
+const webOrigin = app.node.tryGetContext("webOrigin") ?? process.env.WEB_ORIGIN
+  ?? (customDomain ? `https://${customDomain}` : undefined);
 
 const vectors = new VectorStorageStack(app, "EnterpriseBrainVectors", { env });
 const auth = new AuthStack(app, "EnterpriseBrainAuth", {
@@ -57,6 +59,7 @@ const api = new ApiStack(app, "EnterpriseBrainApi", {
   cliClient: auth.cliClient,
   customDomain,
   alarmEmail: app.node.tryGetContext("alarmEmail") ?? process.env.ALARM_EMAIL,
+  webOrigin,
 });
 
 api.addDependency(vectors);
