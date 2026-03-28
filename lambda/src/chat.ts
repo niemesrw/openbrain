@@ -2,26 +2,18 @@ import type {
   APIGatewayProxyEventV2,
   APIGatewayProxyResultV2,
 } from "aws-lambda";
-import {
-  BedrockRuntimeClient,
-  ConverseCommand,
-  type Message,
-  type ContentBlock,
-  type SystemContentBlock,
-  type Tool,
-  type ToolResultContentBlock,
-} from "@aws-sdk/client-bedrock-runtime";
+import { createAnthropic } from "@ai-sdk/anthropic";
+import { streamText, tool, stepCountIs } from "ai";
+import { z } from "zod";
 import { extractUserContext } from "./auth/context";
 import { executeTool } from "./tool-executor";
+import type { UserContext } from "./types";
 
 const CHAT_MODEL_ID =
-  process.env.CHAT_MODEL_ID || "us.anthropic.claude-haiku-4-5-20251001-v1:0";
-const MAX_TOOL_ROUNDS = 10;
+  process.env.CHAT_MODEL_ID || "claude-haiku-4-5-20251001";
+const MAX_STEPS = 10;
 
-const bedrock = new BedrockRuntimeClient({});
-
-const SYSTEM_PROMPT: SystemContentBlock[] = [{
-    text: `You are Open Brain, a personal knowledge assistant. You help users capture thoughts, search their memory, browse recent entries, and understand their brain's contents.
+const SYSTEM_PROMPT = `You are Open Brain, a personal knowledge assistant. You help users capture thoughts, search their memory, browse recent entries, and understand their brain's contents.
 
 Behavior:
 - When a user shares a thought, observation, idea, or decision, use capture_thought to save it. Confirm naturally.
@@ -45,213 +37,93 @@ IMPORTANT — duplicate prevention:
 
 Use list_tasks to show the user their active tasks. Use cancel_task to remove one.
 
-If the schedule or action is unclear, ask the user to clarify before scheduling.`,
-}];
+If the schedule or action is unclear, ask the user to clarify before scheduling.`;
 
-const CHAT_TOOLS: Tool[] = [
-  {
-    toolSpec: {
-      name: "search_thoughts",
+function buildTools(user: UserContext) {
+  return {
+    search_thoughts: tool({
       description:
         "Search the brain by meaning (semantic search). Use when the user asks about past decisions, people, projects, or context.",
-      inputSchema: {
-        json: {
-          type: "object",
-          properties: {
-            query: { type: "string", description: "What to search for" },
-            limit: { type: "number", description: "Max results (default 10)" },
-            type: {
-              type: "string",
-              description: "Filter by type: observation, task, idea, reference, person_note",
-            },
-            topic: { type: "string", description: "Filter by topic" },
-          },
-          required: ["query"],
-        },
-      },
-    },
-  },
-  {
-    toolSpec: {
-      name: "browse_recent",
+      inputSchema: z.object({
+        query: z.string().describe("What to search for"),
+        limit: z.number().optional().describe("Max results (default 10)"),
+        type: z
+          .string()
+          .optional()
+          .describe(
+            "Filter by type: observation, task, idea, reference, person_note",
+          ),
+        topic: z.string().optional().describe("Filter by topic"),
+      }),
+      execute: async (args) => executeTool("search_thoughts", args, user),
+    }),
+    browse_recent: tool({
       description:
         "Browse recent thoughts chronologically. Use when the user asks what they've been thinking about lately.",
-      inputSchema: {
-        json: {
-          type: "object",
-          properties: {
-            limit: { type: "number", description: "Number of recent thoughts (default 10)" },
-            type: { type: "string", description: "Filter by type" },
-            topic: { type: "string", description: "Filter by topic" },
-            tenant_id: { type: "string", description: "Filter shared thoughts by tenant (userId)" },
-          },
-        },
-      },
-    },
-  },
-  {
-    toolSpec: {
-      name: "stats",
+      inputSchema: z.object({
+        limit: z
+          .number()
+          .optional()
+          .describe("Number of recent thoughts (default 10)"),
+        type: z.string().optional().describe("Filter by type"),
+        topic: z.string().optional().describe("Filter by topic"),
+        tenant_id: z
+          .string()
+          .optional()
+          .describe("Filter shared thoughts by tenant (userId)"),
+      }),
+      execute: async (args) => executeTool("browse_recent", args, user),
+    }),
+    stats: tool({
       description:
         "Get an overview of the brain — total thoughts, breakdown by type, top topics, people mentioned.",
-      inputSchema: {
-        json: { type: "object", properties: {} },
-      },
-    },
-  },
-  {
-    toolSpec: {
-      name: "capture_thought",
+      inputSchema: z.object({}),
+      execute: async () => executeTool("stats", {}, user),
+    }),
+    capture_thought: tool({
       description:
         "Save a new thought to the brain. Use when the user shares something worth remembering — a decision, observation, idea, or note about a person.",
-      inputSchema: {
-        json: {
-          type: "object",
-          properties: {
-            text: { type: "string", description: "The thought to capture" },
-            scope: {
-              type: "string",
-              enum: ["private", "shared"],
-              description: "private (default) or shared",
-            },
-          },
-          required: ["text"],
-        },
-      },
-    },
-  },
-  {
-    toolSpec: {
-      name: "schedule_task",
+      inputSchema: z.object({
+        text: z.string().describe("The thought to capture"),
+        scope: z
+          .enum(["private", "shared"])
+          .optional()
+          .describe("private (default) or shared"),
+      }),
+      execute: async (args) => executeTool("capture_thought", args, user),
+    }),
+    schedule_task: tool({
       description:
         "Schedule a recurring background task. Use when the user wants something done automatically on a regular basis.",
-      inputSchema: {
-        json: {
-          type: "object",
-          properties: {
-            title: { type: "string", description: "Short task title" },
-            schedule: {
-              type: "string",
-              description: "Frequency: hourly, daily, weekly, every N hours",
-            },
-            action: {
-              type: "string",
-              description: "What to do — be specific and actionable",
-            },
-          },
-          required: ["title", "schedule", "action"],
-        },
-      },
-    },
-  },
-  {
-    toolSpec: {
-      name: "list_tasks",
+      inputSchema: z.object({
+        title: z.string().describe("Short task title"),
+        schedule: z
+          .string()
+          .describe("Frequency: hourly, daily, weekly, every N hours"),
+        action: z
+          .string()
+          .describe("What to do — be specific and actionable"),
+      }),
+      execute: async (args) => executeTool("schedule_task", args, user),
+    }),
+    list_tasks: tool({
       description: "List the user's active scheduled tasks.",
-      inputSchema: {
-        json: { type: "object", properties: {} },
-      },
-    },
-  },
-  {
-    toolSpec: {
-      name: "cancel_task",
+      inputSchema: z.object({}),
+      execute: async () => executeTool("list_tasks", {}, user),
+    }),
+    cancel_task: tool({
       description: "Cancel a scheduled task by ID.",
-      inputSchema: {
-        json: {
-          type: "object",
-          properties: {
-            taskId: { type: "string", description: "Task ID to cancel" },
-          },
-          required: ["taskId"],
-        },
-      },
-    },
-  },
-];
+      inputSchema: z.object({
+        taskId: z.string().describe("Task ID to cancel"),
+      }),
+      execute: async (args) => executeTool("cancel_task", args, user),
+    }),
+  };
+}
 
 interface ClientMessage {
   role: "user" | "assistant";
   content: string;
-}
-
-async function converseLoop(
-  clientMessages: ClientMessage[],
-  userId: string,
-  displayName?: string,
-  agentName?: string,
-): Promise<string> {
-  const user = { userId, displayName, agentName };
-
-  // Convert client messages to Converse format
-  const messages: Message[] = clientMessages.map((m) => ({
-    role: m.role,
-    content: [{ text: m.content }],
-  }));
-
-  for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-    const response = await bedrock.send(
-      new ConverseCommand({
-        modelId: CHAT_MODEL_ID,
-        system: SYSTEM_PROMPT,
-        messages,
-        toolConfig: { tools: CHAT_TOOLS },
-        inferenceConfig: { maxTokens: 2048 },
-      }),
-    );
-
-    const stopReason = response.stopReason;
-    const outputMessage = response.output?.message;
-    if (!outputMessage) throw new Error("No response from model");
-
-    // Add assistant response to conversation
-    messages.push(outputMessage);
-
-    if (stopReason === "end_turn") {
-      // Extract text from response
-      const textBlocks = outputMessage.content?.filter((b) => b.text) ?? [];
-      return textBlocks.map((b) => b.text).join("\n");
-    }
-
-    if (stopReason === "tool_use") {
-      const toolUseBlocks =
-        outputMessage.content?.filter((b) => b.toolUse) ?? [];
-
-      const toolResults: ContentBlock[] = [];
-      for (const block of toolUseBlocks) {
-        const tu = block.toolUse!;
-        let resultContent: ToolResultContentBlock[];
-        try {
-          const result = await executeTool(
-            tu.name!,
-            (tu.input as Record<string, unknown>) ?? {},
-            user,
-          );
-          resultContent = [{ text: result }];
-        } catch (e) {
-          resultContent = [
-            { text: `Error: ${e instanceof Error ? e.message : String(e)}` },
-          ];
-        }
-
-        toolResults.push({
-          toolResult: {
-            toolUseId: tu.toolUseId,
-            content: resultContent,
-          },
-        });
-      }
-
-      // Add tool results as user message
-      messages.push({ role: "user", content: toolResults });
-      continue;
-    }
-
-    // Unexpected stop reason
-    throw new Error(`Unexpected stop reason: ${stopReason}`);
-  }
-
-  throw new Error("Too many tool rounds");
 }
 
 export async function handler(
@@ -283,12 +155,16 @@ export async function handler(
   }
 
   try {
-    const reply = await converseLoop(
-      clientMessages,
-      user.userId,
-      user.displayName,
-      user.agentName,
-    );
+    const anthropic = createAnthropic();
+    const result = streamText({
+      model: anthropic(CHAT_MODEL_ID),
+      system: SYSTEM_PROMPT,
+      messages: clientMessages,
+      tools: buildTools(user),
+      stopWhen: stepCountIs(MAX_STEPS),
+    });
+
+    const reply = await result.text;
     return json(200, { reply });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
