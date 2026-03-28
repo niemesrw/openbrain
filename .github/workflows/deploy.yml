@@ -157,10 +157,15 @@ jobs:
             --stack-name EnterpriseBrainAuth \
             --query "Stacks[0].Outputs[?ExportName=='BrainCognitoDomain'].OutputValue" \
             --output text)
+          CHAT_URL=$(aws cloudformation describe-stacks \
+            --stack-name EnterpriseBrainApi \
+            --query "Stacks[0].Outputs[?OutputKey=='ChatStreamUrl'].OutputValue" \
+            --output text)
           echo "api_url=$API_URL" >> "$GITHUB_OUTPUT"
           echo "user_pool_id=$USER_POOL_ID" >> "$GITHUB_OUTPUT"
           echo "web_client_id=$WEB_CLIENT_ID" >> "$GITHUB_OUTPUT"
           echo "cognito_domain=$COGNITO_DOMAIN" >> "$GITHUB_OUTPUT"
+          echo "chat_url=$CHAT_URL" >> "$GITHUB_OUTPUT"
 
       # --- Build and deploy web (rebuild with real env vars) ---
 
@@ -173,6 +178,7 @@ jobs:
           VITE_WEB_CLIENT_ID: ${{ steps.outputs.outputs.web_client_id }}
           VITE_COGNITO_DOMAIN: ${{ steps.outputs.outputs.cognito_domain }}
           VITE_GITHUB_APP_SLUG: ${{ secrets.GH_APP_SLUG }}
+          VITE_CHAT_URL: ${{ steps.outputs.outputs.chat_url }}
 
       - name: CDK Deploy (web stack)
         working-directory: cdk
