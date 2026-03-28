@@ -2,15 +2,18 @@ import { handleCaptureThought } from "../capture-thought";
 import * as vectors from "../../services/vectors";
 import * as embeddings from "../../services/embeddings";
 import * as metadata from "../../services/metadata";
+import * as ogImage from "../../services/og-image";
 
 jest.mock("../../services/vectors");
 jest.mock("../../services/embeddings");
 jest.mock("../../services/metadata");
+jest.mock("../../services/og-image");
 
 const mockEnsurePrivateIndex = vectors.ensurePrivateIndex as jest.MockedFunction<typeof vectors.ensurePrivateIndex>;
 const mockPutVector = vectors.putVector as jest.MockedFunction<typeof vectors.putVector>;
 const mockGenerateEmbedding = embeddings.generateEmbedding as jest.MockedFunction<typeof embeddings.generateEmbedding>;
 const mockExtractMetadata = metadata.extractMetadata as jest.MockedFunction<typeof metadata.extractMetadata>;
+const mockFetchOgImage = ogImage.fetchOgImage as jest.MockedFunction<typeof ogImage.fetchOgImage>;
 
 const USER = { userId: "user-123", displayName: "Alice" };
 const EMBEDDING = [0.1, 0.2, 0.3];
@@ -27,6 +30,7 @@ beforeEach(() => {
     action_items: [],
     dates_mentioned: [],
   });
+  mockFetchOgImage.mockResolvedValue(undefined);
 });
 
 describe("handleCaptureThought", () => {
@@ -205,5 +209,73 @@ describe("handleCaptureThought", () => {
         dates_mentioned: '["2026-03-01"]',
       })
     );
+  });
+
+  it("fetches og:image from source_url and stores it as media_url when no media_url is provided", async () => {
+    mockFetchOgImage.mockResolvedValue("https://example.com/og-image.jpg");
+
+    await handleCaptureThought(
+      { text: "Interesting article", source_url: "https://example.com/article" },
+      USER
+    );
+
+    expect(mockFetchOgImage).toHaveBeenCalledWith("https://example.com/article");
+    expect(mockPutVector).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.any(String),
+      EMBEDDING,
+      expect.objectContaining({
+        media_url: "https://example.com/og-image.jpg",
+        source_url: "https://example.com/article",
+      })
+    );
+  });
+
+  it("uses explicit media_url and does not call fetchOgImage when both are provided", async () => {
+    await handleCaptureThought(
+      {
+        text: "Article with custom image",
+        media_url: "https://example.com/custom.jpg",
+        source_url: "https://example.com/article",
+      },
+      USER
+    );
+
+    expect(mockFetchOgImage).not.toHaveBeenCalled();
+    expect(mockPutVector).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.any(String),
+      EMBEDDING,
+      expect.objectContaining({
+        media_url: "https://example.com/custom.jpg",
+        source_url: "https://example.com/article",
+      })
+    );
+  });
+
+  it("stores source_url in metadata even when og:image is not found", async () => {
+    mockFetchOgImage.mockResolvedValue(undefined);
+
+    await handleCaptureThought(
+      { text: "Article without og:image", source_url: "https://example.com/no-og" },
+      USER
+    );
+
+    const call = mockPutVector.mock.calls[0][3];
+    expect(call).toHaveProperty("source_url", "https://example.com/no-og");
+    expect(call).not.toHaveProperty("media_url");
+  });
+
+  it("does not call fetchOgImage when source_url is not provided", async () => {
+    await handleCaptureThought({ text: "No source URL" }, USER);
+
+    expect(mockFetchOgImage).not.toHaveBeenCalled();
+  });
+
+  it("omits source_url from metadata when not provided", async () => {
+    await handleCaptureThought({ text: "No source URL" }, USER);
+
+    const call = mockPutVector.mock.calls[0][3];
+    expect(call).not.toHaveProperty("source_url");
   });
 });

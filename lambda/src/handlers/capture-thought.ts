@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { generateEmbedding } from "../services/embeddings";
 import { extractMetadata } from "../services/metadata";
 import { ensurePrivateIndex, putVector } from "../services/vectors";
+import { fetchOgImage } from "../services/og-image";
 import { validateThoughtText } from "./validate-thought-text";
 import type { CaptureArgs, UserContext } from "../types";
 
@@ -9,7 +10,7 @@ export async function handleCaptureThought(
   args: CaptureArgs,
   user: UserContext
 ): Promise<string> {
-  const { text, scope = "private", media_url } = args;
+  const { text, scope = "private", media_url, source_url } = args;
 
   const validationError = validateThoughtText(text);
   if (validationError) return validationError;
@@ -21,6 +22,10 @@ export async function handleCaptureThought(
   } else {
     indexName = await ensurePrivateIndex(user.userId);
   }
+
+  // If source_url is provided and no explicit media_url, try to fetch og:image
+  const resolvedMediaUrl =
+    media_url ?? (source_url ? await fetchOgImage(source_url) : undefined);
 
   // Generate embedding and extract metadata in parallel
   const [embedding, metadata] = await Promise.all([
@@ -40,7 +45,8 @@ export async function handleCaptureThought(
     content: text,
     action_items: JSON.stringify(metadata.action_items),
     dates_mentioned: JSON.stringify(metadata.dates_mentioned),
-    ...(media_url && { media_url }),
+    ...(resolvedMediaUrl && { media_url: resolvedMediaUrl }),
+    ...(source_url && { source_url }),
     // Attribution for shared captures
     ...(scope === "shared" && {
       display_name: user.displayName || "anonymous",

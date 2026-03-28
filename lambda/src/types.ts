@@ -19,6 +19,8 @@ export interface S3VectorMetadata {
   tenant_id?: string;
   /** Optional URL to associated media (image, video, audio, etc.) */
   media_url?: string;
+  /** Source URL of the article or page this thought was captured from */
+  source_url?: string;
 }
 
 export interface UserContext {
@@ -55,6 +57,8 @@ export interface CaptureArgs {
   text: string;
   scope?: "private" | "shared";
   media_url?: string;
+  /** Source URL of the article or page being captured — og:image is auto-extracted from this URL */
+  source_url?: string;
 }
 
 export interface UpdateThoughtArgs {
