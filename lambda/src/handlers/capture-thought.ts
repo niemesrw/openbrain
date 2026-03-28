@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { generateEmbedding } from "../services/embeddings";
 import { extractMetadata } from "../services/metadata";
 import { ensurePrivateIndex, putVector } from "../services/vectors";
+import { validateThoughtText } from "./validate-thought-text";
 import type { CaptureArgs, UserContext } from "../types";
 
 export async function handleCaptureThought(
@@ -9,6 +10,9 @@ export async function handleCaptureThought(
   user: UserContext
 ): Promise<string> {
   const { text, scope = "private" } = args;
+
+  const validationError = validateThoughtText(text);
+  if (validationError) return validationError;
 
   // Determine target index
   let indexName: string;

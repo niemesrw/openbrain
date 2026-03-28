@@ -233,6 +233,26 @@ describe("handleOrchestration", () => {
     expect(captureBody.params.arguments.text).toContain("#92");
   });
 
+  it("handles abort gracefully when the brain MCP call times out", async () => {
+    jest.useFakeTimers();
+
+    mockFetch.mockImplementationOnce((_url: string, opts: { signal?: AbortSignal }) => {
+      return new Promise((_resolve, reject) => {
+        opts.signal?.addEventListener("abort", () => {
+          const err = new Error("The operation was aborted");
+          (err as any).name = "AbortError";
+          reject(err);
+        });
+      });
+    });
+
+    const promise = handleOrchestration(CLOSED_ISSUE, REPO, INSTALLATION_ID);
+    jest.advanceTimersByTime(30_000);
+    await expect(promise).resolves.toBeUndefined();
+
+    jest.useRealTimers();
+  });
+
   it("uses Authorization Bearer header with agent API key for brain calls", async () => {
     mockFetch.mockResolvedValueOnce(makeMcpResponse("No thoughts found"));
 

@@ -1,6 +1,7 @@
 import { generateEmbedding } from "../services/embeddings";
 import { extractMetadata } from "../services/metadata";
 import { getVector, putVector } from "../services/vectors";
+import { validateThoughtText } from "./validate-thought-text";
 import type { UpdateThoughtArgs, UserContext } from "../types";
 
 export async function handleUpdateThought(
@@ -8,6 +9,9 @@ export async function handleUpdateThought(
   user: UserContext
 ): Promise<string> {
   const { id, text, scope = "private" } = args;
+
+  const validationError = validateThoughtText(text);
+  if (validationError) return validationError;
 
   const indexName =
     scope === "shared" ? "shared" : `private-${user.userId}`;

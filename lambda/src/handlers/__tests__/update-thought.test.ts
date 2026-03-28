@@ -45,6 +45,20 @@ beforeEach(() => {
 });
 
 describe("handleUpdateThought", () => {
+  it("returns error and does not call services when text is missing", async () => {
+    const result = await handleUpdateThought({ id: THOUGHT_ID, text: "" }, USER);
+    expect(result).toBe("Error: text is required");
+    expect(mockGetVector).not.toHaveBeenCalled();
+    expect(mockGenerateEmbedding).not.toHaveBeenCalled();
+  });
+
+  it("returns error and does not call services when text exceeds 50k characters", async () => {
+    const result = await handleUpdateThought({ id: THOUGHT_ID, text: "a".repeat(50_001) }, USER);
+    expect(result).toBe("Error: text exceeds maximum length of 50,000 characters");
+    expect(mockGetVector).not.toHaveBeenCalled();
+    expect(mockGenerateEmbedding).not.toHaveBeenCalled();
+  });
+
   it("updates own private thought and returns confirmation", async () => {
     mockGetVector.mockResolvedValue(EXISTING_VECTOR);
 

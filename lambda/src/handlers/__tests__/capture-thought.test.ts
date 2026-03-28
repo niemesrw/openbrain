@@ -30,6 +30,20 @@ beforeEach(() => {
 });
 
 describe("handleCaptureThought", () => {
+  it("returns error and does not call services when text is missing", async () => {
+    const result = await handleCaptureThought({ text: "" }, USER);
+    expect(result).toBe("Error: text is required");
+    expect(mockGenerateEmbedding).not.toHaveBeenCalled();
+    expect(mockExtractMetadata).not.toHaveBeenCalled();
+  });
+
+  it("returns error and does not call services when text exceeds 50k characters", async () => {
+    const result = await handleCaptureThought({ text: "a".repeat(50_001) }, USER);
+    expect(result).toBe("Error: text exceeds maximum length of 50,000 characters");
+    expect(mockGenerateEmbedding).not.toHaveBeenCalled();
+    expect(mockExtractMetadata).not.toHaveBeenCalled();
+  });
+
   it("captures a private thought and returns confirmation", async () => {
     const result = await handleCaptureThought({ text: "Had a great meeting" }, USER);
 

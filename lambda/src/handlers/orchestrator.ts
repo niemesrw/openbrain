@@ -46,29 +46,42 @@ async function callBrainTool(
     params: { name: toolName, arguments: args },
   });
 
-  const res = await fetch(mcpUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body,
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30_000);
+  try {
+    const res = await fetch(mcpUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body,
+      signal: controller.signal,
+    });
 
-  if (!res.ok) {
-    throw new Error(`Brain MCP call failed: ${res.status} ${await res.text()}`);
+    if (!res.ok) {
+      throw new Error(`Brain MCP call failed: ${res.status} ${await res.text()}`);
+    }
+
+    const data = (await res.json()) as {
+      result?: { content?: Array<{ type: string; text?: string }> };
+      error?: { message: string };
+    };
+
+    if (data.error) {
+      throw new Error(`Brain tool error: ${data.error.message}`);
+    }
+
+    return data.result?.content?.find((c) => c.type === "text")?.text ?? "";
+  } catch (err) {
+    if ((err as { name?: string })?.name === "AbortError") {
+      throw new Error("Brain MCP call timed out after 30s");
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
   }
 
-  const data = (await res.json()) as {
-    result?: { content?: Array<{ type: string; text?: string }> };
-    error?: { message: string };
-  };
-
-  if (data.error) {
-    throw new Error(`Brain tool error: ${data.error.message}`);
-  }
-
-  return data.result?.content?.find((c) => c.type === "text")?.text ?? "";
 }
 
 /** Apply the `claude` label to a GitHub issue via the installation token. */
