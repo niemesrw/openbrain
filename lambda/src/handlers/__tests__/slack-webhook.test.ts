@@ -162,4 +162,34 @@ describe("handler", () => {
     expect(result.statusCode).toBe(200);
     expect(JSON.parse(result.body).challenge).toBe("abc123");
   });
+
+  it("parses application/x-www-form-urlencoded slash command body and returns 200", async () => {
+    const fields = {
+      command: "/brain",
+      text: "search auth decisions",
+      user_id: "U456",
+      team_id: "T123",
+      response_url: "https://hooks.slack.com/commands/123",
+    };
+    const body = new URLSearchParams(fields).toString();
+    const ts = nowS();
+    const sig = sign(body, ts);
+    const event = {
+      headers: {
+        "content-type": "application/x-www-form-urlencoded",
+        "x-slack-request-timestamp": ts,
+        "x-slack-signature": sig,
+      },
+      body,
+      isBase64Encoded: false,
+    };
+
+    const { handleSlackEvent } = jest.requireMock("../../handlers/slack-event") as { handleSlackEvent: jest.Mock };
+    const result = await handler(event as any) as Result;
+
+    expect(result.statusCode).toBe(200);
+    expect(handleSlackEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "slash_command" })
+    );
+  });
 });
