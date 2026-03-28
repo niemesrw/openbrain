@@ -54,13 +54,13 @@ jobs:
       # --- AWS Auth (two-hop: OIDC → management → AI account) ---
 
       - name: Configure AWS credentials (Management)
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v5
         with:
           role-to-assume: arn:aws:iam::${{ env.MANAGEMENT_ACCOUNT }}:role/GitHubActionsRole
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Assume role in AI account
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v5
         with:
           role-to-assume: arn:aws:iam::${{ env.AI_ACCOUNT }}:role/GitHubDeployRole
           aws-region: ${{ env.AWS_REGION }}
