@@ -181,6 +181,18 @@ export function ThoughtCard({ thought, onUpdate, onDelete }: ThoughtCardProps) {
           </div>
         )}
 
+        {thought.media_url && (
+          <div className="rounded overflow-hidden">
+            <img
+              src={thought.media_url}
+              alt=""
+              className="max-w-full max-h-64 object-contain rounded"
+              loading="lazy"
+              onError={(e) => { e.currentTarget.style.display = "none"; }}
+            />
+          </div>
+        )}
+
         <div className="flex flex-wrap items-center gap-2 text-xs">
           <span
             className="px-2 py-0.5 rounded-full font-medium"

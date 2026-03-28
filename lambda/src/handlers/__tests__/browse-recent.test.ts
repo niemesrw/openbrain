@@ -180,4 +180,29 @@ describe("handleBrowseRecent", () => {
 
     expect(parsed.thoughts).toHaveLength(5);
   });
+
+  it("includes media_url in JSON response when vector metadata contains it", async () => {
+    const vectorWithMedia = {
+      key: "k-media",
+      metadata: {
+        ...makeVector("k-media", {}).metadata,
+        media_url: "https://example.com/image.png",
+      },
+    };
+    mockListAllVectors.mockResolvedValue([vectorWithMedia]);
+
+    const raw = await handleBrowseRecent({ _format: "json" }, USER);
+    const parsed = JSON.parse(raw);
+
+    expect(parsed.thoughts[0].media_url).toBe("https://example.com/image.png");
+  });
+
+  it("omits media_url from JSON response when vector metadata does not contain it", async () => {
+    mockListAllVectors.mockResolvedValue([makeVector("k1", { content: "no media thought" })]);
+
+    const raw = await handleBrowseRecent({ _format: "json" }, USER);
+    const parsed = JSON.parse(raw);
+
+    expect(parsed.thoughts[0]).not.toHaveProperty("media_url");
+  });
 });

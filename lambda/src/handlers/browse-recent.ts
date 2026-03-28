@@ -71,6 +71,7 @@ export async function handleBrowseRecent(
           dates_mentioned: safeParseArray(m.dates_mentioned),
           created_at: m.created_at || null,
           scope: indexScope,
+          ...(m.media_url && { media_url: m.media_url }),
         };
       }),
     });

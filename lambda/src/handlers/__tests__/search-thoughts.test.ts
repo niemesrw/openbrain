@@ -117,4 +117,29 @@ describe("handleSearchThoughts", () => {
       expect.objectContaining({ type: "task", topic: "work" })
     );
   });
+
+  it("includes media_url in JSON response when vector metadata contains it", async () => {
+    const vectorWithMedia = {
+      ...makeVector("id-media", "A thought with an image", 0.2),
+      metadata: {
+        ...makeVector("id-media", "A thought with an image", 0.2).metadata,
+        media_url: "https://example.com/image.png",
+      },
+    };
+    mockQueryVectors.mockResolvedValue([vectorWithMedia]);
+
+    const result = await handleSearchThoughts({ query: "image", _format: "json" }, USER);
+    const parsed = JSON.parse(result);
+
+    expect(parsed.thoughts[0].media_url).toBe("https://example.com/image.png");
+  });
+
+  it("omits media_url from JSON response when vector metadata does not contain it", async () => {
+    mockQueryVectors.mockResolvedValue([makeVector("id-1", "A thought without media", 0.2)]);
+
+    const result = await handleSearchThoughts({ query: "thought", _format: "json" }, USER);
+    const parsed = JSON.parse(result);
+
+    expect(parsed.thoughts[0]).not.toHaveProperty("media_url");
+  });
 });
