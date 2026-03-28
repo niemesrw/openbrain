@@ -24,52 +24,61 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Configure Open Brain MCP
+        run: |
+          mkdir -p ~/.claude
+          cat > ~/.claude/settings.json << 'SETTINGS'
+          {
+            "mcpServers": {
+              "open-brain": {
+                "type": "http",
+                "url": "https://uxitxxbqrd.execute-api.us-east-1.amazonaws.com/mcp",
+                "headers": {
+                  "x-api-key": "OPENBRAIN_KEY_PLACEHOLDER"
+                }
+              }
+            }
+          }
+          SETTINGS
+          sed -i "s/OPENBRAIN_KEY_PLACEHOLDER/${{ secrets.OPENBRAIN_AGENT_API_KEY }}/" ~/.claude/settings.json
+        env:
+          OPENBRAIN_AGENT_API_KEY: ${{ secrets.OPENBRAIN_AGENT_API_KEY }}
+
       - name: Run Claude Code
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           additional_permissions: |
             actions: read
-          mcp_config: |
-            {
-              "mcpServers": {
-                "open-brain": {
-                  "type": "http",
-                  "url": "https://uxitxxbqrd.execute-api.us-east-1.amazonaws.com/mcp",
-                  "headers": {
-                    "x-api-key": "${{ secrets.OPENBRAIN_AGENT_API_KEY }}"
-                  }
-                }
-              }
-            }
           prompt: |
             ${{ github.event_name == 'issues' && format('
               You have been assigned issue #{0}: {1}
 
-              STEP 1 — Check the brain for context (you have open-brain MCP tools available):
-              - search_thoughts("slack implementation" or relevant keywords) to see what is already built or in-flight
-              - If a related issue is already being worked on that would conflict, post a comment on this issue
-                noting the dependency and stop.
+              IMPORTANT: You MUST end this session with one of two outcomes:
+              A) A pull request is open against main, OR
+              B) A comment is posted on the issue explaining why you stopped.
+              Finishing silently with neither is not acceptable.
 
-              STEP 2 — Assess scope before writing any code:
-              - Count how many files you will need to create or modify
-              - If the issue touches >8 files or spans multiple sub-systems, post a comment on the issue
-                listing the suggested sub-tasks, then stop. Do not attempt it.
-              - If the issue is appropriately scoped, proceed.
+              STEP 1 — Check the brain for context (open-brain MCP tools are available in your session):
+              - search_thoughts for keywords from this issue to see what is already built or in-flight
+              - If a conflicting task is in progress, post a comment on the issue and stop.
 
-              STEP 3 — Capture to brain before starting:
-              - capture_thought("Starting implementation of issue #{0}: {1}", topics: ["channel:deploys", "github-actions"])
+              STEP 2 — Assess scope:
+              - If the issue touches >8 files or spans multiple sub-systems, post a comment listing
+                the suggested sub-tasks, then stop.
+              - If appropriately scoped, proceed.
+
+              STEP 3 — Capture start to brain:
+              - capture_thought("Starting issue #{0}: {1}", scope: "shared")
 
               STEP 4 — Implement:
               1. Read CLAUDE.md "For Agents" section and all relevant existing files
               2. Create a feature branch (feat/ or fix/ prefix)
-              3. Implement the changes, run `cd lambda && npm test` to confirm tests pass
+              3. Implement, run cd lambda && npm test to confirm tests pass
               4. Open a pull request against main referencing the issue number
 
-              STEP 5 — Capture completion:
-              - capture_thought("Completed issue #{0}: {1} — PR opened", topics: ["channel:deploys", "github-actions"])
-
-              Do not ask for confirmation — either implement and open the PR, or comment and stop.
+              STEP 5 — Capture completion to brain:
+              - capture_thought("Completed issue #{0}: {1} — PR opened", scope: "shared")
             ', github.event.issue.number, github.event.issue.title) || '' }}
             ${{ github.event_name == 'pull_request_review' && format('
               Copilot has reviewed PR #{0} and left comments. Read all review comments carefully and address each one.
