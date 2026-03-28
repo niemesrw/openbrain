@@ -8,7 +8,7 @@ export async function handleUpdateThought(
   args: UpdateThoughtArgs,
   user: UserContext
 ): Promise<string> {
-  const { id, text, scope = "private" } = args;
+  const { id, text, scope = "private", media_url } = args;
 
   const validationError = validateThoughtText(text);
   if (validationError) return validationError;
@@ -41,6 +41,7 @@ export async function handleUpdateThought(
     content: text,
     action_items: JSON.stringify(metadata.action_items),
     dates_mentioned: JSON.stringify(metadata.dates_mentioned),
+    ...((media_url ?? existing.metadata.media_url) && { media_url: media_url ?? existing.metadata.media_url }),
     ...(scope === "shared" && {
       display_name: user.displayName || "anonymous",
       ...(user.agentName && { agent_id: user.agentName }),

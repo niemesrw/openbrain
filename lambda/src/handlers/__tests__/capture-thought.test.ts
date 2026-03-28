@@ -164,6 +164,27 @@ describe("handleCaptureThought", () => {
     expect(call).not.toHaveProperty("tenant_id");
   });
 
+  it("includes media_url in metadata when provided", async () => {
+    await handleCaptureThought(
+      { text: "Photo from the event", media_url: "https://example.com/photo.jpg" },
+      USER
+    );
+
+    expect(mockPutVector).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.any(String),
+      EMBEDDING,
+      expect.objectContaining({ media_url: "https://example.com/photo.jpg" })
+    );
+  });
+
+  it("omits media_url from metadata when not provided", async () => {
+    await handleCaptureThought({ text: "No media here" }, USER);
+
+    const call = mockPutVector.mock.calls[0][3];
+    expect(call).not.toHaveProperty("media_url");
+  });
+
   it("serializes action_items and dates_mentioned as JSON strings", async () => {
     mockExtractMetadata.mockResolvedValue({
       type: "task",

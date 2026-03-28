@@ -67,6 +67,7 @@ function createMcpServer(user: UserContext): McpServer {
     inputSchema: {
       text: z.string().describe("The thought to capture"),
       scope: SCOPE_ENUM,
+      media_url: z.string().url().refine(v => /^https?:/.test(v), { message: "media_url must use http or https" }).optional().describe("Optional URL to associated media (image, video, audio, etc.)"),
     },
   }, async (args) => ({
     content: [{ type: "text" as const, text: await executeTool("capture_thought", args, user) }],
@@ -78,6 +79,7 @@ function createMcpServer(user: UserContext): McpServer {
       id: z.string().describe("The vector key (ID) of the thought to update"),
       text: z.string().describe("The new text content for the thought"),
       scope: SCOPE_ENUM,
+      media_url: z.string().url().refine(v => /^https?:/.test(v), { message: "media_url must use http or https" }).optional().describe("Optional URL to associated media (image, video, audio, etc.)"),
     },
   }, async (args) => ({
     content: [{ type: "text" as const, text: await executeTool("update_thought", args, user) }],

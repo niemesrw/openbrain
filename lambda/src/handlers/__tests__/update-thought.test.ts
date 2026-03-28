@@ -206,4 +206,29 @@ describe("handleUpdateThought", () => {
     const call = mockPutVector.mock.calls[0][3];
     expect(call).not.toHaveProperty("tenant_id");
   });
+
+  it("includes media_url in metadata when provided", async () => {
+    mockGetVector.mockResolvedValue(EXISTING_VECTOR);
+
+    await handleUpdateThought(
+      { id: THOUGHT_ID, text: "updated with media", media_url: "https://example.com/video.mp4" },
+      USER
+    );
+
+    expect(mockPutVector).toHaveBeenCalledWith(
+      expect.any(String),
+      THOUGHT_ID,
+      expect.any(Array),
+      expect.objectContaining({ media_url: "https://example.com/video.mp4" })
+    );
+  });
+
+  it("omits media_url from metadata when not provided", async () => {
+    mockGetVector.mockResolvedValue(EXISTING_VECTOR);
+
+    await handleUpdateThought({ id: THOUGHT_ID, text: "updated without media" }, USER);
+
+    const call = mockPutVector.mock.calls[0][3];
+    expect(call).not.toHaveProperty("media_url");
+  });
 });

@@ -17,6 +17,8 @@ export interface S3VectorMetadata {
   dates_mentioned: string;
   /** Tenant identifier — set to userId on all shared captures for future multi-org filtering */
   tenant_id?: string;
+  /** Optional URL to associated media (image, video, audio, etc.) */
+  media_url?: string;
 }
 
 export interface UserContext {
@@ -52,12 +54,14 @@ export interface StatsArgs {
 export interface CaptureArgs {
   text: string;
   scope?: "private" | "shared";
+  media_url?: string;
 }
 
 export interface UpdateThoughtArgs {
   id: string;
   text: string;
   scope?: "private" | "shared";
+  media_url?: string;
 }
 
 export interface DeleteThoughtArgs {

@@ -9,7 +9,7 @@ export async function handleCaptureThought(
   args: CaptureArgs,
   user: UserContext
 ): Promise<string> {
-  const { text, scope = "private" } = args;
+  const { text, scope = "private", media_url } = args;
 
   const validationError = validateThoughtText(text);
   if (validationError) return validationError;
@@ -40,6 +40,7 @@ export async function handleCaptureThought(
     content: text,
     action_items: JSON.stringify(metadata.action_items),
     dates_mentioned: JSON.stringify(metadata.dates_mentioned),
+    ...(media_url && { media_url }),
     // Attribution for shared captures
     ...(scope === "shared" && {
       display_name: user.displayName || "anonymous",
