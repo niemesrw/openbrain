@@ -84,6 +84,7 @@ export class DataStack extends cdk.Stack {
     // Slack Installations table — maps Slack team installs to Open Brain users
     // PK: teamId (Slack workspace/team ID)  SK: userId (Open Brain user ID)
     // GSI: user-id-index (userId) — allows listing all workspaces for a given user
+    // GSI: team-slack-user-index (teamId, slackUserId) — allows looking up a brain user from a Slack event
     this.slackInstallationsTable = new dynamodb.Table(this, "SlackInstallationsTable", {
       tableName: "openbrain-slack-installations",
       partitionKey: { name: "teamId", type: dynamodb.AttributeType.STRING },
@@ -94,6 +95,12 @@ export class DataStack extends cdk.Stack {
     this.slackInstallationsTable.addGlobalSecondaryIndex({
       indexName: "user-id-index",
       partitionKey: { name: "userId", type: dynamodb.AttributeType.STRING },
+      projectionType: dynamodb.ProjectionType.ALL,
+    });
+    this.slackInstallationsTable.addGlobalSecondaryIndex({
+      indexName: "team-slack-user-index",
+      partitionKey: { name: "teamId", type: dynamodb.AttributeType.STRING },
+      sortKey: { name: "slackUserId", type: dynamodb.AttributeType.STRING },
       projectionType: dynamodb.ProjectionType.ALL,
     });
 

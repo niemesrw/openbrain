@@ -67,10 +67,17 @@ export async function handler(
   }
 
   let payload: Record<string, unknown>;
-  try {
-    payload = JSON.parse(rawBody);
-  } catch {
-    return { statusCode: 400, body: JSON.stringify({ error: "Invalid JSON" }) };
+  const contentType = headers["content-type"] ?? headers["Content-Type"] ?? "";
+  if (contentType.includes("application/x-www-form-urlencoded")) {
+    // Slash commands arrive as URL-encoded form data
+    payload = Object.fromEntries(new URLSearchParams(rawBody).entries()) as Record<string, unknown>;
+    payload.type = "slash_command";
+  } else {
+    try {
+      payload = JSON.parse(rawBody);
+    } catch {
+      return { statusCode: 400, body: JSON.stringify({ error: "Invalid JSON" }) };
+    }
   }
 
   // URL verification challenge (Slack sends this when configuring the Events API endpoint)
