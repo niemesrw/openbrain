@@ -12,6 +12,7 @@ jobs:
       (github.event_name == 'issues' && github.event.label.name == 'claude') ||
       (github.event_name == 'pull_request_review' && github.event.review.author_association == 'CONTRIBUTOR' && github.event.review.user.login == 'copilot-pull-request-reviewer')
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     permissions:
       contents: write
       pull-requests: write
