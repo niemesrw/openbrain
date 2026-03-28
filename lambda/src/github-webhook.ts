@@ -7,6 +7,7 @@ import {
 } from "@aws-sdk/client-secrets-manager";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, DeleteCommand } from "@aws-sdk/lib-dynamodb";
+import { extractClosedIssue, handleOrchestration } from "./handlers/orchestrator";
 
 const sqs = new SQSClient({});
 const sm = new SecretsManagerClient({});
@@ -109,6 +110,27 @@ export async function handler(
     // Events without an installation ID can't be routed to a user — drop them
     console.warn("[github-webhook] Event missing installation.id, ignoring", { eventType });
     return { statusCode: 200, body: JSON.stringify({ status: "ignored", reason: "no installation" }) };
+  }
+
+  // For merged PRs, run the brain-driven orchestrator inline before queuing.
+  // This is fast (brain search + GitHub label call) and must complete before we
+  // respond to GitHub so the 10-second Lambda timeout is the only constraint.
+  if (eventType === "pull_request") {
+    const pr = (payload.pull_request as Record<string, unknown> | undefined);
+    if (payload.action === "closed" && pr?.merged === true) {
+      const closedIssue = extractClosedIssue(pr.body as string | null);
+      if (closedIssue) {
+        const repo = (payload.repository as { full_name?: string } | undefined)?.full_name ?? "";
+        try {
+          await handleOrchestration(closedIssue, repo, String(installationId));
+        } catch (err) {
+          // Orchestration failure must not prevent normal SQS queuing
+          console.error("[github-webhook] Orchestration error (non-fatal)", {
+            err: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+    }
   }
 
   await sqs.send(

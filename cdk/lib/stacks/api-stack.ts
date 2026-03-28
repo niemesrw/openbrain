@@ -481,6 +481,9 @@ export class ApiStack extends cdk.Stack {
     const githubInstallationsTableName = "openbrain-github-installations";
     const githubInstallationsTableArn = `arn:aws:dynamodb:${this.region}:${this.account}:table/${githubInstallationsTableName}`;
 
+    // GitHub App private key — stored in Secrets Manager, referenced by name
+    const githubAppPrivateKeySecretName = "openbrain/github-app-private-key";
+
     // Webhook Lambda — public endpoint, validates GitHub HMAC, enqueues events
     const githubWebhookHandler = new lambdaNode.NodejsFunction(this, "GitHubWebhookHandler", {
       runtime: lambda.Runtime.NODEJS_22_X,
@@ -492,6 +495,10 @@ export class ApiStack extends cdk.Stack {
         GITHUB_EVENTS_QUEUE_URL: githubEventsQueue.queueUrl,
         GITHUB_WEBHOOK_SECRET_NAME: "openbrain/github-webhook-secret",
         GITHUB_INSTALLATIONS_TABLE: githubInstallationsTableName,
+        GITHUB_APP_ID: process.env.GITHUB_APP_ID ?? "3202126",
+        GITHUB_APP_PRIVATE_KEY_SECRET_NAME: githubAppPrivateKeySecretName,
+        ...(process.env.OPENBRAIN_MCP_URL && { OPENBRAIN_MCP_URL: process.env.OPENBRAIN_MCP_URL }),
+        ...(process.env.OPENBRAIN_AGENT_API_KEY && { OPENBRAIN_AGENT_API_KEY: process.env.OPENBRAIN_AGENT_API_KEY }),
       },
       bundling: {
         externalModules: ["@aws-sdk/*"],
@@ -505,9 +512,12 @@ export class ApiStack extends cdk.Stack {
       actions: ["dynamodb:DeleteItem"],
       resources: [githubInstallationsTableArn],
     }));
-
-    // GitHub App private key — stored in Secrets Manager, referenced by name
-    const githubAppPrivateKeySecretName = "openbrain/github-app-private-key";
+    githubWebhookHandler.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["secretsmanager:GetSecretValue"],
+      resources: [
+        `arn:aws:secretsmanager:${this.region}:${this.account}:secret:${githubAppPrivateKeySecretName}*`,
+      ],
+    }));
 
     // GitHub Agent Lambda — SQS consumer: LLM extraction + brain capture
     const githubAgentHandler = new lambdaNode.NodejsFunction(this, "GitHubAgentHandler", {
