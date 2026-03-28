@@ -8,6 +8,7 @@ export class DataStack extends cdk.Stack {
   public readonly agentTasksTable: dynamodb.Table;
   public readonly dcrClientsTable: dynamodb.Table;
   public readonly githubInstallationsTable: dynamodb.Table;
+  public readonly slackInstallationsTable: dynamodb.Table;
 
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
@@ -78,6 +79,16 @@ export class DataStack extends cdk.Stack {
       indexName: "user-id-index",
       partitionKey: { name: "userId", type: dynamodb.AttributeType.STRING },
       projectionType: dynamodb.ProjectionType.ALL,
+    });
+
+    // Slack Installations table — maps Slack team installs to Open Brain users
+    // PK: teamId (Slack workspace/team ID)  SK: userId (Slack user ID)
+    this.slackInstallationsTable = new dynamodb.Table(this, "SlackInstallationsTable", {
+      tableName: "openbrain-slack-installations",
+      partitionKey: { name: "teamId", type: dynamodb.AttributeType.STRING },
+      sortKey: { name: "userId", type: dynamodb.AttributeType.STRING },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
 
     new cdk.CfnOutput(this, "DcrClientsTableName", {

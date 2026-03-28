@@ -648,6 +648,56 @@ export class ApiStack extends cdk.Stack {
       integration: githubRestIntegration,
     });
 
+    // -------------------------------------------------------------------------
+    // Slack — webhook ingestion (signing secret verification, URL challenge)
+    // -------------------------------------------------------------------------
+
+    // Signing secret — stored in Secrets Manager, referenced by name
+    const slackSigningSecret = secretsmanager.Secret.fromSecretNameV2(
+      this,
+      "SlackSigningSecret",
+      "openbrain/slack-signing-secret"
+    );
+
+    // Slack installations table — referenced by hardcoded name to avoid cross-stack CFN imports
+    const slackInstallationsTableName = "openbrain-slack-installations";
+    const slackInstallationsTableArn = `arn:aws:dynamodb:${this.region}:${this.account}:table/${slackInstallationsTableName}`;
+
+    // Slack webhook Lambda — public endpoint, validates Slack HMAC, handles events
+    const slackWebhookHandler = new lambdaNode.NodejsFunction(this, "SlackWebhookHandler", {
+      runtime: lambda.Runtime.NODEJS_22_X,
+      entry: path.join(__dirname, "..", "..", "..", "lambda", "src", "slack-webhook.ts"),
+      handler: "handler",
+      memorySize: 256,
+      timeout: cdk.Duration.seconds(10),
+      environment: {
+        SLACK_SIGNING_SECRET_NAME: "openbrain/slack-signing-secret",
+        SLACK_INSTALLATIONS_TABLE: slackInstallationsTableName,
+      },
+      bundling: {
+        externalModules: ["@aws-sdk/*"],
+        minify: true,
+        sourceMap: true,
+      },
+    });
+    slackSigningSecret.grantRead(slackWebhookHandler);
+    slackWebhookHandler.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:Query"],
+      resources: [slackInstallationsTableArn, `${slackInstallationsTableArn}/index/*`],
+    }));
+
+    const slackWebhookIntegration = new apigwv2Integrations.HttpLambdaIntegration(
+      "SlackWebhookIntegration",
+      slackWebhookHandler
+    );
+
+    // POST /webhooks/slack — public, Slack HMAC validated in-Lambda
+    this.api.addRoutes({
+      path: "/webhooks/slack",
+      methods: [apigwv2.HttpMethod.POST],
+      integration: slackWebhookIntegration,
+    });
+
     // Outputs
     new cdk.CfnOutput(this, "ApiUrl", {
       value: this.api.apiEndpoint,
