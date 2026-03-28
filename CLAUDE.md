@@ -92,6 +92,7 @@ Each Lambda only has the env vars explicitly set in `api-stack.ts`. Check there 
 3. New handlers have unit tests in `lambda/src/handlers/__tests__/`
 4. New routes wired in both `index.ts` (or entry point) AND `api-stack.ts`
 5. Error logging uses `err instanceof Error ? err.message : String(err)`
+6. **Guide** — if this adds or changes a user-facing feature (new tool, integration, or UI), update `web/src/pages/GuidePage.tsx`
 
 ### What You Don't Have Access To
 
@@ -322,6 +323,7 @@ Before submitting a pull request, ensure:
 3. **Performance** — Routes on hot paths (e.g., dashboard load) must not add additional full-index `listAllVectors` scans without a caching strategy. Copilot will flag these.
 4. **Error handling** — Use `err instanceof Error ? err.message : String(err)` when logging errors to handle non-Error throws correctly.
 5. **Web build** — If `web/` files changed, run `cd web && npm run build` to ensure the SPA builds cleanly before deploying via CDK.
+6. **Guide** — If this adds or changes a user-facing feature (new tool, integration, or UI), update `web/src/pages/GuidePage.tsx`.
 
 ## Troubleshooting
 
