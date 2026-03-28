@@ -7,26 +7,30 @@ on:
 
 jobs:
   auto-merge:
-    # Only merge claude/ branches where CI passed
-    if: |
-      github.event.workflow_run.conclusion == 'success' &&
-      startsWith(github.event.workflow_run.head_branch, 'claude/')
+    # Only merge PRs authored by Claude where CI passed
+    if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: write
       pull-requests: write
 
     steps:
-      - name: Merge PR
+      - name: Merge PR if authored by Claude
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
           BRANCH: ${{ github.event.workflow_run.head_branch }}
         run: |
-          PR_NUMBER=$(gh pr list --head "$BRANCH" --state open --json number -q '.[0].number')
-          if [ -z "$PR_NUMBER" ]; then
+          PR_JSON=$(gh pr list --head "$BRANCH" --state open --json number,author -q '.[0]')
+          if [ -z "$PR_JSON" ]; then
             echo "No open PR found for branch $BRANCH — skipping"
             exit 0
           fi
-          echo "Merging PR #$PR_NUMBER ($BRANCH)"
+          PR_NUMBER=$(echo "$PR_JSON" | jq -r '.number')
+          PR_AUTHOR=$(echo "$PR_JSON" | jq -r '.author.login')
+          if [ "$PR_AUTHOR" != "claude" ] && [ "$PR_AUTHOR" != "claude[bot]" ]; then
+            echo "PR #$PR_NUMBER authored by $PR_AUTHOR (not Claude) — skipping auto-merge"
+            exit 0
+          fi
+          echo "Merging PR #$PR_NUMBER ($BRANCH) by $PR_AUTHOR"
           gh pr merge "$PR_NUMBER" --squash --delete-branch
