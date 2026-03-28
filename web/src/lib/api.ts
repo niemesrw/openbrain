@@ -119,3 +119,72 @@ export async function disconnectGitHubInstallation(installationId: string): Prom
     throw new Error(message);
   }
 }
+
+export interface SlackInstallation {
+  teamId: string;
+  teamName: string;
+  slackUserId: string;
+  installedAt: string;
+}
+
+export async function getSlackInstallUrl(): Promise<string> {
+  const token = await getIdToken();
+  const apiUrl = getApiUrl();
+  const res = await fetch(`${apiUrl}/slack/install`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error(`Slack install error: ${res.status}`);
+  const data = await res.json() as { url: string };
+  return data.url;
+}
+
+export async function connectSlackCallback(
+  code: string,
+  state: string
+): Promise<{ ok: boolean; teamName: string; dmSent: boolean }> {
+  const token = await getIdToken();
+  const apiUrl = getApiUrl();
+  const res = await fetch(`${apiUrl}/slack/callback`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ code, state }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => null) as { error?: string } | null;
+    throw new Error(body?.error ?? `Slack callback error: ${res.status}`);
+  }
+  return res.json() as Promise<{ ok: boolean; teamName: string; dmSent: boolean }>;
+}
+
+export async function getSlackInstallations(): Promise<SlackInstallation[]> {
+  const token = await getIdToken();
+  const apiUrl = getApiUrl();
+  const res = await fetch(`${apiUrl}/slack/installations`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error(`Slack installations error: ${res.status}`);
+  const data = await res.json() as { installations: SlackInstallation[] };
+  return data.installations ?? [];
+}
+
+export async function disconnectSlackInstallation(teamId: string): Promise<void> {
+  const token = await getIdToken();
+  const apiUrl = getApiUrl();
+  const res = await fetch(`${apiUrl}/slack/installations/${encodeURIComponent(teamId)}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    let message = `Slack disconnect error: ${res.status}`;
+    try {
+      const body = await res.json() as { error?: string };
+      if (body && typeof body.error === "string") message = body.error;
+    } catch {
+      // ignore
+    }
+    throw new Error(message);
+  }
+}

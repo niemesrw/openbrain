@@ -714,6 +714,79 @@ export class ApiStack extends cdk.Stack {
       integration: slackWebhookIntegration,
     });
 
+    // -------------------------------------------------------------------------
+    // Slack REST — OAuth install flow and installation management
+    // -------------------------------------------------------------------------
+
+    const slackClientIdSecretName = "openbrain/slack-client-id";
+    const slackClientSecretSecretName = "openbrain/slack-client-secret";
+
+    const slackRestHandler = new lambdaNode.NodejsFunction(this, "SlackRestHandler", {
+      runtime: lambda.Runtime.NODEJS_22_X,
+      entry: path.join(__dirname, "..", "..", "..", "lambda", "src", "slack.ts"),
+      handler: "handler",
+      memorySize: 256,
+      timeout: cdk.Duration.seconds(15),
+      environment: {
+        USER_POOL_ID: userPool.userPoolId,
+        AGENT_KEYS_TABLE: agentKeysTableName,
+        SLACK_INSTALLATIONS_TABLE: slackInstallationsTableName,
+        SLACK_CLIENT_ID_SECRET_NAME: slackClientIdSecretName,
+        SLACK_CLIENT_SECRET_SECRET_NAME: slackClientSecretSecretName,
+      },
+      bundling: {
+        externalModules: ["@aws-sdk/*"],
+        minify: true,
+        sourceMap: true,
+      },
+    });
+
+    slackRestHandler.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:Scan", "dynamodb:BatchGetItem"],
+      resources: [agentKeysTableArn, `${agentKeysTableArn}/index/*`],
+    }));
+    slackRestHandler.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:Query"],
+      resources: [slackInstallationsTableArn, `${slackInstallationsTableArn}/index/*`],
+    }));
+    slackRestHandler.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["secretsmanager:GetSecretValue"],
+      resources: [
+        `arn:aws:secretsmanager:${this.region}:${this.account}:secret:${slackClientIdSecretName}*`,
+        `arn:aws:secretsmanager:${this.region}:${this.account}:secret:${slackClientSecretSecretName}*`,
+      ],
+    }));
+
+    const slackRestIntegration = new apigwv2Integrations.HttpLambdaIntegration(
+      "SlackRestIntegration",
+      slackRestHandler
+    );
+
+    // GET /slack/install — auth handled in-Lambda, returns Slack OAuth URL
+    this.api.addRoutes({
+      path: "/slack/install",
+      methods: [apigwv2.HttpMethod.GET],
+      integration: slackRestIntegration,
+    });
+    // POST /slack/callback — auth handled in-Lambda, exchanges OAuth code (POST keeps code out of logs)
+    this.api.addRoutes({
+      path: "/slack/callback",
+      methods: [apigwv2.HttpMethod.POST],
+      integration: slackRestIntegration,
+    });
+    // GET /slack/installations — auth handled in-Lambda
+    this.api.addRoutes({
+      path: "/slack/installations",
+      methods: [apigwv2.HttpMethod.GET],
+      integration: slackRestIntegration,
+    });
+    // DELETE /slack/installations/{teamId} — auth handled in-Lambda
+    this.api.addRoutes({
+      path: "/slack/installations/{teamId}",
+      methods: [apigwv2.HttpMethod.DELETE],
+      integration: slackRestIntegration,
+    });
+
     // Outputs
     new cdk.CfnOutput(this, "ApiUrl", {
       value: this.api.apiEndpoint,

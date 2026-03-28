@@ -8,6 +8,7 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { FeedPage } from "./pages/FeedPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { GitHubCallbackPage } from "./pages/GitHubCallbackPage";
+import { SlackCallbackPage } from "./pages/SlackCallbackPage";
 
 export function App() {
   return (
@@ -23,6 +24,7 @@ export function App() {
             <Route path="/feed" element={<FeedPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/github/callback" element={<GitHubCallbackPage />} />
+            <Route path="/slack/callback" element={<SlackCallbackPage />} />
           </Route>
         </Route>
       </Routes>
