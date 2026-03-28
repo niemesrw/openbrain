@@ -45,4 +45,7 @@ export interface BusActivity {
 export interface Agent {
   name: string;
   createdAt: string;
+  lastSeen: string | null;
+  status: "idle" | "working" | "error" | "stale" | "unknown";
+  statusMessage: string | null;
 }

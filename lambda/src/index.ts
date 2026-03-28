@@ -120,6 +120,16 @@ function createMcpServer(user: UserContext): McpServer {
     content: [{ type: "text" as const, text: await executeTool("revoke_agent", args, user) }],
   }));
 
+  server.registerTool("agent_heartbeat", {
+    description: "Report this agent's current status. Call periodically (e.g. every minute) so the dashboard can show real-time agent health.",
+    inputSchema: {
+      status: z.enum(["idle", "working", "error"]).describe("Current agent status"),
+      message: z.string().optional().describe("Optional status message (e.g. current task description or error detail)"),
+    },
+  }, async (args) => ({
+    content: [{ type: "text" as const, text: await executeTool("agent_heartbeat", args, user) }],
+  }));
+
   server.registerTool("bus_activity", {
     description: "Monitor the public feed — recent shared thoughts grouped by contributor, activity counts, and timeline.",
     inputSchema: {

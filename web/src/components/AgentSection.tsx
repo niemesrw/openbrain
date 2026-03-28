@@ -2,6 +2,29 @@ import { useState, useEffect, useCallback } from "react";
 import { listAgents, createAgent, revokeAgent } from "../lib/brain-api";
 import type { Agent } from "../lib/brain-types";
 
+function StatusDot({ status }: { status: Agent["status"] }) {
+  const colors: Record<Agent["status"], string> = {
+    working: "bg-green-400",
+    idle: "bg-yellow-400",
+    error: "bg-red-500",
+    stale: "bg-red-500",
+    unknown: "bg-gray-500",
+  };
+  const titles: Record<Agent["status"], string> = {
+    working: "Active",
+    idle: "Idle",
+    error: "Error",
+    stale: "Stale (>5 min)",
+    unknown: "No heartbeat",
+  };
+  return (
+    <span
+      className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${colors[status]}`}
+      title={titles[status]}
+    />
+  );
+}
+
 export function AgentSection() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [expanded, setExpanded] = useState(false);
@@ -72,10 +95,17 @@ export function AgentSection() {
             <ul className="space-y-2">
               {agents.map((a) => (
                 <li key={a.name} className="flex items-center justify-between text-sm">
-                  <span className="text-gray-300">
-                    {a.name}{" "}
-                    <span className="text-gray-600">
-                      (created {new Date(a.createdAt).toLocaleDateString()})
+                  <span className="flex items-center gap-2 text-gray-300">
+                    <StatusDot status={a.status} />
+                    <span>
+                      {a.name}
+                      {a.statusMessage && (
+                        <span className="text-gray-500 ml-1">— {a.statusMessage}</span>
+                      )}
+                      {" "}
+                      <span className="text-gray-600">
+                        (created {new Date(a.createdAt).toLocaleDateString()})
+                      </span>
                     </span>
                   </span>
                   <button

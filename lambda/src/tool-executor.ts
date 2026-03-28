@@ -5,6 +5,7 @@ import { handleCaptureThought } from "./handlers/capture-thought";
 import { handleUpdateThought } from "./handlers/update-thought";
 import { handleDeleteThought } from "./handlers/delete-thought";
 import { handleCreateAgent, handleListAgents, handleRevokeAgent } from "./handlers/agent-keys";
+import { handleAgentHeartbeat } from "./handlers/agent-heartbeat";
 import { handleBusActivity } from "./handlers/bus-activity";
 import { handleScheduleTask, handleListTasks, handleCancelTask } from "./handlers/agent-tasks";
 import type { UserContext } from "./types";
@@ -33,6 +34,8 @@ export async function executeTool(
       return handleListAgents(args as any, user);
     case "revoke_agent":
       return handleRevokeAgent(args as any, user);
+    case "agent_heartbeat":
+      return handleAgentHeartbeat(args as any, user);
     case "bus_activity":
       return handleBusActivity(args as any, user);
     case "schedule_task":

@@ -95,3 +95,8 @@ export interface ListAgentsArgs {
   _format?: "json";
 }
 
+export interface AgentHeartbeatArgs {
+  status: "idle" | "working" | "error";
+  message?: string;
+}
+

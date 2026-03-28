@@ -75,11 +75,24 @@ export async function handleListAgents(args: ListAgentsArgs, user: UserContext):
 
   const items = result.Items ?? [];
 
+  const STALE_MS = 5 * 60 * 1000; // 5 minutes
+  const now = Date.now();
+
+  function resolveStatus(item: Record<string, unknown>): string {
+    if (!item.lastSeen) return "unknown";
+    const age = now - new Date(item.lastSeen as string).getTime();
+    if (age > STALE_MS) return "stale";
+    return (item.status as string) ?? "unknown";
+  }
+
   if (args._format === "json") {
     return JSON.stringify({
       agents: items.map((item) => ({
         name: item.agentName,
         createdAt: item.createdAt,
+        lastSeen: item.lastSeen ?? null,
+        status: resolveStatus(item),
+        statusMessage: item.statusMessage ?? null,
       })),
     });
   }
@@ -88,9 +101,11 @@ export async function handleListAgents(args: ListAgentsArgs, user: UserContext):
     return "No agents registered. Use create_agent to create one.";
   }
 
-  const lines = items.map(
-    (item) => `- ${item.agentName} (created ${item.createdAt})`
-  );
+  const lines = items.map((item) => {
+    const status = resolveStatus(item);
+    const msg = item.statusMessage ? ` — ${item.statusMessage}` : "";
+    return `- ${item.agentName} [${status}${msg}] (created ${item.createdAt})`;
+  });
   return [`${items.length} agent(s):`, ...lines].join("\n");
 }
 
