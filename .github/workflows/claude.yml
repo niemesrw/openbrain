@@ -50,6 +50,7 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           additional_permissions: |
             actions: read
+          show_full_output: true
           prompt: |
             ${{ github.event_name == 'issues' && format('
               You have been assigned issue #{0}: {1}
