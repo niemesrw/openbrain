@@ -68,11 +68,28 @@ export async function revokeAgent(name: string): Promise<string> {
   return callTool("revoke_agent", { name });
 }
 
+function extractUrl(text: string): string | undefined {
+  try {
+    const match = text.match(/https?:\/\/[^\s]+/);
+    if (!match) return undefined;
+    const urlText = match[0].replace(/[)\]>"'.,;:!?]+$/u, "");
+    new URL(urlText);
+    return urlText;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function captureThought(
   text: string,
   scope: Scope = "private"
 ): Promise<string> {
-  return callTool("capture_thought", { text, scope });
+  const sourceUrl = extractUrl(text);
+  return callTool("capture_thought", {
+    text,
+    scope,
+    ...(sourceUrl ? { source_url: sourceUrl } : {}),
+  });
 }
 
 export async function updateThought(
