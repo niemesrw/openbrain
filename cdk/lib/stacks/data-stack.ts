@@ -9,6 +9,7 @@ export class DataStack extends cdk.Stack {
   public readonly dcrClientsTable: dynamodb.Table;
   public readonly githubInstallationsTable: dynamodb.Table;
   public readonly slackInstallationsTable: dynamodb.Table;
+  public readonly googleConnectionsTable: dynamodb.Table;
 
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
@@ -102,6 +103,16 @@ export class DataStack extends cdk.Stack {
       partitionKey: { name: "teamId", type: dynamodb.AttributeType.STRING },
       sortKey: { name: "slackUserId", type: dynamodb.AttributeType.STRING },
       projectionType: dynamodb.ProjectionType.ALL,
+    });
+
+    // Google Connections table — stores Google OAuth tokens for Gmail ingestion
+    // PK: userId  SK: email (Google account email)
+    this.googleConnectionsTable = new dynamodb.Table(this, "GoogleConnectionsTable", {
+      tableName: "openbrain-google-connections",
+      partitionKey: { name: "userId", type: dynamodb.AttributeType.STRING },
+      sortKey: { name: "email", type: dynamodb.AttributeType.STRING },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
 
     new cdk.CfnOutput(this, "DcrClientsTableName", {

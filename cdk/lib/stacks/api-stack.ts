@@ -971,6 +971,116 @@ export class ApiStack extends cdk.Stack {
       integration: slackRestIntegration,
     });
 
+    // -------------------------------------------------------------------------
+    // Google REST — OAuth connect flow and Gmail sync
+    // -------------------------------------------------------------------------
+
+    const googleConnectionsTableName = "openbrain-google-connections";
+    const googleConnectionsTableArn = `arn:aws:dynamodb:${this.region}:${this.account}:table/${googleConnectionsTableName}`;
+
+    const googleClientIdSecretName = "openbrain/google-client-id";
+    const googleClientSecretSecretName = "openbrain/google-client-secret";
+
+    const googleRestHandler = new lambdaNode.NodejsFunction(this, "GoogleRestHandler", {
+      runtime: lambda.Runtime.NODEJS_22_X,
+      entry: path.join(__dirname, "..", "..", "..", "lambda", "src", "google.ts"),
+      handler: "handler",
+      memorySize: 512,
+      timeout: cdk.Duration.seconds(60),
+      environment: {
+        USER_POOL_ID: userPool.userPoolId,
+        AGENT_KEYS_TABLE: agentKeysTableName,
+        GOOGLE_CONNECTIONS_TABLE: googleConnectionsTableName,
+        GOOGLE_CLIENT_ID_SECRET_NAME: googleClientIdSecretName,
+        GOOGLE_CLIENT_SECRET_SECRET_NAME: googleClientSecretSecretName,
+        VECTOR_BUCKET_NAME: vectorBucketName,
+        EMBEDDING_MODEL_ID: "amazon.titan-embed-text-v2:0",
+        METADATA_MODEL_ID: "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      },
+      bundling: {
+        externalModules: ["@aws-sdk/*"],
+        minify: true,
+        sourceMap: true,
+      },
+    });
+
+    googleRestHandler.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:Scan", "dynamodb:BatchGetItem"],
+      resources: [agentKeysTableArn, `${agentKeysTableArn}/index/*`],
+    }));
+    googleRestHandler.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:Query"],
+      resources: [googleConnectionsTableArn, `${googleConnectionsTableArn}/index/*`],
+    }));
+    googleRestHandler.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["secretsmanager:GetSecretValue"],
+      resources: [
+        `arn:aws:secretsmanager:${this.region}:${this.account}:secret:${googleClientIdSecretName}*`,
+        `arn:aws:secretsmanager:${this.region}:${this.account}:secret:${googleClientSecretSecretName}*`,
+      ],
+    }));
+    googleRestHandler.addToRolePolicy(new iam.PolicyStatement({
+      actions: [
+        "s3vectors:CreateIndex",
+        "s3vectors:QueryVectors",
+        "s3vectors:PutVectors",
+        "s3vectors:GetVectors",
+        "s3vectors:DeleteVectors",
+        "s3vectors:ListVectors",
+        "s3vectors:ListIndexes",
+      ],
+      resources: [
+        `arn:aws:s3vectors:${this.region}:${this.account}:bucket/${vectorBucketName}`,
+        `arn:aws:s3vectors:${this.region}:${this.account}:bucket/${vectorBucketName}/*`,
+      ],
+    }));
+    googleRestHandler.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["bedrock:InvokeModel"],
+      resources: [
+        `arn:aws:bedrock:${this.region}::foundation-model/amazon.titan-embed-text-v2:0`,
+        `arn:aws:bedrock:${this.region}:${this.account}:inference-profile/us.anthropic.claude-haiku-4-5-20251001-v1:0`,
+        `arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0`,
+        `arn:aws:bedrock:us-east-2::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0`,
+        `arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0`,
+      ],
+    }));
+
+    const googleRestIntegration = new apigwv2Integrations.HttpLambdaIntegration(
+      "GoogleRestIntegration",
+      googleRestHandler
+    );
+
+    // GET /google/connect — auth handled in-Lambda, returns Google OAuth URL
+    this.api.addRoutes({
+      path: "/google/connect",
+      methods: [apigwv2.HttpMethod.GET],
+      integration: googleRestIntegration,
+    });
+    // POST /google/callback — auth handled in-Lambda, exchanges OAuth code
+    this.api.addRoutes({
+      path: "/google/callback",
+      methods: [apigwv2.HttpMethod.POST],
+      integration: googleRestIntegration,
+    });
+    // GET /google/connections — auth handled in-Lambda
+    this.api.addRoutes({
+      path: "/google/connections",
+      methods: [apigwv2.HttpMethod.GET],
+      integration: googleRestIntegration,
+    });
+    // DELETE /google/connections/{email} — auth handled in-Lambda
+    this.api.addRoutes({
+      path: "/google/connections/{email}",
+      methods: [apigwv2.HttpMethod.DELETE],
+      integration: googleRestIntegration,
+    });
+    // POST /google/sync — auth handled in-Lambda, triggers email sync
+    this.api.addRoutes({
+      path: "/google/sync",
+      methods: [apigwv2.HttpMethod.POST],
+      integration: googleRestIntegration,
+    });
+
     // Outputs
     new cdk.CfnOutput(this, "ApiUrl", {
       value: this.api.apiEndpoint,

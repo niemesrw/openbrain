@@ -263,6 +263,21 @@ export function GuidePage() {
               <li>Use <code className="text-blue-400">/brain [query]</code> in any channel to search your brain</li>
             </ul>
           </div>
+
+          {/* Gmail */}
+          <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-5 space-y-2">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">📧</span>
+              <h3 className="text-white font-semibold text-lg">Gmail</h3>
+            </div>
+            <p className="text-gray-400 text-sm">
+              Gmail integration lets Open Brain capture email metadata (sender, subject, date) as searchable reference thoughts — so you can ask "what did Sarah send me about the Q2 budget?" and find it instantly. The Gmail connector is currently available via the API; a Settings UI entry point is coming soon.
+            </p>
+            <ul className="text-gray-400 text-sm list-disc list-inside space-y-1">
+              <li>Uses Gmail metadata scope only — no email body access</li>
+              <li>Run syncs via API today, and from Settings or scheduled tasks once the Gmail connector UI is available</li>
+            </ul>
+          </div>
         </div>
       </div>
 
