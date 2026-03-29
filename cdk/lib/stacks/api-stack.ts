@@ -764,6 +764,61 @@ export class ApiStack extends cdk.Stack {
     });
 
     // -------------------------------------------------------------------------
+    // Slack Notify — SQS-triggered Lambda that fans out channel: thoughts to Slack
+    // -------------------------------------------------------------------------
+
+    const slackNotifyDlq = new sqs.Queue(this, "SlackNotifyDlq", {
+      queueName: "openbrain-slack-notify-dlq",
+      retentionPeriod: cdk.Duration.days(14),
+    });
+
+    const slackNotifyQueue = new sqs.Queue(this, "SlackNotifyQueue", {
+      queueName: "openbrain-slack-notify",
+      visibilityTimeout: cdk.Duration.seconds(300),
+      deadLetterQueue: {
+        queue: slackNotifyDlq,
+        maxReceiveCount: 3,
+      },
+    });
+
+    const slackNotifyHandler = new lambdaNode.NodejsFunction(this, "SlackNotifyHandler", {
+      runtime: lambda.Runtime.NODEJS_22_X,
+      entry: path.join(__dirname, "..", "..", "..", "lambda", "src", "slack-notify.ts"),
+      handler: "handler",
+      memorySize: 256,
+      timeout: cdk.Duration.seconds(60),
+      environment: {
+        SLACK_INSTALLATIONS_TABLE: slackInstallationsTableName,
+      },
+      bundling: {
+        externalModules: ["@aws-sdk/*"],
+        minify: true,
+        sourceMap: true,
+      },
+    });
+
+    slackNotifyHandler.addEventSource(
+      new lambdaEventSources.SqsEventSource(slackNotifyQueue, { batchSize: 10 })
+    );
+
+    slackNotifyHandler.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["dynamodb:Query"],
+      resources: [slackInstallationsTableArn, `${slackInstallationsTableArn}/index/*`],
+    }));
+
+    // Allow all Lambdas that invoke handleCaptureThought to enqueue notify messages
+    slackNotifyQueue.grantSendMessages(this.handler);
+    slackNotifyQueue.grantSendMessages(slackDeferredHandler);
+    slackNotifyQueue.grantSendMessages(slackWebhookHandler);
+    slackNotifyQueue.grantSendMessages(githubAgentHandler);
+
+    // Inject queue URL so handlers can enqueue without hard-coding the URL
+    this.handler.addEnvironment("SLACK_NOTIFY_QUEUE_URL", slackNotifyQueue.queueUrl);
+    slackDeferredHandler.addEnvironment("SLACK_NOTIFY_QUEUE_URL", slackNotifyQueue.queueUrl);
+    slackWebhookHandler.addEnvironment("SLACK_NOTIFY_QUEUE_URL", slackNotifyQueue.queueUrl);
+    githubAgentHandler.addEnvironment("SLACK_NOTIFY_QUEUE_URL", slackNotifyQueue.queueUrl);
+
+    // -------------------------------------------------------------------------
     // Slack REST — OAuth install flow and installation management
     // -------------------------------------------------------------------------
 
