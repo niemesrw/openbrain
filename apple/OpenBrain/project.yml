@@ -20,7 +20,9 @@ targets:
     platform: iOS
     deploymentTarget: "17.0"
     sources:
-      - iOS
+      - path: iOS
+        resourceFiles:
+          - iOS/PrivacyInfo.xcprivacy
     dependencies:
       - package: OpenBrainKit
     settings:
@@ -55,7 +57,9 @@ targets:
     platform: macOS
     deploymentTarget: "14.0"
     sources:
-      - macOS
+      - path: macOS
+        resourceFiles:
+          - macOS/PrivacyInfo.xcprivacy
     dependencies:
       - package: OpenBrainKit
     settings:
