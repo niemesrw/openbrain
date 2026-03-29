@@ -23,14 +23,13 @@ const GMAIL_TRANSACTIONAL_KEYWORDS = [
   "itinerary", "receipt", "ticket", "invoice", "order",
 ];
 
-// Only pull from Primary tab — exclude Promotions, Social, Updates, Forums
-const GMAIL_QUERY = [
-  "in:inbox",
-  "-category:promotions",
-  "-category:social",
-  "-category:updates",
-  "-category:forums",
-].join(" ");
+// gmail.metadata scope does not support q= parameter — filter by labelIds instead
+const GMAIL_NOISE_LABELS = new Set([
+  "CATEGORY_PROMOTIONS",
+  "CATEGORY_SOCIAL",
+  "CATEGORY_UPDATES",
+  "CATEGORY_FORUMS",
+]);
 
 const GOOGLE_CONNECTIONS_TABLE = process.env.GOOGLE_CONNECTIONS_TABLE!;
 const GOOGLE_CLIENT_ID_SECRET_NAME = process.env.GOOGLE_CLIENT_ID_SECRET_NAME!;
@@ -403,10 +402,11 @@ export async function handleGoogleSync(
     );
     newHistoryId = histData.historyId;
   } else {
-    // Initial full sync — list recent messages (Primary tab only)
+    // Initial full sync — list recent messages
+    // Note: gmail.metadata scope does not support q= parameter; noise filtering done via labelIds below
     const listUrl =
       `https://gmail.googleapis.com/gmail/v1/users/me/messages` +
-      `?maxResults=${GMAIL_SYNC_LIMIT}&q=${encodeURIComponent(GMAIL_QUERY)}`;
+      `?maxResults=${GMAIL_SYNC_LIMIT}`;
 
     const listResp = await fetch(listUrl, {
       headers: { Authorization: `Bearer ${accessToken}` },
@@ -471,6 +471,12 @@ export async function handleGoogleSync(
       const labels = (msg.labelIds ?? []).filter(
         (l) => !["UNREAD", "INBOX", "SENT", "SPAM", "TRASH"].includes(l)
       );
+
+      // Skip noise categories (Promotions, Social, Updates, Forums)
+      if ((msg.labelIds ?? []).some((l) => GMAIL_NOISE_LABELS.has(l))) {
+        skipped++;
+        continue;
+      }
 
       // Skip large-group emails unless they look transactional
       const participantCount = countParticipants(headers);

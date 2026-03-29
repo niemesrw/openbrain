@@ -418,18 +418,33 @@ describe("handleGoogleSync", () => {
     expect(result.skipped).toBe(0);
   });
 
-  it("includes the Gmail category query in the list request URL", async () => {
+  it("skips messages with noise category labels", async () => {
+    const promotionalMetadata = {
+      id: "msg1",
+      threadId: "thread1",
+      labelIds: ["INBOX", "CATEGORY_PROMOTIONS"],
+      payload: {
+        headers: [
+          { name: "From", value: "deals@shop.com" },
+          { name: "To", value: "alice@example.com" },
+          { name: "Subject", value: "50% off sale!" },
+          { name: "Date", value: "Mon, 29 Mar 2026 10:00:00 +0000" },
+        ],
+      },
+    };
+
     mockDdbSend
       .mockResolvedValueOnce({ Item: connection })
       .mockResolvedValueOnce({});
 
     mockFetch
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ messages: [] }) })
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ historyId: "999" }) });
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ messages: [{ id: "msg1", threadId: "thread1" }] }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ historyId: "999" }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => promotionalMetadata });
 
-    await handleGoogleSync("alice@example.com", USER);
-    const listCall = mockFetch.mock.calls[0];
-    expect(listCall[0]).toContain("category%3Apromotions");
-    expect(listCall[0]).toContain("category%3Asocial");
+    const result = await handleGoogleSync("alice@example.com", USER);
+    expect(result.captured).toBe(0);
+    expect(result.skipped).toBe(1);
+    expect(handleCaptureThought).not.toHaveBeenCalled();
   });
 });
