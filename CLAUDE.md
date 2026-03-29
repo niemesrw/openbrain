@@ -331,3 +331,42 @@ If tools return errors, check CloudWatch Logs for the Lambda function. Common is
 - **Bedrock model access:** Ensure Titan Embed v2 and the Claude Haiku model are enabled in your region
 - **S3 Vectors permissions:** The Lambda role needs `s3vectors:*` on the vector bucket
 - **`AccessDeniedException` from Bedrock with a cross-region model:** Cross-region inference profiles (e.g. `us.anthropic.claude-haiku-4-5-20251001-v1:0`) require the IAM policy to grant access to both the inference profile ARN *and* the underlying foundation model ARNs in each routable region. The profile ARN alone is not sufficient. See `api-stack.ts` for the required ARN set.
+
+## Apple (iOS / macOS)
+
+Native apps live in `apple/`. Both use **XcodeGen** — edit `project.yml`, then run `xcodegen generate` to regenerate the `.xcodeproj`.
+
+### Apple Developer
+
+| Property | Value |
+|----------|-------|
+| Team ID | `GCRLV5UC4Q` |
+| Bundle ID prefix | `com.blanxlait.openbrain` |
+
+Team ID is not a secret — it's committed directly in `project.yml` and entitlements.
+
+### App Store Connect API (for CI)
+
+| Property | Value |
+|----------|-------|
+| Key Name | BLANXLAIT CI |
+| Key ID | `XGFA878VQB` |
+| Issuer ID | `69a6de83-1bd1-47e3-e053-5b8c7c11a4d1` |
+| Access | App Manager |
+
+Key ID and Issuer ID can go in GitHub secrets. The `.p8` private key file is a secret — never commit it.
+
+### Xcode Cloud
+
+We use **Xcode Cloud** (not GitHub Actions) for iOS/macOS builds. Xcode Cloud handles signing and provisioning automatically.
+
+Because both apps use XcodeGen, each needs a pre-clone script so Xcode Cloud can find the `.xcodeproj`:
+
+- `apple/ios/OpenBrain/ci_scripts/ci_post_clone.sh`
+- `apple/macos/OpenBrain/ci_scripts/ci_post_clone.sh`
+
+Both scripts should run `brew install xcodegen && xcodegen generate` before the build phase.
+
+### Per-project vs shared API keys
+
+One shared Team key (`BLANXLAIT CI`) is fine for this org — per-project keys only matter for blast-radius isolation at scale. Stick with the shared key.

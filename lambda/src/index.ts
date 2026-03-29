@@ -215,6 +215,27 @@ export async function handler(
     };
   }
 
+  // Auth config — returns Cognito domain + client IDs for mobile/CLI auth flows
+  if (method === "GET" && event.rawPath === "/auth/config") {
+    const cognitoDomain = process.env.COGNITO_DOMAIN;
+    const clientId = process.env.COGNITO_CLI_CLIENT_ID;
+    if (!cognitoDomain || !clientId) {
+      return {
+        statusCode: 500,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ error: "Auth configuration unavailable" }),
+      };
+    }
+    const body: Record<string, string> = { cognitoDomain, clientId };
+    const mobileClientId = process.env.COGNITO_MOBILE_CLIENT_ID;
+    if (mobileClientId) body.mobileClientId = mobileClientId;
+    return {
+      statusCode: 200,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    };
+  }
+
   // Insight endpoint — GET /insight, auth required
   if (method === "GET" && event.rawPath === "/insight") {
     let user: UserContext;

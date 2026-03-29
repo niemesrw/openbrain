@@ -23,6 +23,8 @@ interface ApiStackProps extends cdk.StackProps {
   userPool: cognito.UserPool;
   webClient: cognito.UserPoolClient;
   cliClient: cognito.UserPoolClient;
+  mobileClient: cognito.UserPoolClient;
+  userPoolDomain: cognito.UserPoolDomain;
   customDomain?: string;
   webOrigin?: string;
 }
@@ -40,6 +42,8 @@ export class ApiStack extends cdk.Stack {
       userPool,
       webClient,
       cliClient,
+      mobileClient,
+      userPoolDomain,
       customDomain,
       webOrigin,
     } = props;
@@ -71,6 +75,9 @@ export class ApiStack extends cdk.Stack {
         USERS_TABLE: usersTableName,
         AGENT_TASKS_TABLE: agentTasksTableName,
         USER_POOL_ID: userPool.userPoolId,
+        COGNITO_DOMAIN: userPoolDomain.baseUrl(),
+        COGNITO_CLI_CLIENT_ID: cliClient.userPoolClientId,
+        COGNITO_MOBILE_CLIENT_ID: mobileClient.userPoolClientId,
         ...(customDomain && { CUSTOM_DOMAIN: customDomain }),
       },
       bundling: {
@@ -304,6 +311,79 @@ export class ApiStack extends cdk.Stack {
       methods: [apigwv2.HttpMethod.POST],
       integration: chatIntegration,
       authorizer,
+    });
+
+    // Brain chat Lambda — non-streaming JSON chat for native mobile/desktop apps
+    const brainChatHandler = new lambdaNode.NodejsFunction(this, "BrainChatHandler", {
+      runtime: lambda.Runtime.NODEJS_22_X,
+      entry: path.join(__dirname, "..", "..", "..", "lambda", "src", "brain-chat.ts"),
+      handler: "handler",
+      memorySize: 512,
+      timeout: cdk.Duration.seconds(30),
+      environment: {
+        VECTOR_BUCKET_NAME: vectorBucketName,
+        EMBEDDING_MODEL_ID: "amazon.titan-embed-text-v2:0",
+        METADATA_MODEL_ID: "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+        CHAT_MODEL_ID: "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+        AGENT_KEYS_TABLE: agentKeysTableName,
+        USERS_TABLE: usersTableName,
+        AGENT_TASKS_TABLE: agentTasksTableName,
+        USER_POOL_ID: userPool.userPoolId,
+      },
+      bundling: {
+        externalModules: ["@aws-sdk/*"],
+        minify: true,
+        sourceMap: true,
+      },
+    });
+    brainChatHandler.addToRolePolicy(new iam.PolicyStatement({
+      actions: [
+        "s3vectors:CreateIndex", "s3vectors:QueryVectors", "s3vectors:PutVectors",
+        "s3vectors:GetVectors", "s3vectors:DeleteVectors", "s3vectors:ListVectors", "s3vectors:ListIndexes",
+      ],
+      resources: [
+        `arn:aws:s3vectors:${this.region}:${this.account}:bucket/${vectorBucketName}`,
+        `arn:aws:s3vectors:${this.region}:${this.account}:bucket/${vectorBucketName}/*`,
+      ],
+    }));
+    brainChatHandler.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["bedrock:InvokeModel"],
+      resources: [
+        `arn:aws:bedrock:${this.region}::foundation-model/amazon.titan-embed-text-v2:0`,
+        `arn:aws:bedrock:${this.region}:${this.account}:inference-profile/us.anthropic.claude-haiku-4-5-20251001-v1:0`,
+        `arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0`,
+        `arn:aws:bedrock:us-east-2::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0`,
+        `arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0`,
+      ],
+    }));
+    brainChatHandler.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:Query", "dynamodb:Scan", "dynamodb:BatchGetItem", "dynamodb:BatchWriteItem"],
+      resources: [agentKeysTableArn, `${agentKeysTableArn}/index/*`],
+    }));
+    brainChatHandler.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:Scan", "dynamodb:BatchGetItem"],
+      resources: [usersTableArn, `${usersTableArn}/index/*`],
+    }));
+    brainChatHandler.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:Query", "dynamodb:Scan", "dynamodb:BatchGetItem", "dynamodb:BatchWriteItem"],
+      resources: [agentTasksTableArn, `${agentTasksTableArn}/index/*`],
+    }));
+    const brainChatIntegration = new apigwv2Integrations.HttpLambdaIntegration(
+      "BrainChatIntegration",
+      brainChatHandler,
+    );
+    this.api.addRoutes({
+      path: "/brain/chat",
+      methods: [apigwv2.HttpMethod.POST, apigwv2.HttpMethod.OPTIONS],
+      integration: brainChatIntegration,
+      authorizer,
+    });
+
+    // Auth config route — public, for mobile app auth flow bootstrapping
+    this.api.addRoutes({
+      path: "/auth/config",
+      methods: [apigwv2.HttpMethod.GET],
+      integration,
     });
 
     // OAuth handler Lambda (discovery, authorization proxy, DCR)

@@ -1,0 +1,13 @@
+# Generated Xcode projects — run `xcodegen generate` locally
+# Xcode Cloud regenerates via ci_scripts/ci_post_clone.sh
+**/*.xcodeproj
+
+# Swift package build artifacts
+**/.build/
+
+# Xcode user data
+xcuserdata/
+**/*.xcworkspace/xcuserdata
+*.xccheckout
+*.moved-aside
+DerivedData/

@@ -57,6 +57,8 @@ const api = new ApiStack(app, "EnterpriseBrainApi", {
   userPool: auth.userPool,
   webClient: auth.webClient,
   cliClient: auth.cliClient,
+  mobileClient: auth.mobileClient,
+  userPoolDomain: auth.userPoolDomain,
   customDomain,
   webOrigin,
 });

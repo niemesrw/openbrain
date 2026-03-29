@@ -14,6 +14,7 @@ export class AuthStack extends cdk.Stack {
   public readonly userPoolDomain: cognito.UserPoolDomain;
   public readonly webClient: cognito.UserPoolClient;
   public readonly cliClient: cognito.UserPoolClient;
+  public readonly mobileClient: cognito.UserPoolClient;
 
   constructor(scope: Construct, id: string, props: AuthStackProps) {
     super(scope, id, props);
@@ -128,6 +129,33 @@ export class AuthStack extends cdk.Stack {
     // Ensure the CLI client is created after the Google provider
     this.cliClient.node.addDependency(googleProvider);
 
+    // Mobile client — for iOS/macOS native apps, uses custom URL scheme
+    this.mobileClient = this.userPool.addClient("MobileClient", {
+      userPoolClientName: "brain-mobile",
+      authFlows: {
+        userSrp: true,
+      },
+      generateSecret: false,
+      supportedIdentityProviders: [
+        cognito.UserPoolClientIdentityProvider.COGNITO,
+        cognito.UserPoolClientIdentityProvider.GOOGLE,
+      ],
+      oAuth: {
+        flows: { authorizationCodeGrant: true },
+        scopes: [
+          cognito.OAuthScope.OPENID,
+          cognito.OAuthScope.EMAIL,
+          cognito.OAuthScope.PROFILE,
+        ],
+        callbackUrls: ["openbrain://callback"],
+        logoutUrls: ["openbrain://logout"],
+      },
+      accessTokenValidity: cdk.Duration.hours(1),
+      idTokenValidity: cdk.Duration.hours(1),
+      refreshTokenValidity: cdk.Duration.days(30),
+    });
+    this.mobileClient.node.addDependency(googleProvider);
+
     new cdk.CfnOutput(this, "UserPoolId", {
       value: this.userPool.userPoolId,
       exportName: "BrainUserPoolId",
@@ -143,6 +171,10 @@ export class AuthStack extends cdk.Stack {
     new cdk.CfnOutput(this, "CognitoDomain", {
       value: this.userPoolDomain.baseUrl(),
       exportName: "BrainCognitoDomain",
+    });
+    new cdk.CfnOutput(this, "MobileClientId", {
+      value: this.mobileClient.userPoolClientId,
+      exportName: "BrainMobileClientId",
     });
   }
 }
