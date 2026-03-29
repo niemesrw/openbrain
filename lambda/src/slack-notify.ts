@@ -9,8 +9,6 @@ import type { SQSEvent } from "aws-lambda";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, QueryCommand } from "@aws-sdk/lib-dynamodb";
 
-const SLACK_INSTALLATIONS_TABLE = process.env.SLACK_INSTALLATIONS_TABLE!;
-
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
 export interface SlackNotifyMessage {
@@ -31,7 +29,7 @@ interface SlackInstallationRecord {
 async function getInstallation(userId: string): Promise<SlackInstallationRecord | null> {
   const result = await ddb.send(
     new QueryCommand({
-      TableName: SLACK_INSTALLATIONS_TABLE,
+      TableName: process.env.SLACK_INSTALLATIONS_TABLE!,
       IndexName: "user-id-index",
       KeyConditionExpression: "userId = :uid",
       ExpressionAttributeValues: { ":uid": userId },
@@ -84,6 +82,15 @@ export async function handler(event: SQSEvent): Promise<void> {
     }
 
     const { userId, thoughtId, text, topics } = message;
+    if (
+      typeof userId !== "string" ||
+      typeof thoughtId !== "string" ||
+      typeof text !== "string" ||
+      !Array.isArray(topics)
+    ) {
+      console.error("[slack-notify] Malformed message — missing required fields", record.messageId);
+      continue;
+    }
     console.log("[slack-notify] Processing notification", { userId, thoughtId });
 
     let installation: SlackInstallationRecord | null;

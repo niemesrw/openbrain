@@ -80,7 +80,7 @@ export async function handleCaptureThought(
     t => t === "channel:notify" || t === "channel:alert" || t === "channel:shared"
   );
   if (notifyTopics.length > 0 && slackNotifyQueueUrl) {
-    await getSqsClient()
+    void getSqsClient()
       .send(
         new SendMessageCommand({
           QueueUrl: slackNotifyQueueUrl,

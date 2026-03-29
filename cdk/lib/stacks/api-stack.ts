@@ -774,7 +774,7 @@ export class ApiStack extends cdk.Stack {
 
     const slackNotifyQueue = new sqs.Queue(this, "SlackNotifyQueue", {
       queueName: "openbrain-slack-notify",
-      visibilityTimeout: cdk.Duration.seconds(60),
+      visibilityTimeout: cdk.Duration.seconds(300),
       deadLetterQueue: {
         queue: slackNotifyDlq,
         maxReceiveCount: 3,
