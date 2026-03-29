@@ -5,15 +5,15 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Open Brain</string>
+	<string>Brain</string>
 	<key>CFBundleExecutable</key>
-	<string>OpenBrain</string>
+	<string>Brain</string>
 	<key>CFBundleIdentifier</key>
-	<string>com.blanxlait.openbrain.ios</string>
+	<string>ai.blanxlait.brain.ios</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>Open Brain</string>
+	<string>Brain</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -22,7 +22,7 @@
 	<array>
 		<dict>
 			<key>CFBundleURLName</key>
-			<string>com.blanxlait.openbrain.oauth</string>
+			<string>ai.blanxlait.brain.oauth</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>openbrain</string>

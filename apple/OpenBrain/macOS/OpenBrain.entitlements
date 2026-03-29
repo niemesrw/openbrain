@@ -8,7 +8,7 @@
     <true/>
     <key>keychain-access-groups</key>
     <array>
-        <string>$(AppIdentifierPrefix)com.blanxlait.openbrain</string>
+        <string>$(AppIdentifierPrefix)ai.blanxlait.brain</string>
     </array>
 </dict>
 </plist>

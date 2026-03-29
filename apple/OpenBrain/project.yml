@@ -1,6 +1,6 @@
-name: OpenBrain
+name: Brain
 options:
-  bundleIdPrefix: com.blanxlait
+  bundleIdPrefix: ai.blanxlait
   xcodeVersion: "16.0"
   generateEmptyDirectories: true
 
@@ -15,7 +15,7 @@ settings:
     CODE_SIGN_STYLE: Automatic
 
 targets:
-  OpenBrain-iOS:
+  Brain-iOS:
     type: application
     platform: iOS
     deploymentTarget: "17.0"
@@ -27,32 +27,32 @@ targets:
       - package: OpenBrainKit
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.blanxlait.openbrain.ios
-        PRODUCT_NAME: OpenBrain
+        PRODUCT_BUNDLE_IDENTIFIER: ai.blanxlait.brain.ios
+        PRODUCT_NAME: Brain
         CODE_SIGN_ENTITLEMENTS: iOS/OpenBrain.entitlements
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         IPHONEOS_DEPLOYMENT_TARGET: "17.0"
     info:
       path: iOS/Info.plist
       properties:
-        CFBundleName: Open Brain
-        CFBundleDisplayName: Open Brain
-        CFBundleIdentifier: com.blanxlait.openbrain.ios
+        CFBundleName: Brain
+        CFBundleDisplayName: Brain
+        CFBundleIdentifier: ai.blanxlait.brain.ios
         CFBundleVersion: "1"
         CFBundleShortVersionString: "1.0.0"
         CFBundlePackageType: APPL
-        CFBundleExecutable: OpenBrain
+        CFBundleExecutable: Brain
         MinimumOSVersion: "17.0"
         CFBundleURLTypes:
           - CFBundleURLSchemes:
               - openbrain
-            CFBundleURLName: com.blanxlait.openbrain.oauth
+            CFBundleURLName: ai.blanxlait.brain.oauth
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: false
         ITSAppUsesNonExemptEncryption: false
         UILaunchScreen: {}
 
-  OpenBrain-macOS:
+  Brain-macOS:
     type: application
     platform: macOS
     deploymentTarget: "14.0"
@@ -64,26 +64,26 @@ targets:
       - package: OpenBrainKit
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.blanxlait.openbrain.macos
-        PRODUCT_NAME: OpenBrain
+        PRODUCT_BUNDLE_IDENTIFIER: ai.blanxlait.brain.macos
+        PRODUCT_NAME: Brain
         CODE_SIGN_ENTITLEMENTS: macOS/OpenBrain.entitlements
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         MACOSX_DEPLOYMENT_TARGET: "14.0"
     info:
       path: macOS/Info.plist
       properties:
-        CFBundleName: Open Brain
-        CFBundleDisplayName: Open Brain
-        CFBundleIdentifier: com.blanxlait.openbrain.macos
+        CFBundleName: Brain
+        CFBundleDisplayName: Brain
+        CFBundleIdentifier: ai.blanxlait.brain.macos
         CFBundleVersion: "1"
         CFBundleShortVersionString: "1.0.0"
         CFBundlePackageType: APPL
-        CFBundleExecutable: OpenBrain
+        CFBundleExecutable: Brain
         LSMinimumSystemVersion: "14.0"
         CFBundleURLTypes:
           - CFBundleURLSchemes:
               - openbrain
-            CFBundleURLName: com.blanxlait.openbrain.oauth
+            CFBundleURLName: ai.blanxlait.brain.oauth
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: false
         ITSAppUsesNonExemptEncryption: false

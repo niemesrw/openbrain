@@ -14,7 +14,7 @@ export function Layout() {
     <div className="min-h-screen">
       <nav className="border-b border-gray-800 px-6 py-4 flex items-center justify-between">
         <Link to="/" className="text-xl font-bold text-white">
-          Open Brain
+          Brain <span className="text-gray-500 text-sm font-normal">by BLANXLAIT</span>
         </Link>
         <div className="flex items-center gap-4">
           {user ? (
