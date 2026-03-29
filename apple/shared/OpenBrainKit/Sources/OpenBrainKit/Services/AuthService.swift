@@ -58,7 +58,12 @@ public final class AuthService: NSObject {
     private func fetchAuthConfig() async throws -> AuthConfig {
         if let cached = authConfig { return cached }
         let url = Constants.baseURL.appendingPathComponent("auth/config")
-        let (data, _) = try await URLSession.shared.data(from: url)
+        var req = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData)
+        req.setValue("application/json", forHTTPHeaderField: "Accept")
+        let (data, response) = try await URLSession.shared.data(for: req)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            throw AuthError.configUnavailable
+        }
         let config = try JSONDecoder().decode(AuthConfig.self, from: data)
         authConfig = config
         return config
@@ -238,12 +243,14 @@ public final class AuthService: NSObject {
         case notAuthenticated
         case noCodeInCallback
         case invalidToken
+        case configUnavailable
 
         public var errorDescription: String? {
             switch self {
             case .notAuthenticated: "Not authenticated"
             case .noCodeInCallback: "No authorization code received"
             case .invalidToken: "Invalid token received"
+            case .configUnavailable: "Auth configuration unavailable — check server"
             }
         }
     }
