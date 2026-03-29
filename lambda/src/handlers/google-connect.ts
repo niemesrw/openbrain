@@ -16,7 +16,8 @@ import { handleCaptureThought } from "./capture-thought";
 import type { UserContext } from "../types";
 
 const STATE_TTL_MS = 15 * 60 * 1000; // 15 minutes
-const GMAIL_SYNC_LIMIT = 50; // max candidates per pull (many will be filtered out)
+const GMAIL_SYNC_LIMIT = 20; // max candidates per pull (many will be filtered out)
+const GMAIL_CAPTURE_DELAY_MS = 300; // throttle Bedrock embedding calls
 const GMAIL_MAX_PARTICIPANTS = 6; // 1:1 and small-group only
 const GMAIL_TRANSACTIONAL_KEYWORDS = [
   "confirmation", "confirmed", "booking", "reservation",
@@ -362,6 +363,21 @@ function isTransactional(subject: string): boolean {
   return GMAIL_TRANSACTIONAL_KEYWORDS.some((kw) => lower.includes(kw));
 }
 
+const AUTOMATED_SENDER_PATTERNS = [
+  /no.?reply/i,
+  /do.not.reply/i,
+  /noreply/i,
+  /notifications?@/i,
+  /alerts?@/i,
+  /mailer.daemon/i,
+  /postmaster@/i,
+  /bounce[sd]?@/i,
+];
+
+function isAutomatedSender(from: string): boolean {
+  return AUTOMATED_SENDER_PATTERNS.some((re) => re.test(from));
+}
+
 export interface GoogleSyncResult {
   ok: boolean;
   email: string;
@@ -437,7 +453,8 @@ export async function handleGoogleSync(
   let captured = 0;
   let skipped = 0;
 
-  for (const id of messageIds) {
+  for (let i = 0; i < messageIds.length; i++) {
+    const id = messageIds[i];
     try {
       // Fetch message metadata (headers only — no body, no base64)
       const msgUrl =
@@ -473,8 +490,25 @@ export async function handleGoogleSync(
         (l) => !["UNREAD", "INBOX", "SENT", "SPAM", "TRASH"].includes(l)
       );
 
-      // Skip noise categories (Promotions, Social, Updates, Forums)
+      // Skip hard noise categories (Promotions, Social, Forums)
       if ((msg.labelIds ?? []).some((l) => GMAIL_NOISE_LABELS.has(l))) {
+        skipped++;
+        continue;
+      }
+
+      // CATEGORY_UPDATES contains both transactional emails and automated alerts —
+      // only keep it if the subject looks transactional
+      if (
+        (msg.labelIds ?? []).includes("CATEGORY_UPDATES") &&
+        !isTransactional(subject)
+      ) {
+        skipped++;
+        continue;
+      }
+
+      // Skip automated senders (no-reply, notifications@, alerts@, etc.)
+      // unless the subject looks transactional (receipts, bookings still wanted)
+      if (isAutomatedSender(from) && !isTransactional(subject)) {
         skipped++;
         continue;
       }
@@ -500,6 +534,11 @@ export async function handleGoogleSync(
     } catch (e) {
       console.error(`Failed to process message ${id}:`, e instanceof Error ? e.message : String(e));
       skipped++;
+    } finally {
+      // Throttle Bedrock embedding calls; skip delay after last message
+      if (i < messageIds.length - 1) {
+        await new Promise((resolve) => setTimeout(resolve, GMAIL_CAPTURE_DELAY_MS));
+      }
     }
   }
 

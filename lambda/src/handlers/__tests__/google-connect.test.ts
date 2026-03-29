@@ -248,6 +248,18 @@ describe("handleGoogleDisconnect", () => {
 });
 
 describe("handleGoogleSync", () => {
+  beforeEach(() => {
+    // Make setTimeout a no-op so capture throttle doesn't slow tests
+    jest.spyOn(global, "setTimeout").mockImplementation((fn: Parameters<typeof setTimeout>[0]) => {
+      if (typeof fn === "function") fn();
+      return 0 as unknown as ReturnType<typeof setTimeout>;
+    });
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   const connection = {
     userId: "user-abc",
     email: "alice@example.com",
@@ -475,5 +487,94 @@ describe("handleGoogleSync", () => {
     expect(result.captured).toBe(0);
     expect(result.skipped).toBe(1);
     expect(handleCaptureThought).not.toHaveBeenCalled();
+  });
+
+  it("skips CATEGORY_UPDATES emails that are not transactional (automated alerts)", async () => {
+    const alertMetadata = {
+      id: "msg1",
+      threadId: "thread1",
+      labelIds: ["INBOX", "CATEGORY_UPDATES"],
+      payload: {
+        headers: [
+          { name: "From", value: "alerts@github.com" },
+          { name: "To", value: "alice@example.com" },
+          { name: "Subject", value: "New comment on your pull request" },
+          { name: "Date", value: "Mon, 29 Mar 2026 10:00:00 +0000" },
+        ],
+      },
+    };
+
+    mockDdbSend
+      .mockResolvedValueOnce({ Item: connection })
+      .mockResolvedValueOnce({});
+
+    mockFetch
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ messages: [{ id: "msg1", threadId: "thread1" }] }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ historyId: "999" }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => alertMetadata });
+
+    const result = await handleGoogleSync("alice@example.com", USER);
+    expect(result.captured).toBe(0);
+    expect(result.skipped).toBe(1);
+    expect(handleCaptureThought).not.toHaveBeenCalled();
+  });
+
+  it("skips emails from automated senders (no-reply, notifications@, etc.)", async () => {
+    const ghNotification = {
+      id: "msg1",
+      threadId: "thread1",
+      labelIds: ["INBOX"],
+      payload: {
+        headers: [
+          { name: "From", value: "notifications@github.com" },
+          { name: "To", value: "alice@example.com" },
+          { name: "Subject", value: "ryan merged your pull request" },
+          { name: "Date", value: "Mon, 29 Mar 2026 10:00:00 +0000" },
+        ],
+      },
+    };
+
+    mockDdbSend
+      .mockResolvedValueOnce({ Item: connection })
+      .mockResolvedValueOnce({});
+
+    mockFetch
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ messages: [{ id: "msg1", threadId: "thread1" }] }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ historyId: "999" }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ghNotification });
+
+    const result = await handleGoogleSync("alice@example.com", USER);
+    expect(result.captured).toBe(0);
+    expect(result.skipped).toBe(1);
+    expect(handleCaptureThought).not.toHaveBeenCalled();
+  });
+
+  it("captures emails from automated senders when subject is transactional", async () => {
+    const receiptMetadata = {
+      id: "msg1",
+      threadId: "thread1",
+      labelIds: ["INBOX"],
+      payload: {
+        headers: [
+          { name: "From", value: "noreply@amazon.com" },
+          { name: "To", value: "alice@example.com" },
+          { name: "Subject", value: "Your order has been placed" },
+          { name: "Date", value: "Mon, 29 Mar 2026 10:00:00 +0000" },
+        ],
+      },
+    };
+
+    mockDdbSend
+      .mockResolvedValueOnce({ Item: connection })
+      .mockResolvedValueOnce({});
+
+    mockFetch
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ messages: [{ id: "msg1", threadId: "thread1" }] }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ historyId: "999" }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => receiptMetadata });
+
+    const result = await handleGoogleSync("alice@example.com", USER);
+    expect(result.captured).toBe(1);
+    expect(result.skipped).toBe(0);
   });
 });
