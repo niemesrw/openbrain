@@ -11,6 +11,12 @@ jest.mock("../../services/metadata");
 jest.mock("../../services/og-image");
 jest.mock("../../services/vision");
 
+const mockSqsSend = jest.fn().mockResolvedValue({});
+jest.mock("@aws-sdk/client-sqs", () => ({
+  SQSClient: jest.fn(() => ({ send: mockSqsSend })),
+  SendMessageCommand: jest.fn((...args: unknown[]) => ({ input: args[0] })),
+}));
+
 const mockEnsurePrivateIndex = vectors.ensurePrivateIndex as jest.MockedFunction<typeof vectors.ensurePrivateIndex>;
 const mockPutVector = vectors.putVector as jest.MockedFunction<typeof vectors.putVector>;
 const mockGenerateEmbedding = embeddings.generateEmbedding as jest.MockedFunction<typeof embeddings.generateEmbedding>;
@@ -21,8 +27,11 @@ const mockDescribeImage = vision.describeImage as jest.MockedFunction<typeof vis
 const USER = { userId: "user-123", displayName: "Alice" };
 const EMBEDDING = [0.1, 0.2, 0.3];
 
+const ORIGINAL_ENV = process.env;
+
 beforeEach(() => {
   jest.clearAllMocks();
+  process.env = { ...ORIGINAL_ENV, SLACK_NOTIFY_QUEUE_URL: "https://sqs.us-east-1.amazonaws.com/123/openbrain-slack-notify" };
   mockEnsurePrivateIndex.mockResolvedValue("private-user-123");
   mockPutVector.mockResolvedValue(undefined);
   mockGenerateEmbedding.mockResolvedValue(EMBEDDING);
@@ -35,6 +44,10 @@ beforeEach(() => {
   });
   mockFetchOgImage.mockResolvedValue(undefined);
   mockDescribeImage.mockResolvedValue(undefined);
+});
+
+afterAll(() => {
+  process.env = ORIGINAL_ENV;
 });
 
 describe("handleCaptureThought", () => {
@@ -342,5 +355,99 @@ describe("handleCaptureThought", () => {
     expect(mockGenerateEmbedding).toHaveBeenCalledWith("Brief note");
     const call = mockPutVector.mock.calls[0][3];
     expect(call.content).toBe("Brief note");
+  });
+
+  describe("Slack notify SQS enqueue", () => {
+    it("enqueues SQS message when topic is channel:notify", async () => {
+      mockExtractMetadata.mockResolvedValue({
+        type: "observation",
+        topics: ["channel:notify", "aws"],
+        people: [],
+        action_items: [],
+        dates_mentioned: [],
+      });
+
+      await handleCaptureThought({ text: "Deployment finished" }, USER);
+
+      expect(mockSqsSend).toHaveBeenCalledTimes(1);
+      const [cmd] = mockSqsSend.mock.calls[0];
+      const body = JSON.parse(cmd.input.MessageBody);
+      expect(body.userId).toBe(USER.userId);
+      expect(body.topics).toContain("channel:notify");
+      expect(body.text).toBe("Deployment finished");
+      expect(body.thoughtId).toBeDefined();
+    });
+
+    it("enqueues SQS message when topic is channel:alert", async () => {
+      mockExtractMetadata.mockResolvedValue({
+        type: "observation",
+        topics: ["channel:alert"],
+        people: [],
+        action_items: [],
+        dates_mentioned: [],
+      });
+
+      await handleCaptureThought({ text: "Error rate spiked" }, USER);
+
+      expect(mockSqsSend).toHaveBeenCalledTimes(1);
+    });
+
+    it("enqueues SQS message when topic is channel:shared", async () => {
+      mockExtractMetadata.mockResolvedValue({
+        type: "idea",
+        topics: ["channel:shared"],
+        people: [],
+        action_items: [],
+        dates_mentioned: [],
+      });
+
+      await handleCaptureThought({ text: "Shared idea" }, USER);
+
+      expect(mockSqsSend).toHaveBeenCalledTimes(1);
+    });
+
+    it("does NOT enqueue SQS message when no channel: topic is present", async () => {
+      mockExtractMetadata.mockResolvedValue({
+        type: "observation",
+        topics: ["work", "aws"],
+        people: [],
+        action_items: [],
+        dates_mentioned: [],
+      });
+
+      await handleCaptureThought({ text: "Regular thought" }, USER);
+
+      expect(mockSqsSend).not.toHaveBeenCalled();
+    });
+
+    it("does NOT enqueue SQS message when SLACK_NOTIFY_QUEUE_URL is not set", async () => {
+      delete process.env.SLACK_NOTIFY_QUEUE_URL;
+      mockExtractMetadata.mockResolvedValue({
+        type: "observation",
+        topics: ["channel:notify"],
+        people: [],
+        action_items: [],
+        dates_mentioned: [],
+      });
+
+      await handleCaptureThought({ text: "Notification thought" }, USER);
+
+      expect(mockSqsSend).not.toHaveBeenCalled();
+    });
+
+    it("does not throw when SQS send fails — capture still succeeds", async () => {
+      mockSqsSend.mockRejectedValueOnce(new Error("SQS unavailable"));
+      mockExtractMetadata.mockResolvedValue({
+        type: "observation",
+        topics: ["channel:notify"],
+        people: [],
+        action_items: [],
+        dates_mentioned: [],
+      });
+
+      const result = await handleCaptureThought({ text: "Notification thought" }, USER);
+
+      expect(result).toContain("Captured as observation");
+    });
   });
 });

@@ -1,4 +1,5 @@
 import { randomUUID } from "crypto";
+import { SQSClient, SendMessageCommand } from "@aws-sdk/client-sqs";
 import { generateEmbedding } from "../services/embeddings";
 import { extractMetadata } from "../services/metadata";
 import { ensurePrivateIndex, putVector } from "../services/vectors";
@@ -6,6 +7,12 @@ import { fetchOgImage } from "../services/og-image";
 import { describeImage } from "../services/vision";
 import { validateThoughtText } from "./validate-thought-text";
 import type { CaptureArgs, UserContext } from "../types";
+
+let sqsClient: SQSClient | undefined;
+function getSqsClient(): SQSClient {
+  if (!sqsClient) sqsClient = new SQSClient({});
+  return sqsClient;
+}
 
 export async function handleCaptureThought(
   args: CaptureArgs,
@@ -66,6 +73,32 @@ export async function handleCaptureThought(
       tenant_id: user.userId,
     }),
   });
+
+  // Enqueue Slack notification for channel: tagged thoughts
+  const slackNotifyQueueUrl = process.env.SLACK_NOTIFY_QUEUE_URL;
+  const notifyTopics = metadata.topics.filter(
+    t => t === "channel:notify" || t === "channel:alert" || t === "channel:shared"
+  );
+  if (notifyTopics.length > 0 && slackNotifyQueueUrl) {
+    await getSqsClient()
+      .send(
+        new SendMessageCommand({
+          QueueUrl: slackNotifyQueueUrl,
+          MessageBody: JSON.stringify({
+            userId: user.userId,
+            thoughtId: key,
+            text: content,
+            topics: metadata.topics,
+          }),
+        })
+      )
+      .catch((err: unknown) => {
+        console.error(
+          "[capture-thought] Failed to enqueue Slack notification:",
+          err instanceof Error ? err.message : String(err)
+        );
+      });
+  }
 
   let confirmation = `Captured as ${metadata.type}`;
   if (metadata.topics.length > 0)
