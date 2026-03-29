@@ -806,14 +806,16 @@ export class ApiStack extends cdk.Stack {
       resources: [slackInstallationsTableArn, `${slackInstallationsTableArn}/index/*`],
     }));
 
-    // Allow MCP handler, Slack deferred worker, and GitHub agent to enqueue notify messages
+    // Allow all Lambdas that invoke handleCaptureThought to enqueue notify messages
     slackNotifyQueue.grantSendMessages(this.handler);
     slackNotifyQueue.grantSendMessages(slackDeferredHandler);
+    slackNotifyQueue.grantSendMessages(slackWebhookHandler);
     slackNotifyQueue.grantSendMessages(githubAgentHandler);
 
     // Inject queue URL so handlers can enqueue without hard-coding the URL
     this.handler.addEnvironment("SLACK_NOTIFY_QUEUE_URL", slackNotifyQueue.queueUrl);
     slackDeferredHandler.addEnvironment("SLACK_NOTIFY_QUEUE_URL", slackNotifyQueue.queueUrl);
+    slackWebhookHandler.addEnvironment("SLACK_NOTIFY_QUEUE_URL", slackNotifyQueue.queueUrl);
     githubAgentHandler.addEnvironment("SLACK_NOTIFY_QUEUE_URL", slackNotifyQueue.queueUrl);
 
     // -------------------------------------------------------------------------

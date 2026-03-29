@@ -33,11 +33,13 @@ async function getInstallation(userId: string): Promise<SlackInstallationRecord 
       IndexName: "user-id-index",
       KeyConditionExpression: "userId = :uid",
       ExpressionAttributeValues: { ":uid": userId },
-      Limit: 1,
     })
   );
   if (!result.Items || result.Items.length === 0) return null;
-  return result.Items[0] as SlackInstallationRecord;
+  // Sort deterministically so multi-workspace users get a consistent primary workspace
+  const installations = result.Items as SlackInstallationRecord[];
+  installations.sort((a, b) => a.teamId.localeCompare(b.teamId));
+  return installations[0];
 }
 
 async function openDmChannel(token: string, slackUserId: string): Promise<string> {
@@ -122,10 +124,15 @@ export async function handler(event: SQSEvent): Promise<void> {
       await postMessage(accessToken, targetChannel, formatNotification(text, topics));
       console.log("[slack-notify] Notification sent", { userId, thoughtId, targetChannel });
     } catch (err) {
-      console.error("[slack-notify] Failed to send Slack message", {
-        userId,
-        err: err instanceof Error ? err.message : String(err),
-      });
+      const msg = err instanceof Error ? err.message : String(err);
+      const isTransient =
+        /HTTP error: 5\d\d/.test(msg) ||
+        /ratelimited/.test(msg) ||
+        /rate_limited/.test(msg) ||
+        /Network error/i.test(msg);
+      console.error("[slack-notify] Failed to send Slack message", { userId, err: msg });
+      // Rethrow transient errors so SQS retries and routes to DLQ on repeated failure
+      if (isTransient) throw err;
     }
   }
 }

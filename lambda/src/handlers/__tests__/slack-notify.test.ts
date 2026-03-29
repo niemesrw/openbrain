@@ -211,8 +211,13 @@ describe("slack-notify handler", () => {
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
-  it("handles Slack API failure gracefully — does not crash Lambda", async () => {
-    mockFetch.mockRejectedValue(new Error("Network error"));
+  it("handles non-transient Slack API failure gracefully — does not crash Lambda", async () => {
+    // 400 bad_channel is a permanent error — should be swallowed, not retried
+    mockFetch.mockResolvedValue({
+      ok: false,
+      json: async () => ({ ok: false, error: "channel_not_found" }),
+      status: 400,
+    });
 
     const event = makeEvent([
       makeRecord({
@@ -224,5 +229,20 @@ describe("slack-notify handler", () => {
     ]);
 
     await expect(handler(event)).resolves.not.toThrow();
+  });
+
+  it("rethrows transient Slack errors so SQS can retry via DLQ", async () => {
+    mockFetch.mockRejectedValue(new Error("Network error"));
+
+    const event = makeEvent([
+      makeRecord({
+        userId: "user-abc",
+        thoughtId: "t-8",
+        text: "Some thought",
+        topics: ["channel:alert"],
+      }),
+    ]);
+
+    await expect(handler(event)).rejects.toThrow("Network error");
   });
 });
