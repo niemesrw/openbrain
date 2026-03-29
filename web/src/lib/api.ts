@@ -170,6 +170,88 @@ export async function getSlackInstallations(): Promise<SlackInstallation[]> {
   return data.installations ?? [];
 }
 
+export interface GoogleConnection {
+  email: string;
+  connectedAt: string;
+}
+
+export async function getGoogleConnectUrl(): Promise<string> {
+  const token = await getIdToken();
+  const apiUrl = getApiUrl();
+  const res = await fetch(`${apiUrl}/google/connect`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error(`Google connect error: ${res.status}`);
+  const data = await res.json() as { url: string };
+  return data.url;
+}
+
+export async function connectGoogleCallback(
+  code: string,
+  state: string
+): Promise<{ ok: boolean; email: string }> {
+  const token = await getIdToken();
+  const apiUrl = getApiUrl();
+  const res = await fetch(`${apiUrl}/google/callback`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ code, state }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => null) as { error?: string } | null;
+    throw new Error(body?.error ?? `Google callback error: ${res.status}`);
+  }
+  return res.json() as Promise<{ ok: boolean; email: string }>;
+}
+
+export async function getGoogleConnections(): Promise<GoogleConnection[]> {
+  const token = await getIdToken();
+  const apiUrl = getApiUrl();
+  const res = await fetch(`${apiUrl}/google/connections`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error(`Google connections error: ${res.status}`);
+  const data = await res.json() as { connections?: Array<{ email: string; connectedAt: string } & Record<string, unknown>> };
+  return (data.connections ?? []).map(({ email, connectedAt }) => ({ email, connectedAt }));
+}
+
+export async function disconnectGoogleConnection(email: string): Promise<void> {
+  const token = await getIdToken();
+  const apiUrl = getApiUrl();
+  const res = await fetch(`${apiUrl}/google/connections`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+  if (!res.ok) {
+    let message = `Google disconnect error: ${res.status}`;
+    try {
+      const body = await res.json() as { error?: string };
+      if (body && typeof body.error === "string") message = body.error;
+    } catch {
+      // ignore
+    }
+    throw new Error(message);
+  }
+}
+
+export async function syncGmail(
+  email: string
+): Promise<{ captured: number; skipped: number }> {
+  const token = await getIdToken();
+  const apiUrl = getApiUrl();
+  const res = await fetch(`${apiUrl}/google/sync`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => null) as { error?: string } | null;
+    throw new Error(body?.error ?? `Gmail sync error: ${res.status}`);
+  }
+  return res.json() as Promise<{ captured: number; skipped: number }>;
+}
+
 export async function disconnectSlackInstallation(teamId: string): Promise<void> {
   const token = await getIdToken();
   const apiUrl = getApiUrl();

@@ -265,18 +265,41 @@ export function GuidePage() {
           </div>
 
           {/* Gmail */}
-          <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-5 space-y-2">
+          <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-5 space-y-4">
             <div className="flex items-center gap-3">
               <span className="text-2xl">📧</span>
               <h3 className="text-white font-semibold text-lg">Gmail</h3>
             </div>
             <p className="text-gray-400 text-sm">
-              Gmail integration lets Open Brain capture email metadata (sender, subject, date) as searchable reference thoughts — so you can ask "what did Sarah send me about the Q2 budget?" and find it instantly. The Gmail connector is currently available via the API; a Settings UI entry point is coming soon.
+              Connect Gmail at <strong className="text-white">Settings → Connect Gmail</strong>. Open Brain pulls intentionally — only the emails worth remembering, on demand. Ask things like <em>"what did Sarah send me about the Q2 budget?"</em> and find it instantly.
             </p>
-            <ul className="text-gray-400 text-sm list-disc list-inside space-y-1">
-              <li>Uses Gmail metadata scope only — no email body access</li>
-              <li>Run syncs via API today, and from Settings or scheduled tasks once the Gmail connector UI is available</li>
-            </ul>
+
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div className="bg-gray-900/60 rounded-lg p-3 space-y-2">
+                <p className="text-green-400 font-medium">What gets captured</p>
+                <ul className="text-gray-400 space-y-1">
+                  <li>✓ 1:1 conversations</li>
+                  <li>✓ Small group threads (≤6 people)</li>
+                  <li>✓ Travel confirmations &amp; bookings</li>
+                  <li>✓ Receipts &amp; invoices</li>
+                  <li>✓ Sender, subject, date, thread ID</li>
+                </ul>
+              </div>
+              <div className="bg-gray-900/60 rounded-lg p-3 space-y-2">
+                <p className="text-red-400 font-medium">What's excluded</p>
+                <ul className="text-gray-400 space-y-1">
+                  <li>✗ Promotions &amp; newsletters</li>
+                  <li>✗ Social notifications</li>
+                  <li>✗ Automated updates &amp; alerts</li>
+                  <li>✗ Large group / mailing lists</li>
+                  <li>✗ Email body (never stored)</li>
+                </ul>
+              </div>
+            </div>
+
+            <p className="text-gray-500 text-xs">
+              Uses Gmail metadata scope only — Open Brain never reads or stores email content.
+            </p>
           </div>
         </div>
       </div>

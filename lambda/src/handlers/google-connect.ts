@@ -16,7 +16,21 @@ import { handleCaptureThought } from "./capture-thought";
 import type { UserContext } from "../types";
 
 const STATE_TTL_MS = 15 * 60 * 1000; // 15 minutes
-const GMAIL_SYNC_LIMIT = 20; // max emails per sync
+const GMAIL_SYNC_LIMIT = 50; // max candidates per pull (many will be filtered out)
+const GMAIL_MAX_PARTICIPANTS = 6; // 1:1 and small-group only
+const GMAIL_TRANSACTIONAL_KEYWORDS = [
+  "confirmation", "confirmed", "booking", "reservation",
+  "itinerary", "receipt", "ticket", "invoice", "order",
+];
+
+// Only pull from Primary tab — exclude Promotions, Social, Updates, Forums
+const GMAIL_QUERY = [
+  "in:inbox",
+  "-category:promotions",
+  "-category:social",
+  "-category:updates",
+  "-category:forums",
+].join(" ");
 
 const GOOGLE_CONNECTIONS_TABLE = process.env.GOOGLE_CONNECTIONS_TABLE!;
 const GOOGLE_CLIENT_ID_SECRET_NAME = process.env.GOOGLE_CLIENT_ID_SECRET_NAME!;
@@ -336,6 +350,18 @@ async function getValidAccessToken(
   return { accessToken, lastHistoryId: item.lastHistoryId as string | undefined };
 }
 
+function countParticipants(headers: Array<{ name: string; value: string }>): number {
+  const get = (name: string) =>
+    headers.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value ?? "";
+  const combined = [get("From"), get("To"), get("Cc")].join(",");
+  return (combined.match(/@/g) ?? []).length;
+}
+
+function isTransactional(subject: string): boolean {
+  const lower = subject.toLowerCase();
+  return GMAIL_TRANSACTIONAL_KEYWORDS.some((kw) => lower.includes(kw));
+}
+
 export interface GoogleSyncResult {
   ok: boolean;
   email: string;
@@ -377,10 +403,10 @@ export async function handleGoogleSync(
     );
     newHistoryId = histData.historyId;
   } else {
-    // Initial full sync — list recent messages
+    // Initial full sync — list recent messages (Primary tab only)
     const listUrl =
       `https://gmail.googleapis.com/gmail/v1/users/me/messages` +
-      `?maxResults=${GMAIL_SYNC_LIMIT}`;
+      `?maxResults=${GMAIL_SYNC_LIMIT}&q=${encodeURIComponent(GMAIL_QUERY)}`;
 
     const listResp = await fetch(listUrl, {
       headers: { Authorization: `Bearer ${accessToken}` },
@@ -445,6 +471,13 @@ export async function handleGoogleSync(
       const labels = (msg.labelIds ?? []).filter(
         (l) => !["UNREAD", "INBOX", "SENT", "SPAM", "TRASH"].includes(l)
       );
+
+      // Skip large-group emails unless they look transactional
+      const participantCount = countParticipants(headers);
+      if (participantCount > GMAIL_MAX_PARTICIPANTS && !isTransactional(subject)) {
+        skipped++;
+        continue;
+      }
 
       // Build a concise human-readable thought
       const parts: string[] = [`Email: ${subject}`];

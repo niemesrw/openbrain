@@ -1068,9 +1068,9 @@ export class ApiStack extends cdk.Stack {
       methods: [apigwv2.HttpMethod.GET],
       integration: googleRestIntegration,
     });
-    // DELETE /google/connections/{email} — auth handled in-Lambda
+    // DELETE /google/connections — auth handled in-Lambda, email in request body
     this.api.addRoutes({
-      path: "/google/connections/{email}",
+      path: "/google/connections",
       methods: [apigwv2.HttpMethod.DELETE],
       integration: googleRestIntegration,
     });

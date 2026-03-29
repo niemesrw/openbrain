@@ -358,4 +358,78 @@ describe("handleGoogleSync", () => {
     const refreshCall = mockFetch.mock.calls[0];
     expect(refreshCall[0]).toContain("oauth2.googleapis.com/token");
   });
+
+  it("skips large-group emails that are not transactional", async () => {
+    const largeGroupMetadata = {
+      id: "msg1",
+      threadId: "thread1",
+      labelIds: ["INBOX"],
+      payload: {
+        headers: [
+          { name: "From", value: "boss@company.com" },
+          { name: "To", value: "a@x.com, b@x.com, c@x.com, d@x.com, e@x.com, f@x.com, g@x.com" },
+          { name: "Subject", value: "Company all-hands update" },
+          { name: "Date", value: "Mon, 29 Mar 2026 10:00:00 +0000" },
+        ],
+      },
+    };
+
+    mockDdbSend
+      .mockResolvedValueOnce({ Item: connection })
+      .mockResolvedValueOnce({});
+
+    mockFetch
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ messages: [{ id: "msg1", threadId: "thread1" }] }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ historyId: "999" }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => largeGroupMetadata });
+
+    const result = await handleGoogleSync("alice@example.com", USER);
+    expect(result.captured).toBe(0);
+    expect(result.skipped).toBe(1);
+    expect(handleCaptureThought).not.toHaveBeenCalled();
+  });
+
+  it("captures large-group emails when subject is transactional", async () => {
+    const transactionalMetadata = {
+      id: "msg1",
+      threadId: "thread1",
+      labelIds: ["INBOX"],
+      payload: {
+        headers: [
+          { name: "From", value: "noreply@airline.com" },
+          { name: "To", value: "a@x.com, b@x.com, c@x.com, d@x.com, e@x.com, f@x.com, g@x.com" },
+          { name: "Subject", value: "Your flight confirmation" },
+          { name: "Date", value: "Mon, 29 Mar 2026 10:00:00 +0000" },
+        ],
+      },
+    };
+
+    mockDdbSend
+      .mockResolvedValueOnce({ Item: connection })
+      .mockResolvedValueOnce({});
+
+    mockFetch
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ messages: [{ id: "msg1", threadId: "thread1" }] }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ historyId: "999" }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => transactionalMetadata });
+
+    const result = await handleGoogleSync("alice@example.com", USER);
+    expect(result.captured).toBe(1);
+    expect(result.skipped).toBe(0);
+  });
+
+  it("includes the Gmail category query in the list request URL", async () => {
+    mockDdbSend
+      .mockResolvedValueOnce({ Item: connection })
+      .mockResolvedValueOnce({});
+
+    mockFetch
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ messages: [] }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ historyId: "999" }) });
+
+    await handleGoogleSync("alice@example.com", USER);
+    const listCall = mockFetch.mock.calls[0];
+    expect(listCall[0]).toContain("category%3Apromotions");
+    expect(listCall[0]).toContain("category%3Asocial");
+  });
 });

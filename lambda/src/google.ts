@@ -117,24 +117,25 @@ export async function handler(
     }
   }
 
-  // DELETE /google/connections/:email — disconnect a Google account
-  if (method === "DELETE" && path.startsWith("/google/connections/")) {
-    let email: string;
-    try {
-      email = decodeURIComponent(path.slice("/google/connections/".length));
-    } catch {
-      return { statusCode: 400, headers: JSON_HEADERS, body: JSON.stringify({ error: "Invalid email path segment" }) };
-    }
-
-    if (!email) {
-      return { statusCode: 400, headers: JSON_HEADERS, body: JSON.stringify({ error: "email is required" }) };
-    }
-
+  // DELETE /google/connections — disconnect a Google account (email in body, not URL)
+  if (method === "DELETE" && path === "/google/connections") {
     let user;
     try {
       user = await verifyAuth(event.headers ?? {});
     } catch {
       return unauthorized();
+    }
+
+    let body: { email?: string };
+    try {
+      body = JSON.parse(event.body || "{}");
+    } catch {
+      return { statusCode: 400, headers: JSON_HEADERS, body: JSON.stringify({ error: "Invalid JSON body" }) };
+    }
+
+    const { email } = body;
+    if (!email) {
+      return { statusCode: 400, headers: JSON_HEADERS, body: JSON.stringify({ error: "email is required" }) };
     }
 
     try {

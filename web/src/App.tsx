@@ -9,6 +9,7 @@ import { FeedPage } from "./pages/FeedPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { GitHubCallbackPage } from "./pages/GitHubCallbackPage";
 import { SlackCallbackPage } from "./pages/SlackCallbackPage";
+import { GoogleCallbackPage } from "./pages/GoogleCallbackPage";
 import { GuidePage } from "./pages/GuidePage";
 import { PrivacyPage } from "./pages/PrivacyPage";
 import { TermsPage } from "./pages/TermsPage";
@@ -31,6 +32,7 @@ export function App() {
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/github/callback" element={<GitHubCallbackPage />} />
             <Route path="/slack/callback" element={<SlackCallbackPage />} />
+            <Route path="/google/callback" element={<GoogleCallbackPage />} />
           </Route>
         </Route>
       </Routes>
