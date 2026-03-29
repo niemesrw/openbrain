@@ -10,6 +10,8 @@ import { SettingsPage } from "./pages/SettingsPage";
 import { GitHubCallbackPage } from "./pages/GitHubCallbackPage";
 import { SlackCallbackPage } from "./pages/SlackCallbackPage";
 import { GuidePage } from "./pages/GuidePage";
+import { PrivacyPage } from "./pages/PrivacyPage";
+import { TermsPage } from "./pages/TermsPage";
 
 export function App() {
   return (
@@ -18,6 +20,8 @@ export function App() {
         <Route element={<Layout />}>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/guide" element={<GuidePage />} />
+          <Route path="/privacy" element={<PrivacyPage />} />
+          <Route path="/terms" element={<TermsPage />} />
           <Route path="/signup" element={<SignupPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/callback" element={<CallbackPage />} />

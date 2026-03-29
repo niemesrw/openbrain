@@ -59,6 +59,11 @@ export function Layout() {
       <main className="max-w-4xl mx-auto px-6 py-8">
         <Outlet />
       </main>
+      <footer className="border-t border-gray-800 mt-16 px-6 py-6 text-center text-sm text-gray-500 flex justify-center gap-6">
+        <Link to="/privacy" className="hover:text-gray-300">Privacy</Link>
+        <Link to="/terms" className="hover:text-gray-300">Terms</Link>
+        <a href="mailto:hello@blanxlait.ai" className="hover:text-gray-300">Contact</a>
+      </footer>
     </div>
   );
 }
