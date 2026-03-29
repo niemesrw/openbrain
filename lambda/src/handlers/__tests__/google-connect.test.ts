@@ -359,6 +359,35 @@ describe("handleGoogleSync", () => {
     expect(refreshCall[0]).toContain("oauth2.googleapis.com/token");
   });
 
+  it("captures CATEGORY_UPDATES emails (hotel confirmations, receipts, etc.)", async () => {
+    const hotelConfirmation = {
+      id: "msg1",
+      threadId: "thread1",
+      labelIds: ["INBOX", "CATEGORY_UPDATES"],
+      payload: {
+        headers: [
+          { name: "From", value: "info@hilton.com" },
+          { name: "To", value: "alice@example.com" },
+          { name: "Subject", value: "Hilton Orlando Reservation Confirmation" },
+          { name: "Date", value: "Mon, 29 Mar 2026 10:00:00 +0000" },
+        ],
+      },
+    };
+
+    mockDdbSend
+      .mockResolvedValueOnce({ Item: connection })
+      .mockResolvedValueOnce({});
+
+    mockFetch
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ messages: [{ id: "msg1", threadId: "thread1" }] }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ historyId: "999" }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => hotelConfirmation });
+
+    const result = await handleGoogleSync("alice@example.com", USER);
+    expect(result.captured).toBe(1);
+    expect(result.skipped).toBe(0);
+  });
+
   it("skips large-group emails that are not transactional", async () => {
     const largeGroupMetadata = {
       id: "msg1",
@@ -418,7 +447,7 @@ describe("handleGoogleSync", () => {
     expect(result.skipped).toBe(0);
   });
 
-  it("skips messages with noise category labels", async () => {
+  it("skips messages with noise category labels (promotions/social/forums)", async () => {
     const promotionalMetadata = {
       id: "msg1",
       threadId: "thread1",

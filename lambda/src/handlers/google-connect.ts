@@ -24,10 +24,11 @@ const GMAIL_TRANSACTIONAL_KEYWORDS = [
 ];
 
 // gmail.metadata scope does not support q= parameter — filter by labelIds instead
+// CATEGORY_UPDATES is intentionally excluded: it's where transactional emails (hotel
+// confirmations, receipts, bookings) live and we want those.
 const GMAIL_NOISE_LABELS = new Set([
   "CATEGORY_PROMOTIONS",
   "CATEGORY_SOCIAL",
-  "CATEGORY_UPDATES",
   "CATEGORY_FORUMS",
 ]);
 
