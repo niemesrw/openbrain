@@ -98,3 +98,4 @@ targets:
           NSAllowsArbitraryLoads: false
         ITSAppUsesNonExemptEncryption: false
         NSPrincipalClass: NSApplication
+        LSApplicationCategoryType: public.app-category.productivity
