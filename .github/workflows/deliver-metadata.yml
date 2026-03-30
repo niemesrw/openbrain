@@ -11,7 +11,7 @@ on:
 
 jobs:
   deliver:
-    runs-on: self-hosted
+    runs-on: [self-hosted, macOS]
     defaults:
       run:
         working-directory: apple/OpenBrain
