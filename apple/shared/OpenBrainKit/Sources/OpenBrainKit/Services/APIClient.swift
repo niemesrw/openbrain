@@ -95,7 +95,7 @@ public actor APIClient {
         var request = URLRequest(url: urlComponents.url!)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("application/json, text/event-stream", forHTTPHeaderField: "Accept")
         request.httpBody = jsonData
 
         guard let authService else {
