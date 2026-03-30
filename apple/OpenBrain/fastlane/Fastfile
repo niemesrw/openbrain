@@ -15,7 +15,6 @@ platform :ios do
       app_identifier:       "ai.blanxlait.brain.ios2",
       skip_binary_upload:   true,
       skip_screenshots:     false,
-      skip_app_version_strings: false,
       force:                true,   # skip HTML preview prompt in CI
       overwrite_screenshots: true
     )
