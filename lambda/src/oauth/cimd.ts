@@ -5,9 +5,6 @@ import {
   CreateUserPoolClientCommand,
 } from "@aws-sdk/client-cognito-identity-provider";
 import dns from "dns";
-import { promisify } from "util";
-
-const dnsResolve = promisify(dns.resolve4);
 
 const DCR_CLIENTS_TABLE = process.env.DCR_CLIENTS_TABLE!;
 const USER_POOL_ID = process.env.USER_POOL_ID!;
@@ -19,10 +16,32 @@ const MAX_URL_LENGTH = 2048;
 const FETCH_TIMEOUT_MS = 5000;
 const MAX_RESPONSE_SIZE = 65536;
 
-// Private/reserved IP ranges to block (SSRF protection)
-const BLOCKED_IP_RANGES = [
+// Resolve all IPv4 and IPv6 addresses for a hostname (SSRF protection)
+function dnsLookupAll(hostname: string): Promise<Array<{ address: string; family: number }>> {
+  return new Promise((resolve, reject) => {
+    dns.lookup(hostname, { all: true }, (err, addresses) => {
+      if (err) reject(err);
+      else resolve(addresses as Array<{ address: string; family: number }>);
+    });
+  });
+}
+
+// Private/reserved IPv4 ranges to block (SSRF protection)
+const BLOCKED_IPv4_RANGES = [
   /^127\./, /^10\./, /^172\.(1[6-9]|2[0-9]|3[01])\./,
   /^192\.168\./, /^169\.254\./, /^0\./,
+];
+
+// Private/reserved IPv6 ranges to block (SSRF protection)
+const BLOCKED_IPv6_RANGES = [
+  /^::1$/i,        // loopback
+  /^fc/i,          // unique local (fc00::/7)
+  /^fd/i,          // unique local (fd00::/8)
+  /^fe[89ab]/i,    // link-local (fe80::/10)
+  /^::ffff:/i,     // IPv4-mapped (::ffff:0:0/96)
+  /^64:ff9b:/i,    // NAT64 (RFC 6052)
+  /^2002:/i,       // 6to4 (can tunnel private IPv4)
+  /^::$/,          // unspecified address
 ];
 
 export interface ClientMapping {
@@ -58,7 +77,9 @@ async function validateMetadataUrl(urlString: string): Promise<URL> {
   if (parsed.username || parsed.password) throw new Error("Metadata URL must not contain credentials");
   if (/\/(\.\.?)(\/|$)/.test(parsed.pathname)) throw new Error("Metadata URL must not contain dot path segments");
 
-  const isLocalhost = parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1";
+  // Loopback hostnames (IPv6 bracket notation from URL parser included)
+  const LOOPBACK_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
+  const isLocalhost = LOOPBACK_HOSTNAMES.has(parsed.hostname);
   const allowInsecure = process.env.ALLOW_INSECURE_METADATA_URLS === "true";
 
   if (parsed.protocol === "http:") {
@@ -69,13 +90,25 @@ async function validateMetadataUrl(urlString: string): Promise<URL> {
     throw new Error("Metadata URL must use HTTPS");
   }
 
-  // SSRF: resolve hostname and block private IPs
-  if (!isLocalhost) {
-    const addresses = await dnsResolve(parsed.hostname);
-    for (const ip of addresses) {
-      if (BLOCKED_IP_RANGES.some((r) => r.test(ip))) {
-        throw new Error("Metadata URL resolves to a blocked IP address");
+  // SSRF: in production block all private/reserved IPs including loopback.
+  // In insecure dev mode skip the check only for explicit loopback hostnames.
+  if (!allowInsecure || !isLocalhost) {
+    // Strip IPv6 brackets that the URL parser adds (e.g. "[::1]" → "::1")
+    const hostname = parsed.hostname.replace(/^\[|\]$/g, "");
+    try {
+      const addresses = await dnsLookupAll(hostname);
+      for (const { address, family } of addresses) {
+        const blocked = family === 4
+          ? BLOCKED_IPv4_RANGES.some((r) => r.test(address))
+          : BLOCKED_IPv6_RANGES.some((r) => r.test(address));
+        if (blocked) {
+          throw new Error("Metadata URL host is not permitted");
+        }
       }
+    } catch (err) {
+      if (err instanceof Error && err.message === "Metadata URL host is not permitted") throw err;
+      console.error("Error resolving metadata URL host:", err instanceof Error ? err.message : String(err));
+      throw new Error("Failed to resolve metadata URL host");
     }
   }
 
@@ -105,7 +138,15 @@ async function fetchAndValidateMetadata(metadataUrl: string): Promise<{
     clearTimeout(timeout);
   }
 
-  if (!response.ok) throw new Error(`Metadata fetch failed: ${response.status}`);
+  if (!response.ok) {
+    try {
+      const u = new URL(metadataUrl);
+      console.error(`Metadata fetch failed for ${u.origin}${u.pathname}: HTTP ${response.status}`);
+    } catch {
+      console.error(`Metadata fetch failed: HTTP ${response.status}`);
+    }
+    throw new Error("Metadata document could not be retrieved");
+  }
 
   const text = await response.text();
   if (text.length > MAX_RESPONSE_SIZE) throw new Error("Metadata document too large");
@@ -124,7 +165,8 @@ async function fetchAndValidateMetadata(metadataUrl: string): Promise<{
   for (const uri of metadata.redirect_uris) {
     const parsed = new URL(uri);
     const isHttps = parsed.protocol === "https:";
-    const isLocalhostHttp = parsed.protocol === "http:" && (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1");
+    const isLocalhostHttp = parsed.protocol === "http:" &&
+      (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1" || parsed.hostname === "[::1]");
     if (!isHttps && !isLocalhostHttp) {
       throw new Error(`redirect_uri must use https (or http://localhost for testing): ${uri}`);
     }

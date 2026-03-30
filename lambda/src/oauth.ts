@@ -9,7 +9,7 @@ import {
   UpdateUserPoolClientCommand,
 } from "@aws-sdk/client-cognito-identity-provider";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, PutCommand, GetCommand } from "@aws-sdk/lib-dynamodb";
+import { DynamoDBDocumentClient, PutCommand, GetCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import { isUrlClientId, resolveClientId } from "./oauth/cimd";
 
 const USER_POOL_ID = process.env.USER_POOL_ID!;
@@ -92,6 +92,40 @@ async function handleAuthServerMetadata(event: APIGatewayProxyEventV2): Promise<
       error: "server_error",
       error_description: "Unable to retrieve authorization server metadata",
     });
+  }
+}
+
+const DCR_RATE_LIMIT = 10; // max registrations per IP per hour
+
+/**
+ * Atomically increment a per-IP registration counter with a 1-hour TTL.
+ * Returns false if the rate limit is exceeded.
+ */
+async function checkDcrRateLimit(sourceIp: string): Promise<boolean> {
+  // Bucket by hour so the counter resets naturally without relying on DynamoDB TTL latency
+  const hourBucket = new Date().toISOString().slice(0, 13); // e.g. "2026-03-30T13"
+  const windowExpiry = Math.floor(Date.now() / 1000) + 7200; // 2h TTL for cleanup
+  try {
+    await ddb.send(
+      new UpdateCommand({
+        TableName: DCR_CLIENTS_TABLE,
+        Key: { clientId: `ratelimit#${sourceIp}#${hourBucket}` },
+        UpdateExpression: "ADD #cnt :one SET expiresAt = if_not_exists(expiresAt, :exp)",
+        ExpressionAttributeNames: { "#cnt": "count" },
+        ExpressionAttributeValues: {
+          ":one": 1,
+          ":exp": windowExpiry,
+          ":limit": DCR_RATE_LIMIT,
+        },
+        ConditionExpression: "attribute_not_exists(#cnt) OR #cnt < :limit",
+      })
+    );
+    return true;
+  } catch (err: any) {
+    if (err.name === "ConditionalCheckFailedException") return false;
+    // Fail open on DynamoDB errors to avoid blocking legitimate requests
+    console.error("DCR rate limit check error:", err instanceof Error ? err.message : String(err));
+    return true;
   }
 }
 
@@ -316,6 +350,14 @@ async function handleToken(event: APIGatewayProxyEventV2): Promise<APIGatewayPro
 }
 
 async function handleRegister(event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> {
+  const sourceIp = event.requestContext.http.sourceIp;
+  if (!(await checkDcrRateLimit(sourceIp))) {
+    return json(429, {
+      error: "server_error",
+      error_description: "Too many registration requests. Please try again later.",
+    });
+  }
+
   let body: any;
   try {
     const bodyStr = event.isBase64Encoded
@@ -344,15 +386,16 @@ async function handleRegister(event: APIGatewayProxyEventV2): Promise<APIGateway
     } catch {
       return json(400, {
         error: "invalid_client_metadata",
-        error_description: `Invalid redirect_uri: ${uri}`,
+        error_description: "One or more redirect_uris are invalid",
       });
     }
     const isHttps = parsed.protocol === "https:";
-    const isLocalhostHttp = parsed.protocol === "http:" && (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1");
+    const isLocalhostHttp = parsed.protocol === "http:" &&
+      (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1" || parsed.hostname === "[::1]");
     if (!isHttps && !isLocalhostHttp) {
       return json(400, {
         error: "invalid_client_metadata",
-        error_description: `redirect_uri must use https (or http://localhost for testing): ${uri}`,
+        error_description: "redirect_uris must use https (or http://localhost for native clients)",
       });
     }
   }

@@ -6,6 +6,9 @@ import {
 
 const cognito = new CognitoIdentityProviderClient({});
 
+// Validate email format to prevent Cognito filter injection
+const EMAIL_RE = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*$/;
+
 /**
  * Cognito Pre-Signup trigger.
  *
@@ -22,6 +25,8 @@ export const handler = async (event: any): Promise<any> => {
 
   const email: string | undefined = event.request?.userAttributes?.email;
   if (!email) return event;
+
+  if (!EMAIL_RE.test(email)) return event;
 
   const userPoolId: string = event.userPoolId;
 

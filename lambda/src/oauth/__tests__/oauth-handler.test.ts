@@ -19,6 +19,7 @@ jest.mock("@aws-sdk/lib-dynamodb", () => {
     },
     PutCommand: actual.PutCommand,
     GetCommand: actual.GetCommand,
+    UpdateCommand: actual.UpdateCommand,
   };
 });
 
@@ -172,6 +173,49 @@ describe("OAuth handler", () => {
 
       const result = await handler(event) as APIGatewayProxyStructuredResultV2;
       expect(result.statusCode).toBe(400);
+    });
+
+    it("returns 429 when rate limit is exceeded", async () => {
+      const err = Object.assign(new Error("ConditionalCheckFailed"), {
+        name: "ConditionalCheckFailedException",
+      });
+      mockDdbSend.mockRejectedValueOnce(err);
+
+      const event = makeEvent({
+        rawPath: "/register",
+        requestContext: { http: { method: "POST", sourceIp: "1.2.3.4" } } as any,
+        body: JSON.stringify({ redirect_uris: ["https://example.com/callback"] }),
+      });
+
+      const result = await handler(event) as APIGatewayProxyStructuredResultV2;
+      expect(result.statusCode).toBe(429);
+    });
+
+    it("registers successfully when under rate limit", async () => {
+      // UpdateCommand (rate limit) succeeds
+      mockDdbSend.mockResolvedValueOnce({});
+      // PutCommand (store DCR record) succeeds
+      mockDdbSend.mockResolvedValueOnce({});
+      mockCognitoSend.mockResolvedValueOnce({
+        UserPoolClient: { ClientId: "new-client-abc", ClientName: "Test App" },
+      });
+
+      const event = makeEvent({
+        rawPath: "/register",
+        requestContext: { http: { method: "POST", sourceIp: "1.2.3.4" } } as any,
+        body: JSON.stringify({
+          redirect_uris: ["https://example.com/callback"],
+          client_name: "Test App",
+        }),
+      });
+
+      const result = await handler(event) as APIGatewayProxyStructuredResultV2;
+      const body = JSON.parse(result.body as string);
+
+      expect(result.statusCode).toBe(201);
+      expect(body.client_id).toBe("new-client-abc");
+      expect(body.redirect_uris).toEqual(["https://example.com/callback"]);
+      expect(body.grant_types).toContain("authorization_code");
     });
   });
 
