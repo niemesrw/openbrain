@@ -4,11 +4,11 @@ import type { Agent } from "../lib/brain-types";
 
 function StatusDot({ status }: { status: Agent["status"] }) {
   const colors: Record<Agent["status"], string> = {
-    working: "bg-green-400",
+    working: "bg-brain-secondary",
     idle: "bg-yellow-400",
-    error: "bg-red-500",
-    stale: "bg-red-500",
-    unknown: "bg-gray-500",
+    error: "bg-brain-error",
+    stale: "bg-brain-error",
+    unknown: "bg-brain-muted",
   };
   const titles: Record<Agent["status"], string> = {
     working: "Active",
@@ -72,10 +72,10 @@ export function AgentSection() {
   };
 
   return (
-    <div className="border border-gray-800 rounded-lg">
+    <div className="bg-brain-surface rounded-xl overflow-hidden">
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center justify-between px-4 py-3 text-left text-gray-400 hover:text-gray-200"
+        className="w-full flex items-center justify-between px-4 py-3 text-left text-brain-muted hover:text-white transition-colors font-label"
       >
         <span className="text-sm font-medium">
           Agents {agents.length > 0 && `(${agents.length})`}
@@ -90,27 +90,27 @@ export function AgentSection() {
         </svg>
       </button>
       {expanded && (
-        <div className="border-t border-gray-800 p-4 space-y-4">
+        <div className="border-t border-brain-outline/20 p-4 space-y-4">
           {agents.length > 0 && (
             <ul className="space-y-2">
               {agents.map((a) => (
                 <li key={a.name} className="flex items-center justify-between text-sm">
-                  <span className="flex items-center gap-2 text-gray-300">
+                  <span className="flex items-center gap-2 text-white/80 font-label">
                     <StatusDot status={a.status} />
                     <span>
                       {a.name}
                       {a.statusMessage && (
-                        <span className="text-gray-500 ml-1">— {a.statusMessage}</span>
+                        <span className="text-brain-muted/60 ml-1">— {a.statusMessage}</span>
                       )}
                       {" "}
-                      <span className="text-gray-600">
+                      <span className="text-brain-muted/40">
                         (created {new Date(a.createdAt).toLocaleDateString()})
                       </span>
                     </span>
                   </span>
                   <button
                     onClick={() => handleRevoke(a.name)}
-                    className="text-red-500/60 hover:text-red-400 text-xs"
+                    className="text-brain-error/50 hover:text-brain-error text-xs font-label transition-colors"
                   >
                     Revoke
                   </button>
@@ -124,18 +124,18 @@ export function AgentSection() {
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               placeholder="New agent name"
-              className="flex-1 bg-gray-900 border border-gray-700 rounded px-3 py-1.5 text-sm text-white"
+              className="flex-1 bg-brain-high rounded-lg px-3 py-1.5 text-sm text-white placeholder-brain-muted/50 focus:outline-none focus:ring-1 focus:ring-brain-primary/50"
             />
             <button
               type="submit"
               disabled={loading}
-              className="bg-blue-600 text-white text-sm px-3 py-1.5 rounded hover:bg-blue-500 disabled:opacity-50"
+              className="bg-brain-primary text-brain-primary-on text-sm font-label px-3 py-1.5 rounded-lg hover:bg-brain-primary-dim disabled:opacity-50 transition-colors"
             >
               {loading ? "..." : "Create"}
             </button>
           </form>
           {result && (
-            <pre className="bg-gray-950 rounded p-3 text-xs text-green-300 whitespace-pre-wrap">
+            <pre className="bg-brain-base rounded-lg p-3 text-xs text-brain-secondary whitespace-pre-wrap font-label">
               {result}
             </pre>
           )}

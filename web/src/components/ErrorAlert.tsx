@@ -10,7 +10,7 @@ export function ErrorAlert({
   ...divProps
 }: ErrorAlertProps) {
   const combinedClassName =
-    "bg-red-900/50 text-red-300 px-4 py-2 rounded mb-4" +
+    "bg-brain-error/10 text-brain-error px-4 py-2 rounded-lg mb-4 font-label text-sm" +
     (className ? ` ${className}` : "");
 
   return (

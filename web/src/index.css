@@ -1,3 +1,28 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  body {
+    @apply font-body bg-brain-base text-white;
+  }
+}
+
+@layer utilities {
+  .neural-glow {
+    box-shadow: 0 0 20px rgba(0, 227, 253, 0.15);
+  }
+  .neural-glow-primary {
+    box-shadow: 0 0 20px rgba(154, 168, 255, 0.2);
+  }
+  .glass-panel {
+    background: rgba(14, 14, 14, 0.8);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+  }
+  .glass-card {
+    background: rgba(26, 26, 26, 0.6);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+  }
+}

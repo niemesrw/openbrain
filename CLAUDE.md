@@ -102,6 +102,26 @@ Each Lambda only has the env vars explicitly set in `api-stack.ts`. Check there 
 
 ---
 
+## Web Design
+
+The web app (`web/`) uses the **"Remix of OpenBrain"** Stitch design — Stitch project ID `5269867641035129681`.
+
+**Design system:** "The Synaptic Interface" / "The Cognitive Ether"
+- Dark theme, deep space palette — base surface `#0e0e0e`, primary `#9aa8ff`, accent `#00e3fd`
+- Fonts: Space Grotesk (headlines), Inter (body), Manrope (labels)
+- No-line rule: boundaries via tonal surface shifts, not borders
+- Glassmorphism for overlays; ambient glow shadows for lift
+
+**Screens:**
+| Screen | Stitch ID | Maps to |
+|--------|-----------|---------|
+| Search & Discovery | `3cfae567255a40658591df261dbadc09` | Dashboard search/browse |
+| Agent Action Center | `04e141bc4c924b0098c8340590877cad` | FeedPage (agent bus) |
+| Chat Interface | `20270baec20c436caa270d9f750535db` | Dashboard chat mode |
+| Thoughts & Global Feed | `8a2b7d622d2d49bdbb278b32e39e756b` | FeedPage / browse |
+
+When making UI changes, reference the Stitch screens above for visual direction.
+
 ## Repo Purpose
 
 Everything a user needs to set up their own Open Brain on AWS.

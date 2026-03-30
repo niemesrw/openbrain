@@ -191,7 +191,7 @@ export function DashboardPage() {
         <div className="mt-5 space-y-4">
           <button
             onClick={handleBackToBrowse}
-            className="text-sm text-gray-500 hover:text-gray-300 flex items-center gap-1"
+            className="text-sm text-brain-muted/60 hover:text-brain-muted flex items-center gap-1 font-label transition-colors"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -204,8 +204,8 @@ export function DashboardPage() {
               <div
                 className={`max-w-[85%] rounded-2xl px-4 py-3 ${
                   msg.role === "user"
-                    ? "bg-blue-600 text-white"
-                    : "bg-gray-800 text-gray-200"
+                    ? "bg-brain-primary text-brain-primary-on"
+                    : "bg-brain-surface text-white/80"
                 }`}
               >
                 <p className="whitespace-pre-wrap">{msg.content}</p>
@@ -228,7 +228,7 @@ export function DashboardPage() {
 
           <div className="mt-4 space-y-3">
             {!browseLoading && recentThoughts.length === 0 && (
-              <p className="text-gray-500 text-center py-8">
+              <p className="text-brain-muted/60 text-center py-8 font-label">
                 No thoughts yet. Start by telling your brain something below.
               </p>
             )}
@@ -248,7 +248,7 @@ export function DashboardPage() {
                 setLimit((l) => l + 20);
                 setBrowseStale(true);
               }}
-              className="w-full mt-3 py-2 text-sm text-gray-400 hover:text-gray-200 border border-gray-800 rounded-lg"
+              className="w-full mt-3 py-2 text-sm text-brain-muted hover:text-white bg-brain-surface hover:bg-brain-high rounded-xl font-label transition-colors"
             >
               Load more
             </button>
@@ -258,7 +258,7 @@ export function DashboardPage() {
 
       {captureSuccess && (
         <div className="fixed bottom-28 left-0 right-0 flex justify-center pointer-events-none z-10">
-          <div className="bg-emerald-800 text-emerald-200 px-4 py-2 rounded-lg text-sm shadow-lg">
+          <div className="bg-brain-secondary/20 text-brain-secondary px-4 py-2 rounded-xl text-sm shadow-lg font-label neural-glow">
             Thought captured
           </div>
         </div>

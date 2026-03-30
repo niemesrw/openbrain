@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { handleOAuthCallback } from "../lib/auth";
 import { ErrorAlert } from "../components/ErrorAlert";
@@ -7,9 +7,12 @@ export function CallbackPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [error, setError] = useState("");
+  const handledRef = useRef(false);
 
   useEffect(() => {
-    let cancelled = false;
+    // StrictMode runs effects twice in dev — guard against double-consuming the auth code
+    if (handledRef.current) return;
+    handledRef.current = true;
 
     const oauthError = searchParams.get("error");
     if (oauthError) {
@@ -24,18 +27,13 @@ export function CallbackPage() {
       return;
     }
 
+    let cancelled = false;
     const state = searchParams.get("state");
     handleOAuthCallback(code, state)
-      .then(() => {
-        if (!cancelled) navigate("/dashboard", { replace: true });
-      })
-      .catch((err) => {
-        if (!cancelled) setError(err.message || "OAuth callback failed");
-      });
+      .then(() => { if (!cancelled) navigate("/dashboard", { replace: true }); })
+      .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : String(err)); });
 
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [searchParams, navigate]);
 
   if (error) {
@@ -47,7 +45,7 @@ export function CallbackPage() {
   }
 
   return (
-    <div className="max-w-md mx-auto text-center text-gray-400">
+    <div className="max-w-md mx-auto text-center text-brain-muted font-label">
       Signing you in...
     </div>
   );

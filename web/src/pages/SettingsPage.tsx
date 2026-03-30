@@ -52,13 +52,13 @@ function InstallationRow({
   }
 
   return (
-    <div className="py-3 border-b border-gray-800 last:border-0">
+    <div className="py-3 border-b border-brain-outline/20 last:border-0">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <span className="text-lg">{icon}</span>
           <div>
             <p className="text-white font-medium">{inst.accountLogin}</p>
-            <p className="text-gray-500 text-xs">{inst.accountType} · connected {date}</p>
+            <p className="text-brain-muted/60 text-xs font-label">{inst.accountType} · connected {date}</p>
           </div>
         </div>
         <div className="flex items-center gap-4">
@@ -66,21 +66,21 @@ function InstallationRow({
             href={`https://github.com/settings/installations/${inst.installationId}`}
             target="_blank"
             rel="noreferrer"
-            className="text-gray-500 hover:text-gray-300 text-xs"
+            className="text-brain-muted/60 hover:text-white/80 text-xs font-label"
           >
             Manage on GitHub ↗
           </a>
           <button
             onClick={handleDisconnect}
             disabled={disconnecting}
-            className="text-red-500 hover:text-red-400 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+            className="text-brain-error hover:text-brain-error/80 text-xs font-label disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {disconnecting ? "Disconnecting…" : "Disconnect"}
           </button>
         </div>
       </div>
       {disconnectError && (
-        <p className="text-red-400 text-xs mt-1 pl-9">{disconnectError}</p>
+        <p className="text-brain-error text-xs mt-1 pl-9 font-label">{disconnectError}</p>
       )}
     </div>
   );
@@ -118,25 +118,25 @@ function SlackWorkspaceRow({
   }
 
   return (
-    <div className="py-3 border-b border-gray-800 last:border-0">
+    <div className="py-3 border-b border-brain-outline/20 last:border-0">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <span className="text-lg">#</span>
           <div>
             <p className="text-white font-medium">{inst.teamName}</p>
-            <p className="text-gray-500 text-xs">connected {date}</p>
+            <p className="text-brain-muted/60 text-xs font-label">connected {date}</p>
           </div>
         </div>
         <button
           onClick={handleDisconnect}
           disabled={disconnecting}
-          className="text-red-500 hover:text-red-400 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+          className="text-brain-error hover:text-brain-error/80 text-xs font-label disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {disconnecting ? "Disconnecting…" : "Disconnect"}
         </button>
       </div>
       {disconnectError && (
-        <p className="text-red-400 text-xs mt-1 pl-9">{disconnectError}</p>
+        <p className="text-brain-error text-xs mt-1 pl-9 font-label">{disconnectError}</p>
       )}
     </div>
   );
@@ -190,34 +190,34 @@ function GoogleConnectionRow({
   }
 
   return (
-    <div className="py-3 border-b border-gray-800 last:border-0">
+    <div className="py-3 border-b border-brain-outline/20 last:border-0">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <span className="text-lg">📧</span>
           <div>
             <p className="text-white font-medium">{conn.email}</p>
-            <p className="text-gray-500 text-xs">connected {date}</p>
+            <p className="text-brain-muted/60 text-xs font-label">connected {date}</p>
           </div>
         </div>
         <div className="flex items-center gap-4">
           <button
             onClick={handleSync}
             disabled={syncing || disconnecting}
-            className="text-gray-400 hover:text-gray-200 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+            className="text-brain-muted hover:text-white/80 text-xs font-label disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {syncing ? "Syncing…" : "Sync now"}
           </button>
           <button
             onClick={handleDisconnect}
             disabled={disconnecting || syncing}
-            className="text-red-500 hover:text-red-400 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+            className="text-brain-error hover:text-brain-error/80 text-xs font-label disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {disconnecting ? "Disconnecting…" : "Disconnect"}
           </button>
         </div>
       </div>
-      {syncResult && <p className="text-green-400 text-xs mt-1 pl-9">{syncResult}</p>}
-      {error && <p className="text-red-400 text-xs mt-1 pl-9">{error}</p>}
+      {syncResult && <p className="text-brain-secondary text-xs mt-1 pl-9 font-label">{syncResult}</p>}
+      {error && <p className="text-brain-error text-xs mt-1 pl-9 font-label">{error}</p>}
     </div>
   );
 }
@@ -287,14 +287,14 @@ export function SettingsPage() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-10">
-      <h1 className="text-2xl font-bold text-white">Settings</h1>
+      <h1 className="text-2xl font-bold font-headline text-white">Settings</h1>
 
       {/* GitHub section */}
       <section>
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-lg font-semibold text-white">GitHub</h2>
-            <p className="text-gray-400 text-sm mt-1">
+            <h2 className="text-lg font-semibold font-headline text-white">GitHub</h2>
+            <p className="text-brain-muted text-sm mt-1">
               Connect a GitHub account or organization to capture pull requests,
               pushes, and releases to your brain automatically.
             </p>
@@ -302,7 +302,7 @@ export function SettingsPage() {
           {installUrl && (
             <a
               href={installUrl}
-              className="shrink-0 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium px-4 py-2 rounded"
+              className="shrink-0 bg-brain-primary text-brain-primary-on text-sm font-medium font-label px-4 py-2 rounded-xl hover:bg-brain-primary-dim"
             >
               Connect GitHub
             </a>
@@ -310,20 +310,20 @@ export function SettingsPage() {
         </div>
 
         {loading ? (
-          <p className="text-gray-500 text-sm">Loading…</p>
+          <p className="text-brain-muted/60 text-sm font-label">Loading…</p>
         ) : error ? (
-          <p className="text-red-400 text-sm">{error}</p>
+          <p className="text-brain-error text-sm font-label">{error}</p>
         ) : installations.length === 0 ? (
-          <div className="border border-dashed border-gray-700 rounded-lg p-6 text-center">
-            <p className="text-gray-400 text-sm">No GitHub accounts connected yet.</p>
+          <div className="border border-dashed border-brain-outline/30 rounded-xl p-6 text-center">
+            <p className="text-brain-muted text-sm font-label">No GitHub accounts connected yet.</p>
             {installUrl && (
-              <a href={installUrl} className="text-blue-400 hover:text-blue-300 text-sm mt-2 block">
+              <a href={installUrl} className="text-brain-primary hover:text-brain-primary/80 text-sm mt-2 block font-label">
                 Connect your first account →
               </a>
             )}
           </div>
         ) : (
-          <div className="border border-gray-800 rounded-lg px-4">
+          <div className="bg-brain-surface rounded-xl px-4">
             {installations.map((inst) => (
               <InstallationRow key={inst.installationId} inst={inst} onDisconnect={handleDisconnect} />
             ))}
@@ -335,8 +335,8 @@ export function SettingsPage() {
       <section>
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-lg font-semibold text-white">Slack</h2>
-            <p className="text-gray-400 text-sm mt-1">
+            <h2 className="text-lg font-semibold font-headline text-white">Slack</h2>
+            <p className="text-brain-muted text-sm mt-1">
               Connect a Slack workspace to capture messages and use slash commands
               to search your brain directly from Slack.
             </p>
@@ -344,29 +344,29 @@ export function SettingsPage() {
           <button
             onClick={handleConnectSlack}
             disabled={connectingSlack}
-            className="shrink-0 bg-purple-600 hover:bg-purple-500 text-white text-sm font-medium px-4 py-2 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+            className="shrink-0 bg-brain-primary text-brain-primary-on text-sm font-medium font-label px-4 py-2 rounded-xl hover:bg-brain-primary-dim disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {connectingSlack ? "Redirecting…" : "Connect Slack"}
           </button>
         </div>
 
         {slackLoading ? (
-          <p className="text-gray-500 text-sm">Loading…</p>
+          <p className="text-brain-muted/60 text-sm font-label">Loading…</p>
         ) : slackError ? (
-          <p className="text-red-400 text-sm">{slackError}</p>
+          <p className="text-brain-error text-sm font-label">{slackError}</p>
         ) : slackInstallations.length === 0 ? (
-          <div className="border border-dashed border-gray-700 rounded-lg p-6 text-center">
-            <p className="text-gray-400 text-sm">No Slack workspaces connected yet.</p>
+          <div className="border border-dashed border-brain-outline/30 rounded-xl p-6 text-center">
+            <p className="text-brain-muted text-sm font-label">No Slack workspaces connected yet.</p>
             <button
               onClick={handleConnectSlack}
               disabled={connectingSlack}
-              className="text-purple-400 hover:text-purple-300 text-sm mt-2 disabled:opacity-50"
+              className="text-brain-primary hover:text-brain-primary/80 text-sm mt-2 font-label disabled:opacity-50"
             >
               Connect your first workspace →
             </button>
           </div>
         ) : (
-          <div className="border border-gray-800 rounded-lg px-4">
+          <div className="bg-brain-surface rounded-xl px-4">
             {slackInstallations.map((inst) => (
               <SlackWorkspaceRow key={inst.teamId} inst={inst} onDisconnect={handleSlackDisconnect} />
             ))}
@@ -378,8 +378,8 @@ export function SettingsPage() {
       <section>
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-lg font-semibold text-white">Gmail</h2>
-            <p className="text-gray-400 text-sm mt-1">
+            <h2 className="text-lg font-semibold font-headline text-white">Gmail</h2>
+            <p className="text-brain-muted text-sm mt-1">
               Pulls 1:1 conversations, small group threads, and travel/transactional emails
               as searchable thoughts. Promotions, newsletters, and large group emails are excluded automatically.
               Metadata only — email body is never stored.
@@ -388,29 +388,29 @@ export function SettingsPage() {
           <button
             onClick={handleConnectGoogle}
             disabled={connectingGoogle}
-            className="shrink-0 bg-red-600 hover:bg-red-500 text-white text-sm font-medium px-4 py-2 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+            className="shrink-0 bg-brain-error/20 text-brain-error text-sm font-medium font-label px-4 py-2 rounded-xl hover:bg-brain-error/30 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {connectingGoogle ? "Redirecting…" : "Connect Gmail"}
           </button>
         </div>
 
         {googleLoading ? (
-          <p className="text-gray-500 text-sm">Loading…</p>
+          <p className="text-brain-muted/60 text-sm font-label">Loading…</p>
         ) : googleError ? (
-          <p className="text-red-400 text-sm">{googleError}</p>
+          <p className="text-brain-error text-sm font-label">{googleError}</p>
         ) : googleConnections.length === 0 ? (
-          <div className="border border-dashed border-gray-700 rounded-lg p-6 text-center">
-            <p className="text-gray-400 text-sm">No Gmail accounts connected yet.</p>
+          <div className="border border-dashed border-brain-outline/30 rounded-xl p-6 text-center">
+            <p className="text-brain-muted text-sm font-label">No Gmail accounts connected yet.</p>
             <button
               onClick={handleConnectGoogle}
               disabled={connectingGoogle}
-              className="text-red-400 hover:text-red-300 text-sm mt-2 disabled:opacity-50"
+              className="text-brain-error hover:text-brain-error/80 text-sm mt-2 font-label disabled:opacity-50"
             >
               Connect your first account →
             </button>
           </div>
         ) : (
-          <div className="border border-gray-800 rounded-lg px-4">
+          <div className="bg-brain-surface rounded-xl px-4">
             {googleConnections.map((conn) => (
               <GoogleConnectionRow
                 key={conn.email}

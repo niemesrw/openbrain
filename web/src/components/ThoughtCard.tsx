@@ -1,14 +1,7 @@
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import type { Thought } from "../lib/brain-types";
-
-const TYPE_COLORS: Record<string, string> = {
-  observation: "#58a6ff",
-  task: "#f0883e",
-  idea: "#a371f7",
-  reference: "#8b949e",
-  person_note: "#56d364",
-};
+import { TYPE_COLORS } from "../lib/type-colors";
 
 function relativeTime(ts: number | null): string {
   if (!ts) return "";
@@ -30,7 +23,7 @@ interface ThoughtCardProps {
 }
 
 export function ThoughtCard({ thought, onUpdate, onDelete }: ThoughtCardProps) {
-  const color = TYPE_COLORS[thought.type] || "#8b949e";
+  const color = TYPE_COLORS[thought.type] || "#adaaaa";
   const [editing, setEditing] = useState(false);
   const [editText, setEditText] = useState(thought.content);
   const [saving, setSaving] = useState(false);
@@ -75,10 +68,10 @@ export function ThoughtCard({ thought, onUpdate, onDelete }: ThoughtCardProps) {
   }
 
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden">
+    <div className="bg-brain-surface rounded-xl overflow-hidden transition-shadow hover:neural-glow">
       {thought.similarity != null && (
         <div
-          className="h-1"
+          className="h-0.5"
           style={{
             width: `${thought.similarity}%`,
             backgroundColor: color,
@@ -89,7 +82,7 @@ export function ThoughtCard({ thought, onUpdate, onDelete }: ThoughtCardProps) {
         <div className="flex items-start justify-between gap-3">
           {editing ? (
             <textarea
-              className="flex-1 bg-gray-800 text-gray-200 text-sm rounded p-2 resize-none border border-gray-700 focus:outline-none focus:border-blue-500"
+              className="flex-1 bg-brain-high text-white text-sm rounded-lg p-2 resize-none border border-brain-outline/30 focus:outline-none focus:border-brain-primary"
               rows={4}
               value={editText}
               onChange={(e) => setEditText(e.target.value)}
@@ -97,24 +90,24 @@ export function ThoughtCard({ thought, onUpdate, onDelete }: ThoughtCardProps) {
               autoFocus
             />
           ) : (
-            <div className="text-gray-200 text-sm flex-1 prose prose-invert prose-sm max-w-none prose-p:my-1 prose-li:my-0">
+            <div className="text-white/90 text-sm flex-1 prose prose-invert prose-sm max-w-none prose-p:my-1 prose-li:my-0">
               <ReactMarkdown>{thought.content}</ReactMarkdown>
             </div>
           )}
           <div className="flex items-center gap-2 shrink-0">
             {thought.scope === "private" ? (
-              <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" role="img" aria-label="Private">
+              <svg className="w-4 h-4 text-brain-muted/40" fill="none" stroke="currentColor" viewBox="0 0 24 24" role="img" aria-label="Private">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
               </svg>
             ) : (
-              <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" role="img" aria-label="Shared">
+              <svg className="w-4 h-4 text-brain-muted/40" fill="none" stroke="currentColor" viewBox="0 0 24 24" role="img" aria-label="Shared">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             )}
             {canEdit && !editing && (
               <button
                 onClick={() => { setEditing(true); setConfirmDelete(false); setError(null); }}
-                className="text-gray-500 hover:text-blue-400 transition-colors"
+                className="text-brain-muted/40 hover:text-brain-primary transition-colors"
                 title="Edit thought"
                 aria-label="Edit thought"
               >
@@ -126,7 +119,7 @@ export function ThoughtCard({ thought, onUpdate, onDelete }: ThoughtCardProps) {
             {canDelete && !editing && (
               <button
                 onClick={() => { setConfirmDelete(true); setEditing(false); setError(null); }}
-                className="text-gray-500 hover:text-red-400 transition-colors"
+                className="text-brain-muted/40 hover:text-brain-error transition-colors"
                 title="Delete thought"
                 aria-label="Delete thought"
               >
@@ -139,7 +132,7 @@ export function ThoughtCard({ thought, onUpdate, onDelete }: ThoughtCardProps) {
         </div>
 
         {error && (
-          <p className="text-red-400 text-xs">{error}</p>
+          <p className="text-brain-error text-xs">{error}</p>
         )}
 
         {editing && (
@@ -147,14 +140,14 @@ export function ThoughtCard({ thought, onUpdate, onDelete }: ThoughtCardProps) {
             <button
               onClick={handleSave}
               disabled={saving || !editText.trim()}
-              className="px-3 py-1 text-xs bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded transition-colors"
+              className="px-3 py-1 text-xs bg-brain-primary text-brain-primary-on hover:bg-brain-primary-dim disabled:opacity-50 rounded-lg transition-colors font-label"
             >
               {saving ? "Saving…" : "Save"}
             </button>
             <button
               onClick={handleCancelEdit}
               disabled={saving}
-              className="px-3 py-1 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 rounded transition-colors"
+              className="px-3 py-1 text-xs bg-brain-high hover:bg-brain-highest text-brain-muted rounded-lg transition-colors font-label"
             >
               Cancel
             </button>
@@ -163,18 +156,18 @@ export function ThoughtCard({ thought, onUpdate, onDelete }: ThoughtCardProps) {
 
         {confirmDelete && (
           <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-400">Delete this thought?</span>
+            <span className="text-xs text-brain-muted font-label">Delete this thought?</span>
             <button
               onClick={handleConfirmDelete}
               disabled={deleting}
-              className="px-3 py-1 text-xs bg-red-700 hover:bg-red-600 disabled:opacity-50 text-white rounded transition-colors"
+              className="px-3 py-1 text-xs bg-brain-error/20 hover:bg-brain-error/30 disabled:opacity-50 text-brain-error rounded-lg transition-colors font-label"
             >
               {deleting ? "Deleting…" : "Delete"}
             </button>
             <button
               onClick={() => setConfirmDelete(false)}
               disabled={deleting}
-              className="px-3 py-1 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 rounded transition-colors"
+              className="px-3 py-1 text-xs bg-brain-high hover:bg-brain-highest text-brain-muted rounded-lg transition-colors font-label"
             >
               Cancel
             </button>
@@ -182,18 +175,18 @@ export function ThoughtCard({ thought, onUpdate, onDelete }: ThoughtCardProps) {
         )}
 
         {thought.media_url && (
-          <div className="rounded overflow-hidden">
+          <div className="rounded-lg overflow-hidden">
             <img
               src={thought.media_url}
               alt=""
-              className="max-w-full max-h-64 object-contain rounded"
+              className="max-w-full max-h-64 object-contain rounded-lg"
               loading="lazy"
               onError={(e) => { e.currentTarget.style.display = "none"; }}
             />
           </div>
         )}
 
-        <div className="flex flex-wrap items-center gap-2 text-xs">
+        <div className="flex flex-wrap items-center gap-2 text-xs font-label">
           <span
             className="px-2 py-0.5 rounded-full font-medium"
             style={{ backgroundColor: color + "20", color }}
@@ -201,17 +194,17 @@ export function ThoughtCard({ thought, onUpdate, onDelete }: ThoughtCardProps) {
             {thought.type.replace("_", " ")}
           </span>
           {thought.topics.map((t) => (
-            <span key={t} className="px-2 py-0.5 rounded bg-gray-800 text-gray-400">
+            <span key={t} className="px-2 py-0.5 rounded-full bg-brain-secondary/10 text-brain-secondary">
               {t}
             </span>
           ))}
           {thought.people.map((p) => (
-            <span key={p} className="text-blue-400">@{p}</span>
+            <span key={p} className="text-brain-primary">@{p}</span>
           ))}
           {thought.similarity != null && (
-            <span className="text-gray-600">{thought.similarity}% match</span>
+            <span className="text-brain-muted/40">{thought.similarity}% match</span>
           )}
-          <span className="text-gray-600 ml-auto">
+          <span className="text-brain-muted/40 ml-auto">
             {relativeTime(thought.created_at)}
           </span>
         </div>

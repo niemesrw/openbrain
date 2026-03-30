@@ -1,10 +1,4 @@
-const TYPE_COLORS: Record<string, string> = {
-  observation: "#58a6ff",
-  task: "#f0883e",
-  idea: "#a371f7",
-  reference: "#8b949e",
-  person_note: "#56d364",
-};
+import { TYPE_COLORS } from "../lib/type-colors";
 
 const ALL_TYPES = ["observation", "task", "idea", "reference", "person_note"];
 
@@ -24,7 +18,7 @@ export function FilterChips({
   onTopicChange,
 }: FilterChipsProps) {
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 font-label">
       <div className="flex flex-wrap gap-2">
         {ALL_TYPES.map((t) => {
           const active = activeType === t;
@@ -33,11 +27,11 @@ export function FilterChips({
             <button
               key={t}
               onClick={() => onTypeChange(active ? null : t)}
-              className="px-3 py-1 rounded-full text-sm font-medium transition-colors"
+              className="px-3 py-1 rounded-full text-xs font-medium transition-all"
               style={{
-                backgroundColor: active ? color : "transparent",
-                color: active ? "#0d1117" : color,
-                border: `1px solid ${color}`,
+                backgroundColor: active ? color + "25" : "transparent",
+                color: color,
+                boxShadow: active ? `0 0 12px ${color}30` : "none",
               }}
             >
               {t.replace("_", " ")}
@@ -53,11 +47,10 @@ export function FilterChips({
               <button
                 key={topic}
                 onClick={() => onTopicChange(active ? null : topic)}
-                className="px-2.5 py-0.5 rounded-full text-xs font-medium transition-colors"
+                className="px-2.5 py-0.5 rounded-full text-xs font-medium transition-all"
                 style={{
-                  backgroundColor: active ? "#30363d" : "transparent",
-                  color: active ? "#e6edf3" : "#8b949e",
-                  border: `1px solid ${active ? "#484f58" : "#30363d"}`,
+                  backgroundColor: active ? "rgba(0, 227, 253, 0.15)" : "transparent",
+                  color: active ? "#00e3fd" : "#adaaaa",
                 }}
               >
                 {topic}

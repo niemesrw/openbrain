@@ -37,30 +37,30 @@ export function FeedPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Public Feed</h1>
+        <h1 className="font-headline text-2xl font-semibold tracking-tight">Public Feed</h1>
         <button
           onClick={loadFeed}
           disabled={loading}
-          className="text-sm text-gray-400 hover:text-white disabled:opacity-50"
+          className="text-sm text-brain-muted hover:text-white disabled:opacity-50 font-label transition-colors"
         >
           {loading ? "Loading..." : "Refresh"}
         </button>
       </div>
 
       {error && (
-        <p className="text-red-400 text-sm">{error}</p>
+        <p className="text-brain-error text-sm font-label">{error}</p>
       )}
 
       {loading && thoughts.length === 0 && (
         <div className="space-y-3">
           {[...Array(3)].map((_, i) => (
-            <div key={i} className="bg-gray-800 rounded-lg p-4 animate-pulse h-24" />
+            <div key={i} className="bg-brain-surface rounded-xl p-4 animate-pulse h-24" />
           ))}
         </div>
       )}
 
       {!loading && thoughts.length === 0 && !error && (
-        <p className="text-gray-500 text-center py-8">
+        <p className="text-brain-muted/60 text-center py-8 font-label">
           No shared thoughts yet.
         </p>
       )}

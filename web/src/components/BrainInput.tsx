@@ -56,13 +56,13 @@ export function BrainInput({ chatValue, onChatChange, onChatSubmit, onCapture, l
     : "Ask your brain something, or tell it what you're thinking...";
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-gray-950 via-gray-950 to-transparent pt-6 pb-4 px-4">
+    <div className="fixed bottom-0 left-0 right-0 glass-panel pt-6 pb-4 px-4">
       <div className="max-w-3xl mx-auto">
         <div
-          className={`relative bg-gray-900 border rounded-2xl transition-colors focus-within:ring-1 ${
+          className={`relative bg-brain-surface rounded-2xl transition-all ${
             isCapture
-              ? "border-emerald-600 focus-within:border-emerald-500 focus-within:ring-emerald-500"
-              : "border-gray-700 focus-within:border-blue-500 focus-within:ring-blue-500"
+              ? "ring-1 ring-brain-secondary/50"
+              : "ring-1 ring-brain-outline/30 focus-within:ring-brain-primary/50"
           }`}
         >
           <textarea
@@ -72,15 +72,15 @@ export function BrainInput({ chatValue, onChatChange, onChatSubmit, onCapture, l
             onKeyDown={handleKeyDown}
             placeholder={placeholder}
             rows={1}
-            className="w-full bg-transparent text-white text-base placeholder-gray-500 px-4 py-3 pr-12 resize-none focus:outline-none rounded-2xl"
+            className="w-full bg-transparent text-white text-base placeholder-brain-muted/50 px-4 py-3 pr-12 resize-none focus:outline-none rounded-2xl"
           />
           <button
             onClick={handleSubmit}
             disabled={!displayValue.trim() || loading}
-            className={`absolute right-2 bottom-2 p-2 rounded-xl text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors ${
+            className={`absolute right-2 bottom-2 p-2 rounded-xl disabled:opacity-30 disabled:cursor-not-allowed transition-colors ${
               isCapture
-                ? "bg-emerald-600 hover:bg-emerald-500"
-                : "bg-blue-600 hover:bg-blue-500"
+                ? "bg-brain-secondary hover:bg-brain-secondary-dim text-brain-secondary-on"
+                : "bg-brain-primary hover:bg-brain-primary-dim text-brain-primary-on"
             }`}
           >
             {loading ? (
@@ -101,23 +101,23 @@ export function BrainInput({ chatValue, onChatChange, onChatSubmit, onCapture, l
         </div>
 
         <div className="flex items-center justify-between mt-2 px-1">
-          <div className="flex items-center gap-1 bg-gray-900 rounded-lg p-0.5 border border-gray-800">
+          <div className="flex items-center gap-1 bg-brain-surface rounded-lg p-0.5">
             <button
               onClick={() => setMode("chat")}
-              className={`px-3 py-1 text-xs rounded-md transition-colors ${
+              className={`px-3 py-1 text-xs rounded-md transition-colors font-label ${
                 !isCapture
-                  ? "bg-gray-700 text-white"
-                  : "text-gray-500 hover:text-gray-300"
+                  ? "bg-brain-high text-white"
+                  : "text-brain-muted/60 hover:text-brain-muted"
               }`}
             >
               Chat
             </button>
             <button
               onClick={() => setMode("capture")}
-              className={`px-3 py-1 text-xs rounded-md transition-colors ${
+              className={`px-3 py-1 text-xs rounded-md transition-colors font-label ${
                 isCapture
-                  ? "bg-emerald-700 text-white"
-                  : "text-gray-500 hover:text-gray-300"
+                  ? "bg-brain-secondary/20 text-brain-secondary"
+                  : "text-brain-muted/60 hover:text-brain-muted"
               }`}
             >
               Capture
@@ -125,23 +125,23 @@ export function BrainInput({ chatValue, onChatChange, onChatSubmit, onCapture, l
           </div>
 
           {isCapture && (
-            <div className="flex items-center gap-1 bg-gray-900 rounded-lg p-0.5 border border-gray-800">
+            <div className="flex items-center gap-1 bg-brain-surface rounded-lg p-0.5">
               <button
                 onClick={() => setScope("private")}
-                className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                className={`px-3 py-1 text-xs rounded-md transition-colors font-label ${
                   scope === "private"
-                    ? "bg-gray-700 text-white"
-                    : "text-gray-500 hover:text-gray-300"
+                    ? "bg-brain-high text-white"
+                    : "text-brain-muted/60 hover:text-brain-muted"
                 }`}
               >
                 Private
               </button>
               <button
                 onClick={() => setScope("shared")}
-                className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                className={`px-3 py-1 text-xs rounded-md transition-colors font-label ${
                   scope === "shared"
-                    ? "bg-emerald-700 text-white"
-                    : "text-gray-500 hover:text-gray-300"
+                    ? "bg-brain-secondary/20 text-brain-secondary"
+                    : "text-brain-muted/60 hover:text-brain-muted"
                 }`}
               >
                 Shared

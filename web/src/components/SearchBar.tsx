@@ -42,7 +42,7 @@ export function SearchBar({ onSearch, onClear, loading }: SearchBarProps) {
     <form onSubmit={handleSubmit} className="relative">
       <div className="relative">
         <svg
-          className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500"
+          className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-brain-muted/50"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -59,12 +59,12 @@ export function SearchBar({ onSearch, onClear, loading }: SearchBarProps) {
           value={value}
           onChange={(e) => handleChange(e.target.value)}
           placeholder="Search your brain..."
-          className="w-full bg-gray-900 border border-gray-700 rounded-lg pl-12 pr-20 py-3 text-white text-lg placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+          className="w-full bg-brain-surface rounded-xl pl-12 pr-20 py-3 text-white text-lg placeholder-brain-muted/50 focus:outline-none focus:ring-1 focus:ring-brain-primary/50 transition-all"
         />
         <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
           {loading && (
             <svg
-              className="animate-spin w-5 h-5 text-blue-400"
+              className="animate-spin w-5 h-5 text-brain-secondary"
               fill="none"
               viewBox="0 0 24 24"
             >
@@ -87,7 +87,7 @@ export function SearchBar({ onSearch, onClear, loading }: SearchBarProps) {
             <button
               type="button"
               onClick={handleClear}
-              className="text-gray-500 hover:text-gray-300"
+              className="text-brain-muted/50 hover:text-brain-muted transition-colors"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

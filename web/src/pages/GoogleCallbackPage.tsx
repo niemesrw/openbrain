@@ -45,8 +45,8 @@ export function GoogleCallbackPage() {
   if (status === "connecting") {
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-4">
-        <div className="w-8 h-8 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
-        <p className="text-gray-400">Connecting your Gmail account…</p>
+        <div className="w-8 h-8 border-2 border-brain-error border-t-transparent rounded-full animate-spin" />
+        <p className="text-brain-muted font-label">Connecting your Gmail account…</p>
       </div>
     );
   }
@@ -55,11 +55,11 @@ export function GoogleCallbackPage() {
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-4">
         <div className="text-4xl">✓</div>
-        <h2 className="text-xl font-semibold text-white">Connected!</h2>
-        <p className="text-gray-400">
+        <h2 className="text-xl font-semibold font-headline text-white">Connected!</h2>
+        <p className="text-brain-muted">
           <span className="text-white font-medium">{email}</span> is now linked to your brain.
         </p>
-        <p className="text-gray-500 text-sm">Redirecting to settings…</p>
+        <p className="text-brain-muted/60 text-sm font-label">Redirecting to settings…</p>
       </div>
     );
   }
@@ -67,9 +67,9 @@ export function GoogleCallbackPage() {
   return (
     <div className="flex flex-col items-center justify-center py-24 gap-4">
       <div className="text-4xl">✗</div>
-      <h2 className="text-xl font-semibold text-white">Connection failed</h2>
-      <p className="text-red-400">{error}</p>
-      <Link to="/settings" className="text-blue-400 hover:text-blue-300 text-sm">
+      <h2 className="text-xl font-semibold font-headline text-white">Connection failed</h2>
+      <p className="text-brain-error font-label">{error}</p>
+      <Link to="/settings" className="text-brain-primary hover:text-brain-primary/80 text-sm font-label">
         Back to settings
       </Link>
     </div>
