@@ -72,6 +72,9 @@ struct ContentView: View {
 
 struct SettingsView: View {
     let authService: AuthService
+    @State private var showDeleteConfirmation = false
+    @State private var isDeletingAccount = false
+    @State private var deleteError: String?
 
     var body: some View {
         List {
@@ -88,9 +91,51 @@ struct SettingsView: View {
             }
 
             Section {
+                Button("Delete Account & Data", role: .destructive) {
+                    showDeleteConfirmation = true
+                }
+                .disabled(isDeletingAccount)
+            } footer: {
+                Text("Permanently deletes your account, private thoughts, agent keys, and connected integrations. This cannot be undone.")
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
                 LabeledContent("Version", value: "1.0.0")
             }
         }
         .navigationTitle("Settings")
+        .confirmationDialog(
+            "Delete Account & Data?",
+            isPresented: $showDeleteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Delete Everything", role: .destructive) {
+                Task { await deleteAccount() }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This will permanently delete your account, private thoughts, agent keys, and connected integrations (GitHub, Slack, Google). This cannot be undone.")
+        }
+        .alert("Delete Failed", isPresented: Binding(
+            get: { deleteError != nil },
+            set: { if !$0 { deleteError = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(deleteError ?? "")
+        }
+    }
+
+    private func deleteAccount() async {
+        isDeletingAccount = true
+        do {
+            struct DeleteResponse: Decodable { let ok: Bool }
+            let _: DeleteResponse = try await APIClient.shared.delete("/user", authenticated: true)
+            authService.logout()
+        } catch {
+            deleteError = error.localizedDescription
+            isDeletingAccount = false
+        }
     }
 }

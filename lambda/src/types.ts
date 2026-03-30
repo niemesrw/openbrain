@@ -25,6 +25,7 @@ export interface S3VectorMetadata {
 
 export interface UserContext {
   userId: string;
+  cognitoUsername?: string;
   teamId?: string;
   agentName?: string;
   displayName?: string;

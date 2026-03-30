@@ -725,6 +725,80 @@ export class ApiStack extends cdk.Stack {
     });
 
     // -------------------------------------------------------------------------
+    // User management — account deletion
+    // -------------------------------------------------------------------------
+
+    const userHandlerSlackTableName = "openbrain-slack-installations";
+    const userHandlerSlackTableArn = `arn:aws:dynamodb:${this.region}:${this.account}:table/${userHandlerSlackTableName}`;
+    const userHandlerGoogleTableName = "openbrain-google-connections";
+    const userHandlerGoogleTableArn = `arn:aws:dynamodb:${this.region}:${this.account}:table/${userHandlerGoogleTableName}`;
+
+    const userHandler = new lambdaNode.NodejsFunction(this, "UserHandler", {
+      runtime: lambda.Runtime.NODEJS_22_X,
+      entry: path.join(__dirname, "..", "..", "..", "lambda", "src", "user.ts"),
+      handler: "handler",
+      memorySize: 256,
+      timeout: cdk.Duration.seconds(15),
+      environment: {
+        VECTOR_BUCKET_NAME: vectorBucketName,
+        AGENT_KEYS_TABLE: agentKeysTableName,
+        AGENT_TASKS_TABLE: agentTasksTableName,
+        GITHUB_INSTALLATIONS_TABLE: githubInstallationsTableName,
+        SLACK_INSTALLATIONS_TABLE: userHandlerSlackTableName,
+        GOOGLE_CONNECTIONS_TABLE: userHandlerGoogleTableName,
+        USER_POOL_ID: userPool.userPoolId,
+      },
+      bundling: {
+        externalModules: ["@aws-sdk/*"],
+        minify: true,
+        sourceMap: true,
+      },
+    });
+
+    userHandler.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["s3vectors:DeleteIndex"],
+      resources: [
+        `arn:aws:s3vectors:${this.region}:${this.account}:bucket/${vectorBucketName}`,
+        `arn:aws:s3vectors:${this.region}:${this.account}:bucket/${vectorBucketName}/*`,
+      ],
+    }));
+    userHandler.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["dynamodb:Query", "dynamodb:BatchWriteItem"],
+      resources: [agentKeysTableArn, `${agentKeysTableArn}/index/*`],
+    }));
+    userHandler.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["dynamodb:Query", "dynamodb:BatchWriteItem"],
+      resources: [agentTasksTableArn, `${agentTasksTableArn}/index/*`],
+    }));
+    userHandler.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["dynamodb:Query", "dynamodb:BatchWriteItem"],
+      resources: [githubInstallationsTableArn, `${githubInstallationsTableArn}/index/*`],
+    }));
+    userHandler.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["dynamodb:Query", "dynamodb:BatchWriteItem"],
+      resources: [userHandlerSlackTableArn, `${userHandlerSlackTableArn}/index/*`],
+    }));
+    userHandler.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["dynamodb:Query", "dynamodb:BatchWriteItem"],
+      resources: [userHandlerGoogleTableArn, `${userHandlerGoogleTableArn}/index/*`],
+    }));
+    userHandler.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["cognito-idp:AdminDeleteUser"],
+      resources: [userPool.userPoolArn],
+    }));
+
+    const userIntegration = new apigwv2Integrations.HttpLambdaIntegration(
+      "UserIntegration",
+      userHandler
+    );
+
+    this.api.addRoutes({
+      path: "/user",
+      methods: [apigwv2.HttpMethod.DELETE],
+      integration: userIntegration,
+    });
+
+    // -------------------------------------------------------------------------
     // Slack — webhook ingestion (signing secret verification, URL challenge)
     // -------------------------------------------------------------------------
 

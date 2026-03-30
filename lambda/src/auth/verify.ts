@@ -56,6 +56,7 @@ export async function verifyAuth(headers: Record<string, string | undefined>): P
         const payload = await accessTokenVerifier.verify(token);
         return {
           userId: payload.sub,
+          cognitoUsername: (payload as any).username || undefined,
           displayName: (payload as any).username || undefined,
         };
       } else {
@@ -63,6 +64,7 @@ export async function verifyAuth(headers: Record<string, string | undefined>): P
         const payload = await idTokenVerifier.verify(token);
         return {
           userId: payload.sub,
+          cognitoUsername: (payload as any)["cognito:username"] || undefined,
           displayName: (payload as any).preferred_username || undefined,
         };
       }

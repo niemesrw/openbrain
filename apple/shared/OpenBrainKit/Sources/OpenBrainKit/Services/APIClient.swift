@@ -32,6 +32,13 @@ public actor APIClient {
         try await request("POST", path: path, body: body, authenticated: authenticated)
     }
 
+    public func delete<T: Decodable>(
+        _ path: String,
+        authenticated: Bool = false
+    ) async throws -> T {
+        try await request("DELETE", path: path, authenticated: authenticated)
+    }
+
     // MARK: - Core
 
     private func request<T: Decodable>(
