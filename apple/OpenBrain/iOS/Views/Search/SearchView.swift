@@ -59,11 +59,44 @@ struct SearchView: View {
                     description: Text("Nothing matched \"\(query)\"")
                 )
             } else if !hasSearched {
-                ContentUnavailableView(
-                    "Search Your Brain",
-                    systemImage: "brain",
-                    description: Text("Enter a query to search your thoughts semantically")
-                )
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        Text("Suggested")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal)
+
+                        let suggestions: [(String, String)] = [
+                            ("Recent decisions", "arrow.triangle.branch"),
+                            ("Action items", "checkmark.circle"),
+                            ("People I've met", "person.2"),
+                            ("Project ideas", "lightbulb"),
+                            ("Things to follow up", "arrow.uturn.right"),
+                            ("What was I working on?", "hammer"),
+                            ("Notes from this week", "calendar"),
+                            ("Lessons learned", "graduationcap"),
+                        ]
+
+                        FlowLayout(spacing: 10) {
+                            ForEach(suggestions, id: \.0) { label, icon in
+                                Button {
+                                    query = label
+                                    search()
+                                } label: {
+                                    Label(label, systemImage: icon)
+                                        .font(.subheadline)
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 8)
+                                        .background(Color.secondary.opacity(0.12))
+                                        .clipShape(Capsule())
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .padding(.horizontal)
+                    }
+                    .padding(.top, 16)
+                }
             } else {
                 List(results) { thought in
                     ThoughtRow(thought: thought)
