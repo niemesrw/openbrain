@@ -2,16 +2,17 @@ import Foundation
 
 public enum BrainService {
     public static func searchThoughts(query: String, limit: Int = 10) async throws -> [BrainThought] {
-        try await callTool("search_thoughts", arguments: [
+        try await callToolJson("search_thoughts", arguments: [
             "query": query,
             "limit": limit,
-        ] as [String: Any])
+            "_format": "json",
+        ] as [String: Any], arrayKey: "thoughts")
     }
 
     public static func browseRecent(limit: Int = 20, type: String? = nil) async throws -> [BrainThought] {
-        var args: [String: Any] = ["limit": limit]
+        var args: [String: Any] = ["limit": limit, "_format": "json"]
         if let type { args["type"] = type }
-        return try await callTool("browse_recent", arguments: args)
+        return try await callToolJson("browse_recent", arguments: args, arrayKey: "thoughts")
     }
 
     public static func captureThought(text: String, type: String? = nil) async throws -> [BrainThought] {
@@ -26,7 +27,27 @@ public enum BrainService {
 
     // MARK: - JSON-RPC
 
+    /// Calls a tool that returns a JSON envelope with an array under `arrayKey`.
+    /// Each item's "content" field becomes the thought text; "type" is preserved.
+    private static func callToolJson(_ name: String, arguments: [String: Any], arrayKey: String) async throws -> [BrainThought] {
+        let rawText = try await callToolRawText(name, arguments: arguments)
+        guard let data = rawText.data(using: .utf8),
+              let envelope = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let items = envelope[arrayKey] as? [[String: Any]]
+        else { return [] }
+        return items.compactMap { item in
+            guard let content = item["content"] as? String else { return nil }
+            let type = item["type"] as? String ?? "observation"
+            return BrainThought(type: type, text: content)
+        }
+    }
+
     private static func callTool(_ name: String, arguments: [String: Any]) async throws -> [BrainThought] {
+        let text = try await callToolRawText(name, arguments: arguments)
+        return [BrainThought(type: "text", text: text)]
+    }
+
+    private static func callToolRawText(_ name: String, arguments: [String: Any]) async throws -> String {
         let body: [String: Any] = [
             "jsonrpc": "2.0",
             "id": 1,
@@ -50,17 +71,14 @@ public enum BrainService {
         }
 
         guard let result = json["result"] as? [String: Any],
-              let content = result["content"] as? [[String: Any]]
+              let content = result["content"] as? [[String: Any]],
+              let first = content.first,
+              let text = first["text"] as? String
         else {
             throw BrainError.invalidResponse
         }
 
-        return content.compactMap { item in
-            guard let type = item["type"] as? String,
-                  let text = item["text"] as? String
-            else { return nil }
-            return BrainThought(type: type, text: text)
-        }
+        return text
     }
 }
 
