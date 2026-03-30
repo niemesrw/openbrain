@@ -16,7 +16,13 @@ platform :ios do
       skip_binary_upload:   true,
       skip_screenshots:     false,
       force:                true,   # skip HTML preview prompt in CI
-      overwrite_screenshots: true
+      overwrite_screenshots: true,
+      app_review_information: {
+        first_name:  "Ryan",
+        last_name:   "Niemes",
+        phone_number: "+18582050932",
+        email_address: "ryan.niemes@gmail.com"
+      }
     )
   end
 
