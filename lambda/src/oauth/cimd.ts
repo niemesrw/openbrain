@@ -16,6 +16,11 @@ const MAX_URL_LENGTH = 2048;
 const FETCH_TIMEOUT_MS = 5000;
 const MAX_RESPONSE_SIZE = 65536;
 
+// Sentinel error used to distinguish a blocked-host throw from DNS failures
+class BlockedHostError extends Error {
+  constructor() { super("Metadata URL host is not permitted"); }
+}
+
 // Resolve all IPv4 and IPv6 addresses for a hostname (SSRF protection)
 function dnsLookupAll(hostname: string): Promise<Array<{ address: string; family: number }>> {
   return new Promise((resolve, reject) => {
@@ -77,8 +82,9 @@ async function validateMetadataUrl(urlString: string): Promise<URL> {
   if (parsed.username || parsed.password) throw new Error("Metadata URL must not contain credentials");
   if (/\/(\.\.?)(\/|$)/.test(parsed.pathname)) throw new Error("Metadata URL must not contain dot path segments");
 
-  // Loopback hostnames (IPv6 bracket notation from URL parser included)
-  const LOOPBACK_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
+  // WHATWG URL parser strips brackets from IPv6 addresses: hostname for
+  // "http://[::1]" is "::1", not "[::1]"
+  const LOOPBACK_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1"]);
   const isLocalhost = LOOPBACK_HOSTNAMES.has(parsed.hostname);
   const allowInsecure = process.env.ALLOW_INSECURE_METADATA_URLS === "true";
 
@@ -93,8 +99,8 @@ async function validateMetadataUrl(urlString: string): Promise<URL> {
   // SSRF: in production block all private/reserved IPs including loopback.
   // In insecure dev mode skip the check only for explicit loopback hostnames.
   if (!allowInsecure || !isLocalhost) {
-    // Strip IPv6 brackets that the URL parser adds (e.g. "[::1]" → "::1")
-    const hostname = parsed.hostname.replace(/^\[|\]$/g, "");
+    // WHATWG URL parser already strips brackets from IPv6 hostnames
+    const hostname = parsed.hostname;
     try {
       const addresses = await dnsLookupAll(hostname);
       for (const { address, family } of addresses) {
@@ -102,11 +108,11 @@ async function validateMetadataUrl(urlString: string): Promise<URL> {
           ? BLOCKED_IPv4_RANGES.some((r) => r.test(address))
           : BLOCKED_IPv6_RANGES.some((r) => r.test(address));
         if (blocked) {
-          throw new Error("Metadata URL host is not permitted");
+          throw new BlockedHostError();
         }
       }
     } catch (err) {
-      if (err instanceof Error && err.message === "Metadata URL host is not permitted") throw err;
+      if (err instanceof BlockedHostError) throw err;
       console.error("Error resolving metadata URL host:", err instanceof Error ? err.message : String(err));
       throw new Error("Failed to resolve metadata URL host");
     }
@@ -166,9 +172,9 @@ async function fetchAndValidateMetadata(metadataUrl: string): Promise<{
     const parsed = new URL(uri);
     const isHttps = parsed.protocol === "https:";
     const isLocalhostHttp = parsed.protocol === "http:" &&
-      (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1" || parsed.hostname === "[::1]");
+      (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1" || parsed.hostname === "::1");
     if (!isHttps && !isLocalhostHttp) {
-      throw new Error(`redirect_uri must use https (or http://localhost for testing): ${uri}`);
+      throw new Error(`redirect_uri must use https (or http://localhost, http://127.0.0.1, or http://[::1] for testing): ${uri}`);
     }
   }
 

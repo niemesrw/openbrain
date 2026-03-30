@@ -51,12 +51,10 @@ export class ApiStack extends cdk.Stack {
     // Data stack tables — referenced by hardcoded name to avoid cross-stack
     // CloudFormation imports that would block Data from removing old exports.
     const agentKeysTableName = "openbrain-agent-keys";
-    const usersTableName = "openbrain-users";
     const agentTasksTableName = "openbrain-agent-tasks";
     const dcrClientsTableName = "openbrain-dcr-clients";
 
     const agentKeysTableArn = `arn:aws:dynamodb:${this.region}:${this.account}:table/${agentKeysTableName}`;
-    const usersTableArn = `arn:aws:dynamodb:${this.region}:${this.account}:table/${usersTableName}`;
     const agentTasksTableArn = `arn:aws:dynamodb:${this.region}:${this.account}:table/${agentTasksTableName}`;
     const dcrClientsTableArn = `arn:aws:dynamodb:${this.region}:${this.account}:table/${dcrClientsTableName}`;
 
@@ -72,7 +70,6 @@ export class ApiStack extends cdk.Stack {
         EMBEDDING_MODEL_ID: "amazon.titan-embed-text-v2:0",
         METADATA_MODEL_ID: "us.anthropic.claude-haiku-4-5-20251001-v1:0",
         AGENT_KEYS_TABLE: agentKeysTableName,
-        USERS_TABLE: usersTableName,
         AGENT_TASKS_TABLE: agentTasksTableName,
         USER_POOL_ID: userPool.userPoolId,
         COGNITO_DOMAIN: userPoolDomain.baseUrl(),
@@ -126,10 +123,6 @@ export class ApiStack extends cdk.Stack {
       resources: [agentKeysTableArn, `${agentKeysTableArn}/index/*`],
     }));
     this.handler.addToRolePolicy(new iam.PolicyStatement({
-      actions: ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:Scan", "dynamodb:BatchGetItem"],
-      resources: [usersTableArn, `${usersTableArn}/index/*`],
-    }));
-    this.handler.addToRolePolicy(new iam.PolicyStatement({
       actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:Query", "dynamodb:Scan", "dynamodb:BatchGetItem", "dynamodb:BatchWriteItem"],
       resources: [agentTasksTableArn, `${agentTasksTableArn}/index/*`],
     }));
@@ -147,7 +140,6 @@ export class ApiStack extends cdk.Stack {
         METADATA_MODEL_ID: "us.anthropic.claude-haiku-4-5-20251001-v1:0",
         CHAT_MODEL_ID: "us.anthropic.claude-haiku-4-5-20251001-v1:0",
         AGENT_KEYS_TABLE: agentKeysTableName,
-        USERS_TABLE: usersTableName,
         AGENT_TASKS_TABLE: agentTasksTableName,
         USER_POOL_ID: userPool.userPoolId,
       },
@@ -191,10 +183,6 @@ export class ApiStack extends cdk.Stack {
     chatHandler.addToRolePolicy(new iam.PolicyStatement({
       actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:Query", "dynamodb:Scan", "dynamodb:BatchGetItem", "dynamodb:BatchWriteItem"],
       resources: [agentKeysTableArn, `${agentKeysTableArn}/index/*`],
-    }));
-    chatHandler.addToRolePolicy(new iam.PolicyStatement({
-      actions: ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:Scan", "dynamodb:BatchGetItem"],
-      resources: [usersTableArn, `${usersTableArn}/index/*`],
     }));
     chatHandler.addToRolePolicy(new iam.PolicyStatement({
       actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:Query", "dynamodb:Scan", "dynamodb:BatchGetItem", "dynamodb:BatchWriteItem"],
@@ -326,7 +314,6 @@ export class ApiStack extends cdk.Stack {
         METADATA_MODEL_ID: "us.anthropic.claude-haiku-4-5-20251001-v1:0",
         CHAT_MODEL_ID: "us.anthropic.claude-haiku-4-5-20251001-v1:0",
         AGENT_KEYS_TABLE: agentKeysTableName,
-        USERS_TABLE: usersTableName,
         AGENT_TASKS_TABLE: agentTasksTableName,
         USER_POOL_ID: userPool.userPoolId,
       },
@@ -359,10 +346,6 @@ export class ApiStack extends cdk.Stack {
     brainChatHandler.addToRolePolicy(new iam.PolicyStatement({
       actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:Query", "dynamodb:Scan", "dynamodb:BatchGetItem", "dynamodb:BatchWriteItem"],
       resources: [agentKeysTableArn, `${agentKeysTableArn}/index/*`],
-    }));
-    brainChatHandler.addToRolePolicy(new iam.PolicyStatement({
-      actions: ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:Scan", "dynamodb:BatchGetItem"],
-      resources: [usersTableArn, `${usersTableArn}/index/*`],
     }));
     brainChatHandler.addToRolePolicy(new iam.PolicyStatement({
       actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:Query", "dynamodb:Scan", "dynamodb:BatchGetItem", "dynamodb:BatchWriteItem"],

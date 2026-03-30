@@ -98,24 +98,25 @@ async function handleAuthServerMetadata(event: APIGatewayProxyEventV2): Promise<
 const DCR_RATE_LIMIT = 10; // max registrations per IP per hour
 
 /**
- * Atomically increment a per-IP registration counter with a 1-hour TTL.
+ * Atomically increment a per-IP registration counter with a 1-hour window.
  * Returns false if the rate limit is exceeded.
  */
 async function checkDcrRateLimit(sourceIp: string): Promise<boolean> {
   // Bucket by hour so the counter resets naturally without relying on DynamoDB TTL latency
   const hourBucket = new Date().toISOString().slice(0, 13); // e.g. "2026-03-30T13"
-  const windowExpiry = Math.floor(Date.now() / 1000) + 7200; // 2h TTL for cleanup
+  const windowExpiry = Math.floor(Date.now() / 1000) + 7200; // 2h TTL keeps the record for one extra hour after the window closes
   try {
     await ddb.send(
       new UpdateCommand({
         TableName: DCR_CLIENTS_TABLE,
         Key: { clientId: `ratelimit#${sourceIp}#${hourBucket}` },
-        UpdateExpression: "ADD #cnt :one SET expiresAt = if_not_exists(expiresAt, :exp)",
-        ExpressionAttributeNames: { "#cnt": "count" },
+        UpdateExpression: "ADD #cnt :one SET #type = if_not_exists(#type, :ratelimit), expiresAt = if_not_exists(expiresAt, :exp)",
+        ExpressionAttributeNames: { "#cnt": "count", "#type": "type" },
         ExpressionAttributeValues: {
           ":one": 1,
           ":exp": windowExpiry,
           ":limit": DCR_RATE_LIMIT,
+          ":ratelimit": "ratelimit",
         },
         ConditionExpression: "attribute_not_exists(#cnt) OR #cnt < :limit",
       })
@@ -123,9 +124,10 @@ async function checkDcrRateLimit(sourceIp: string): Promise<boolean> {
     return true;
   } catch (err: any) {
     if (err.name === "ConditionalCheckFailedException") return false;
-    // Fail open on DynamoDB errors to avoid blocking legitimate requests
+    // Fail closed: if DynamoDB is unavailable, deny registration rather than
+    // silently disabling rate limiting during an outage
     console.error("DCR rate limit check error:", err instanceof Error ? err.message : String(err));
-    return true;
+    return false;
   }
 }
 
@@ -391,11 +393,11 @@ async function handleRegister(event: APIGatewayProxyEventV2): Promise<APIGateway
     }
     const isHttps = parsed.protocol === "https:";
     const isLocalhostHttp = parsed.protocol === "http:" &&
-      (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1" || parsed.hostname === "[::1]");
+      (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1" || parsed.hostname === "::1");
     if (!isHttps && !isLocalhostHttp) {
       return json(400, {
         error: "invalid_client_metadata",
-        error_description: "redirect_uris must use https (or http://localhost for native clients)",
+        error_description: "redirect_uris must use https (or http://localhost, http://127.0.0.1, or http://[::1] for native clients)",
       });
     }
   }

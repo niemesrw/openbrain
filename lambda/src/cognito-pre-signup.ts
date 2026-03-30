@@ -6,7 +6,9 @@ import {
 
 const cognito = new CognitoIdentityProviderClient({});
 
-// Validate email format to prevent Cognito filter injection
+// Validates email format before use in Cognito filter strings.
+// Emails that don't match skip account-linking (sign-up still proceeds)
+// so we never interpolate untrusted input into the ListUsers filter.
 const EMAIL_RE = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*$/;
 
 /**
@@ -26,6 +28,9 @@ export const handler = async (event: any): Promise<any> => {
   const email: string | undefined = event.request?.userAttributes?.email;
   if (!email) return event;
 
+  // Skip account-linking for emails that fail format validation — sign-up
+  // proceeds normally but we do not interpolate untrusted input into the
+  // Cognito ListUsers filter string
   if (!EMAIL_RE.test(email)) return event;
 
   const userPoolId: string = event.userPoolId;
