@@ -2,6 +2,7 @@ import SwiftUI
 import OpenBrainKit
 
 struct CaptureView: View {
+    @Environment(\.dismiss) private var dismiss
     @State private var text = ""
     @State private var selectedType: ThoughtType = .auto
     @State private var isCapturing = false
@@ -62,18 +63,7 @@ struct CaptureView: View {
         .navigationTitle("Capture")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                if isCapturing {
-                    ProgressView()
-                } else if !text.isEmpty {
-                    Button("Clear") {
-                        text = ""
-                        selectedType = .auto
-                        confirmation = nil
-                        error = nil
-                        isTextFocused = true
-                    }
-                    .foregroundStyle(.secondary)
-                }
+                if isCapturing { ProgressView() }
             }
         }
     }
@@ -168,8 +158,8 @@ struct CaptureView: View {
             do {
                 let result = try await BrainService.captureThought(text: trimmed, type: selectedType.apiValue)
                 confirmation = result.first?.text ?? "Captured"
-                text = ""
-                selectedType = .auto
+                try? await Task.sleep(for: .milliseconds(600))
+                dismiss()
             } catch {
                 self.error = error.localizedDescription
             }

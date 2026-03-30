@@ -3,6 +3,7 @@ import OpenBrainKit
 
 struct ContentView: View {
     let authService: AuthService
+    @State private var showCapture = false
 
     var body: some View {
         if authService.isAuthenticated {
@@ -15,18 +16,18 @@ struct ContentView: View {
                 }
 
                 NavigationStack {
-                    CaptureView()
-                }
-                .tabItem {
-                    Label("Capture", systemImage: "plus.circle")
-                }
-
-                NavigationStack {
                     BrowseView()
                 }
                 .tabItem {
                     Label("Browse", systemImage: "list.bullet")
                 }
+
+                // Capture tab — presents a sheet, never actually navigates
+                Color.clear
+                    .tabItem {
+                        Label("Capture", systemImage: "plus.circle")
+                    }
+                    .onAppear { showCapture = true }
 
                 NavigationStack {
                     StatsView()
@@ -36,17 +37,20 @@ struct ContentView: View {
                 }
 
                 NavigationStack {
-                    BrainView()
-                }
-                .tabItem {
-                    Label("Brain", systemImage: "brain")
-                }
-
-                NavigationStack {
                     SettingsView(authService: authService)
                 }
                 .tabItem {
                     Label("Settings", systemImage: "gearshape")
+                }
+            }
+            .sheet(isPresented: $showCapture) {
+                NavigationStack {
+                    CaptureView()
+                        .toolbar {
+                            ToolbarItem(placement: .cancellationAction) {
+                                Button("Cancel") { showCapture = false }
+                            }
+                        }
                 }
             }
         } else {
