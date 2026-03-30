@@ -17,6 +17,7 @@ platform :ios do
       skip_screenshots:     false,
       force:                true,   # skip HTML preview prompt in CI
       overwrite_screenshots: true,
+      run_precheck_before_submit: false,
       app_review_information: {
         first_name:  "Ryan",
         last_name:   "Niemes",
