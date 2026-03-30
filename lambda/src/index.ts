@@ -67,6 +67,7 @@ function createMcpServer(user: UserContext): McpServer {
     inputSchema: {
       text: z.string().describe("The thought to capture"),
       scope: SCOPE_ENUM,
+      type: z.enum(["observation", "task", "idea", "reference", "person_note"]).optional().describe("Optional explicit type override — overrides the AI-chosen type when provided"),
       media_url: z.string().url().refine(v => /^https?:/.test(v), { message: "media_url must use http or https" }).optional().describe("Optional URL to associated media (image, video, audio, etc.)"),
       source_url: z.string().url().refine(v => /^https?:/.test(v), { message: "source_url must use http or https" }).optional().describe("Source URL of the article or page being captured — og:image is automatically extracted and stored as media_url"),
     },

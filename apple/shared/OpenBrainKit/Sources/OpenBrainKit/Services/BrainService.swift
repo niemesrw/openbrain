@@ -8,16 +8,16 @@ public enum BrainService {
         ] as [String: Any])
     }
 
-    public static func browseRecent(limit: Int = 20) async throws -> [BrainThought] {
-        try await callTool("browse_recent", arguments: [
-            "limit": limit,
-        ] as [String: Any])
+    public static func browseRecent(limit: Int = 20, type: String? = nil) async throws -> [BrainThought] {
+        var args: [String: Any] = ["limit": limit]
+        if let type { args["type"] = type }
+        return try await callTool("browse_recent", arguments: args)
     }
 
-    public static func captureThought(text: String) async throws -> [BrainThought] {
-        try await callTool("capture_thought", arguments: [
-            "text": text,
-        ] as [String: Any])
+    public static func captureThought(text: String, type: String? = nil) async throws -> [BrainThought] {
+        var args: [String: Any] = ["text": text]
+        if let type { args["type"] = type }
+        return try await callTool("capture_thought", arguments: args)
     }
 
     public static func stats() async throws -> [BrainThought] {

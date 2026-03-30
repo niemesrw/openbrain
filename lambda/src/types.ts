@@ -59,6 +59,8 @@ export interface CaptureArgs {
   media_url?: string;
   /** Source URL of the article or page being captured — og:image is auto-extracted from this URL */
   source_url?: string;
+  /** Optional explicit type override — overrides the AI-chosen type when provided */
+  type?: "observation" | "task" | "idea" | "reference" | "person_note";
 }
 
 export interface UpdateThoughtArgs {

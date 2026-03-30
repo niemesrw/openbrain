@@ -8,6 +8,34 @@ struct ContentView: View {
         if authService.isAuthenticated {
             TabView {
                 NavigationStack {
+                    SearchView()
+                }
+                .tabItem {
+                    Label("Search", systemImage: "magnifyingglass")
+                }
+
+                NavigationStack {
+                    CaptureView()
+                }
+                .tabItem {
+                    Label("Capture", systemImage: "plus.circle")
+                }
+
+                NavigationStack {
+                    BrowseView()
+                }
+                .tabItem {
+                    Label("Browse", systemImage: "list.bullet")
+                }
+
+                NavigationStack {
+                    StatsView()
+                }
+                .tabItem {
+                    Label("Stats", systemImage: "chart.bar")
+                }
+
+                NavigationStack {
                     BrainView()
                 }
                 .tabItem {

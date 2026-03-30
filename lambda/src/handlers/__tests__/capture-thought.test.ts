@@ -296,6 +296,21 @@ describe("handleCaptureThought", () => {
     expect(call).not.toHaveProperty("source_url");
   });
 
+  it("overrides AI-chosen type when args.type is provided", async () => {
+    mockExtractMetadata.mockResolvedValue({
+      type: "observation",
+      topics: ["test"],
+      people: [],
+      action_items: [],
+      dates_mentioned: [],
+    });
+
+    await handleCaptureThought({ text: "Buy milk", type: "task" }, USER);
+
+    const call = mockPutVector.mock.calls[0][3];
+    expect(call.type).toBe("task");
+  });
+
   it("calls describeImage and appends description when text is short and media_url is present", async () => {
     mockDescribeImage.mockResolvedValue("A scenic mountain landscape at sunset.");
 

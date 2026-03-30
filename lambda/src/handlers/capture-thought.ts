@@ -18,7 +18,7 @@ export async function handleCaptureThought(
   args: CaptureArgs,
   user: UserContext
 ): Promise<string> {
-  const { text, scope = "private", media_url, source_url } = args;
+  const { text, scope = "private", media_url, source_url, type: typeOverride } = args;
 
   const validationError = validateThoughtText(text);
   if (validationError) return validationError;
@@ -51,6 +51,10 @@ export async function handleCaptureThought(
     generateEmbedding(content),
     extractMetadata(content),
   ]);
+
+  if (typeOverride) {
+    metadata.type = typeOverride;
+  }
 
   const key = randomUUID();
 
