@@ -8,9 +8,9 @@ struct BrainView: View {
     var body: some View {
         VStack(spacing: 0) {
             messageList
-            Divider()
             inputBar
         }
+        .background(Color.obSurface)
         .navigationTitle("Brain")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -29,16 +29,16 @@ struct BrainView: View {
             ScrollView {
                 LazyVStack(spacing: 12) {
                     if viewModel.messages.isEmpty {
-                        VStack(spacing: 8) {
+                        VStack(spacing: 12) {
                             Image(systemName: "brain")
-                                .font(.largeTitle)
-                                .foregroundStyle(.purple.opacity(0.6))
+                                .font(.system(size: 40))
+                                .foregroundStyle(Color.obPrimary.opacity(0.7))
                             Text("Talk to your brain")
-                                .font(.headline)
-                                .foregroundStyle(.secondary)
+                                .font(.system(.headline, design: .rounded, weight: .semibold))
+                                .foregroundStyle(Color.obOnSurface)
                             Text("Ask what you've been thinking about, search your memories, or capture a new thought.")
                                 .font(.caption)
-                                .foregroundStyle(.tertiary)
+                                .foregroundStyle(Color.obOnSurfaceVariant)
                                 .multilineTextAlignment(.center)
                                 .padding(.horizontal, 40)
                         }
@@ -54,11 +54,11 @@ struct BrainView: View {
                         HStack {
                             Text("Thinking...")
                                 .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Color.obOnSurfaceVariant)
                                 .italic()
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 10)
-                                .background(Color.purple.opacity(0.1))
+                                .background(Color.obSurfaceContainer)
                                 .clipShape(RoundedRectangle(cornerRadius: 16))
                             Spacer()
                         }
@@ -70,9 +70,9 @@ struct BrainView: View {
                         HStack {
                             Label(error, systemImage: "exclamationmark.triangle")
                                 .font(.caption)
-                                .foregroundStyle(.red)
+                                .foregroundStyle(Color.obError)
                                 .padding(8)
-                                .background(Color.red.opacity(0.1))
+                                .background(Color.obErrorContainer.opacity(0.3))
                                 .clipShape(RoundedRectangle(cornerRadius: 8))
                             Spacer()
                         }
@@ -92,9 +92,10 @@ struct BrainView: View {
     }
 
     private var inputBar: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 10) {
             TextField("Talk to your brain...", text: $viewModel.inputText, axis: .vertical)
                 .textFieldStyle(.plain)
+                .foregroundStyle(Color.obOnSurface)
                 .lineLimit(1...5)
                 .focused($isInputFocused)
                 .onSubmit { send() }
@@ -104,12 +105,14 @@ struct BrainView: View {
             } label: {
                 Image(systemName: "arrow.up.circle.fill")
                     .font(.title2)
-                    .foregroundStyle(.purple)
+                    .foregroundStyle(Color.obSecondary)
+                    .shadow(color: .obSecondary.opacity(0.3), radius: 8, x: 0, y: 0)
             }
             .disabled(viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || viewModel.isSending)
         }
-        .padding(.horizontal)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(Color.obSurfaceContainerLow)
     }
 
     private func send() {
@@ -125,14 +128,15 @@ private struct BrainBubbleView: View {
             if message.role == .user { Spacer(minLength: 60) }
 
             Text(message.text)
+                .font(.subheadline)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
                 .background(
                     message.role == .user
-                        ? Color.blue
-                        : Color.purple.opacity(0.15)
+                        ? AnyShapeStyle(LinearGradient.obPrimaryGradient)
+                        : AnyShapeStyle(Color.obSurfaceContainer)
                 )
-                .foregroundStyle(message.role == .user ? .white : .primary)
+                .foregroundStyle(Color.obOnSurface)
                 .clipShape(RoundedRectangle(cornerRadius: 16))
 
             if message.role == .agent { Spacer(minLength: 60) }

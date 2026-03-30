@@ -19,9 +19,9 @@ struct BrowseView: View {
     var body: some View {
         VStack(spacing: 0) {
             filterBar
-            Divider()
             content
         }
+        .background(Color.obSurface)
         .navigationTitle("Browse")
         .task { await load() }
     }
@@ -34,23 +34,24 @@ struct BrowseView: View {
                 }
             }
             .padding(.horizontal)
-            .padding(.vertical, 8)
+            .padding(.vertical, 12)
         }
     }
 
     private func filterChip(_ filter: (label: String, value: String?)) -> some View {
-        Button {
+        let isSelected = selectedType == filter.value
+        return Button {
             if selectedType != filter.value {
                 selectedType = filter.value
                 Task { await load() }
             }
         } label: {
             Text(filter.label)
-                .font(.caption)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(selectedType == filter.value ? Color.purple : Color.secondary.opacity(0.15))
-                .foregroundStyle(selectedType == filter.value ? .white : .primary)
+                .font(.system(size: 12, weight: .medium))
+                .padding(.horizontal, 14)
+                .padding(.vertical, 7)
+                .background(isSelected ? Color.obSecondaryContainer : Color.obSurfaceContainerHigh)
+                .foregroundStyle(isSelected ? Color.obOnSecondaryContainer : Color.obOnSurfaceVariant)
                 .clipShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -60,6 +61,7 @@ struct BrowseView: View {
     private var content: some View {
         if isLoading {
             ProgressView()
+                .tint(.obPrimary)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if let error {
             ContentUnavailableView(
@@ -78,6 +80,8 @@ struct BrowseView: View {
                 ThoughtRow(thought: thought)
             }
             .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Color.obSurface)
         }
     }
 

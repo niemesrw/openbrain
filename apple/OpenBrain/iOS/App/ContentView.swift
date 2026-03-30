@@ -5,8 +5,18 @@ struct ContentView: View {
     let authService: AuthService
     @State private var showCapture = false
 
+    private var isScreenshotMode: Bool {
+        #if DEBUG
+        return DemoData.isScreenshotMode
+        #else
+        return false
+        #endif
+    }
+
     var body: some View {
-        if authService.isAuthenticated {
+        if isScreenshotMode {
+            ScreenshotContentView()
+        } else if authService.isAuthenticated {
             TabView {
                 NavigationStack {
                     SearchView()
@@ -43,6 +53,7 @@ struct ContentView: View {
                     Label("Settings", systemImage: "gearshape")
                 }
             }
+            .tint(.obPrimary)
             .sheet(isPresented: $showCapture) {
                 NavigationStack {
                     CaptureView()

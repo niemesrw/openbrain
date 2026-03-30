@@ -1,0 +1,43 @@
+default_platform(:ios)
+
+platform :ios do
+  desc "Upload metadata and screenshots to App Store Connect (no binary)"
+  lane :metadata do
+    app_store_connect_api_key(
+      key_id:        ENV["APP_STORE_CONNECT_API_KEY_ID"],
+      issuer_id:     ENV["APP_STORE_CONNECT_ISSUER_ID"],
+      key_content:   ENV["APP_STORE_CONNECT_API_KEY_CONTENT"],
+      is_key_content_base64: true,
+      in_house: false
+    )
+
+    deliver(
+      app_identifier:       "ai.blanxlait.brain.ios2",
+      skip_binary_upload:   true,
+      skip_screenshots:     false,
+      skip_app_version_strings: false,
+      force:                true,   # skip HTML preview prompt in CI
+      overwrite_screenshots: true
+    )
+  end
+
+  desc "Upload screenshots only"
+  lane :screenshots do
+    app_store_connect_api_key(
+      key_id:        ENV["APP_STORE_CONNECT_API_KEY_ID"],
+      issuer_id:     ENV["APP_STORE_CONNECT_ISSUER_ID"],
+      key_content:   ENV["APP_STORE_CONNECT_API_KEY_CONTENT"],
+      is_key_content_base64: true,
+      in_house: false
+    )
+
+    deliver(
+      app_identifier:      "ai.blanxlait.brain.ios2",
+      skip_binary_upload:  true,
+      skip_metadata:       true,
+      skip_screenshots:    false,
+      overwrite_screenshots: true,
+      force: true
+    )
+  end
+end

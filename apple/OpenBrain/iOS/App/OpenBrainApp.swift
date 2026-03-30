@@ -11,6 +11,7 @@ struct OpenBrainApp: App {
                 .task {
                     await APIClient.shared.configure(authService: authService)
                 }
+                .preferredColorScheme(.dark)
         }
     }
 }

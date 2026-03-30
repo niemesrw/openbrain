@@ -1,0 +1,119 @@
+name: Rebuild iOS Screenshots
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'apple/OpenBrain/iOS/Views/**'
+      - 'apple/OpenBrain/iOS/App/ScreenshotContentView.swift'
+      - 'apple/OpenBrain/iOS/App/DemoData.swift'
+
+permissions:
+  contents: write
+
+jobs:
+  screenshots:
+    runs-on: self-hosted
+    defaults:
+      run:
+        working-directory: apple/OpenBrain
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+
+      - name: Install XcodeGen
+        run: brew install xcodegen || true
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Create simulators
+        run: |
+          RUNTIME=$(xcrun simctl list runtimes --json | python3 -c "
+          import json,sys
+          runtimes = json.load(sys.stdin)['runtimes']
+          ios = [r for r in runtimes if r['identifier'].startswith('com.apple.CoreSimulator.SimRuntime.iOS') and r['isAvailable']]
+          print(sorted(ios, key=lambda r: r['version'])[-1]['identifier'])
+          ")
+          IPHONE_TYPE="com.apple.CoreSimulator.SimDeviceType.iPhone-16-Pro-Max"
+          IPAD_TYPE="com.apple.CoreSimulator.SimDeviceType.iPad-Pro-13-inch-M4"
+
+          IPHONE_ID=$(xcrun simctl create "SS-iPhone" "$IPHONE_TYPE" "$RUNTIME")
+          IPAD_ID=$(xcrun simctl create "SS-iPad" "$IPAD_TYPE" "$RUNTIME")
+
+          xcrun simctl boot $IPHONE_ID
+          xcrun simctl boot $IPAD_ID
+
+          echo "IPHONE_ID=$IPHONE_ID" >> $GITHUB_ENV
+          echo "IPAD_ID=$IPAD_ID"     >> $GITHUB_ENV
+
+      - name: Build for simulator
+        run: |
+          xcodebuild \
+            -project Brain.xcodeproj \
+            -scheme Brain-iOS \
+            -destination "id=$IPHONE_ID" \
+            -configuration Debug \
+            build
+
+      - name: Install app on simulators
+        run: |
+          APP=$(xcodebuild -project Brain.xcodeproj -scheme Brain-iOS \
+            -destination "id=$IPHONE_ID" -configuration Debug \
+            -showBuildSettings | grep "BUILT_PRODUCTS_DIR" | head -1 | awk '{print $3}')
+          xcrun simctl install $IPHONE_ID "$APP/Brain.app"
+          xcrun simctl install $IPAD_ID   "$APP/Brain.app"
+
+      - name: Capture iPhone 6.9" screenshots
+        run: |
+          SHOTS="fastlane/screenshots/en-US"
+          for TAB in Search Browse Capture Stats; do
+            case "$TAB" in
+              Search)  INDEX=01 ;;
+              Browse)  INDEX=02 ;;
+              Capture) INDEX=03 ;;
+              Stats)   INDEX=04 ;;
+            esac
+            xcrun simctl terminate $IPHONE_ID ai.blanxlait.brain.ios2 2>/dev/null || true
+            sleep 1
+            xcrun simctl launch $IPHONE_ID ai.blanxlait.brain.ios2 -SCREENSHOT_MODE -SCREENSHOT_TAB $TAB
+            sleep 3
+            xcrun simctl io $IPHONE_ID screenshot "$SHOTS/iPhone6.9-${INDEX}${TAB}.png"
+          done
+
+      - name: Capture iPad Pro 13" screenshots
+        run: |
+          SHOTS="fastlane/screenshots/en-US"
+          for TAB in Search Browse Capture Stats; do
+            case "$TAB" in
+              Search)  INDEX=01 ;;
+              Browse)  INDEX=02 ;;
+              Capture) INDEX=03 ;;
+              Stats)   INDEX=04 ;;
+            esac
+            xcrun simctl terminate $IPAD_ID ai.blanxlait.brain.ios2 2>/dev/null || true
+            sleep 1
+            xcrun simctl launch $IPAD_ID ai.blanxlait.brain.ios2 -SCREENSHOT_MODE -SCREENSHOT_TAB $TAB
+            sleep 3
+            xcrun simctl io $IPAD_ID screenshot "$SHOTS/iPadPro13-${INDEX}${TAB}.png"
+          done
+
+      - name: Cleanup simulators
+        if: always()
+        run: |
+          xcrun simctl shutdown $IPHONE_ID 2>/dev/null || true
+          xcrun simctl shutdown $IPAD_ID   2>/dev/null || true
+          xcrun simctl delete $IPHONE_ID   2>/dev/null || true
+          xcrun simctl delete $IPAD_ID     2>/dev/null || true
+
+      - name: Commit updated screenshots
+        run: |
+          cd ../..
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add apple/OpenBrain/fastlane/screenshots/
+          git diff --staged --quiet || git commit -m "chore: auto-update iOS screenshots [skip ci]"
+          git push origin HEAD:${{ github.ref_name }}

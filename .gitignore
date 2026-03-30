@@ -10,3 +10,4 @@ web/dist/
 web/tsconfig.tsbuildinfo
 web/tsconfig.node.tsbuildinfo
 excalidraw.log
+**/.DS_Store

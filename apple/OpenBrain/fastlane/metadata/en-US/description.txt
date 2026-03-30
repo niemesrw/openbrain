@@ -1,0 +1,19 @@
+Brain is a personal AI knowledge base that lives in your own AWS cloud. It stores your thoughts, decisions, ideas, and notes as semantic embeddings — so you can search by meaning, not just keywords.
+
+CAPTURE ANYTHING
+Quickly save observations, tasks, ideas, references, and person notes. Auto-detect lets the AI classify your thought for you.
+
+SEARCH BY MEANING
+Ask natural language questions like "what did I decide about the API design?" and Brain finds the relevant thought — even if you used completely different words when you wrote it.
+
+BROWSE YOUR MEMORY
+Scroll through recent thoughts filtered by type. See what's been on your mind.
+
+CHAT WITH YOUR BRAIN
+Have a conversation with your knowledge base. Ask follow-up questions, get summaries, and explore connections between your thoughts.
+
+YOUR DATA, YOUR CLOUD
+Brain connects to your own Open Brain backend on AWS. Your thoughts are stored in your own S3 Vectors index — not on our servers. Sign in with Google to get started.
+
+PRIVACY FIRST
+No ads. No data sharing. No third-party analytics. Everything lives in your own AWS account.

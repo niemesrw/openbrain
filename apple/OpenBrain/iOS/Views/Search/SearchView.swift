@@ -11,18 +11,19 @@ struct SearchView: View {
     var body: some View {
         VStack(spacing: 0) {
             searchBar
-            Divider()
             resultsList
         }
+        .background(Color.obSurface)
         .navigationTitle("Search")
     }
 
     private var searchBar: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 10) {
             Image(systemName: "magnifyingglass")
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.obOnSurfaceVariant)
             TextField("Search your brain...", text: $query)
                 .textFieldStyle(.plain)
+                .foregroundStyle(Color.obOnSurface)
                 .submitLabel(.search)
                 .onSubmit { search() }
             if !query.isEmpty {
@@ -33,18 +34,23 @@ struct SearchView: View {
                     error = nil
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.obOnSurfaceVariant)
                 }
             }
         }
-        .padding(.horizontal)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(Color.obSurfaceContainerLow)
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
     }
 
     private var resultsList: some View {
         Group {
             if isSearching {
                 ProgressView()
+                    .tint(.obPrimary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let error {
                 ContentUnavailableView(
@@ -62,8 +68,8 @@ struct SearchView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
                         Text("Suggested")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(Color.obOnSurfaceVariant)
                             .padding(.horizontal)
 
                         let suggestions: [(String, String)] = [
@@ -84,10 +90,11 @@ struct SearchView: View {
                                     search()
                                 } label: {
                                     Label(label, systemImage: icon)
-                                        .font(.subheadline)
-                                        .padding(.horizontal, 12)
+                                        .font(.system(size: 13, weight: .medium))
+                                        .foregroundStyle(Color.obOnSurfaceVariant)
+                                        .padding(.horizontal, 14)
                                         .padding(.vertical, 8)
-                                        .background(Color.secondary.opacity(0.12))
+                                        .background(Color.obSurfaceContainerHigh)
                                         .clipShape(Capsule())
                                 }
                                 .buttonStyle(.plain)
@@ -102,6 +109,8 @@ struct SearchView: View {
                     ThoughtRow(thought: thought)
                 }
                 .listStyle(.plain)
+                .scrollContentBackground(.hidden)
+                .background(Color.obSurface)
             }
         }
     }

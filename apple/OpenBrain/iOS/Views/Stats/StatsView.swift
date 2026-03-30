@@ -8,6 +8,7 @@ struct StatsView: View {
 
     var body: some View {
         content
+            .background(Color.obSurface)
             .navigationTitle("Stats")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -27,6 +28,7 @@ struct StatsView: View {
     private var content: some View {
         if isLoading {
             ProgressView()
+                .tint(.obPrimary)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if let error {
             ContentUnavailableView(
@@ -53,17 +55,18 @@ struct StatsView: View {
     private func statsCard(_ text: String) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Label("Brain Overview", systemImage: "brain")
-                .font(.headline)
-                .foregroundStyle(.purple)
+                .font(.system(.headline, design: .rounded, weight: .semibold))
+                .foregroundStyle(Color.obPrimary)
 
             Text(text)
                 .font(.subheadline)
-                .foregroundStyle(.primary)
+                .foregroundStyle(Color.obOnSurface)
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.purple.opacity(0.06))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .background(Color.obSurfaceContainerLow)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .shadow(color: .obPrimary.opacity(0.08), radius: 16, x: 0, y: 0)
     }
 
     private func load() async {

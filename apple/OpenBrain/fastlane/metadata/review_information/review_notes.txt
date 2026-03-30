@@ -1,0 +1,5 @@
+Brain requires a personal Open Brain backend (self-hosted on AWS S3 Vectors + Bedrock). It is not a general-purpose SaaS app — each user connects to their own cloud infrastructure.
+
+A shared demo account is not available as the backend is user-provisioned. The app will display the login screen and explain the self-hosted setup to reviewers.
+
+For more information on setting up the backend, see: https://github.com/BLANXLAIT/openbrain
