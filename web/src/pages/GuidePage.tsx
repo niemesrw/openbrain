@@ -207,7 +207,7 @@ export function GuidePage() {
           <FeatureCard
             icon="✍️"
             title="Capture from anywhere"
-            description="Save thoughts from the web dashboard, any connected AI chat, GitHub events, or Slack. Everything lands in the same searchable brain."
+            description="Save thoughts from the web dashboard, iOS app, any connected AI chat, GitHub events, or Slack. Everything lands in the same searchable brain."
           />
           <FeatureCard
             icon="🏷️"
@@ -228,6 +228,11 @@ export function GuidePage() {
             icon="📊"
             title="Brain stats"
             description="See a snapshot of your brain: total thoughts, breakdown by type, top topics, and people mentioned across your notes."
+          />
+          <FeatureCard
+            icon="📱"
+            title="iOS app"
+            description="Search, capture, browse, and view stats from your iPhone. Full feature parity with the web dashboard — your brain in your pocket."
           />
         </div>
       </div>
