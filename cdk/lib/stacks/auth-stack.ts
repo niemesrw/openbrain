@@ -196,13 +196,16 @@ export class AuthStack extends cdk.Stack {
       timeout: cdk.Duration.seconds(10),
     });
 
+    // Use a wildcard ARN to avoid a circular dependency between the user pool
+    // (which references the Lambda as a trigger) and the Lambda role policy
+    // (which would reference the user pool ARN).
     preSignUpFn.addToRolePolicy(
       new iam.PolicyStatement({
         actions: [
           "cognito-idp:ListUsers",
           "cognito-idp:AdminLinkProviderForUser",
         ],
-        resources: [this.userPool.userPoolArn],
+        resources: [`arn:aws:cognito-idp:${this.region}:${this.account}:userpool/*`],
       })
     );
 
