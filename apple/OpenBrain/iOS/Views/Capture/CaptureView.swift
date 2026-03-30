@@ -64,6 +64,15 @@ struct CaptureView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 if isCapturing {
                     ProgressView()
+                } else if !text.isEmpty {
+                    Button("Clear") {
+                        text = ""
+                        selectedType = .auto
+                        confirmation = nil
+                        error = nil
+                        isTextFocused = true
+                    }
+                    .foregroundStyle(.secondary)
                 }
             }
         }
