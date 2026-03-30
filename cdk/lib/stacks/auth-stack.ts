@@ -7,6 +7,10 @@ interface AuthStackProps extends cdk.StackProps {
   googleClientSecretArn: string;
   callbackUrls?: string[];
   logoutUrls?: string[];
+  appleClientId?: string;
+  appleKeyId?: string;
+  applePrivateKeyArn?: string;
+  appleTeamId?: string;
 }
 
 export class AuthStack extends cdk.Stack {
@@ -65,6 +69,25 @@ export class AuthStack extends cdk.Stack {
       }
     );
 
+    // Apple identity provider (optional — only configured when all four credentials are provided)
+    const hasApple = props.appleClientId && props.appleKeyId && props.applePrivateKeyArn && props.appleTeamId;
+    const appleProvider = hasApple
+      ? new cognito.UserPoolIdentityProviderApple(this, "AppleProvider", {
+          userPool: this.userPool,
+          clientId: props.appleClientId!,
+          keyId: props.appleKeyId!,
+          privateKey: cdk.SecretValue.secretsManager(props.applePrivateKeyArn!).unsafeUnwrap(),
+          teamId: props.appleTeamId!,
+          scopes: ["openid", "email", "name"],
+          attributeMapping: {
+            email: cognito.ProviderAttribute.APPLE_EMAIL,
+            preferredUsername: cognito.ProviderAttribute.other("name"),
+          },
+        })
+      : undefined;
+
+    const appleIdp = cognito.UserPoolClientIdentityProvider.APPLE;
+
     const callbackUrls = props.callbackUrls ?? [
       "http://localhost:5173/callback",
     ];
@@ -80,6 +103,7 @@ export class AuthStack extends cdk.Stack {
       supportedIdentityProviders: [
         cognito.UserPoolClientIdentityProvider.COGNITO,
         cognito.UserPoolClientIdentityProvider.GOOGLE,
+        ...(hasApple ? [appleIdp] : []),
       ],
       oAuth: {
         flows: { authorizationCodeGrant: true },
@@ -96,8 +120,9 @@ export class AuthStack extends cdk.Stack {
       refreshTokenValidity: cdk.Duration.days(30),
     });
 
-    // Ensure the client is created after the Google provider
+    // Ensure the client is created after the identity providers
     this.webClient.node.addDependency(googleProvider);
+    if (appleProvider) this.webClient.node.addDependency(appleProvider);
 
     // CLI client — longer token lifetime for dev use, with OAuth for Google sign-in
     this.cliClient = this.userPool.addClient("CliClient", {
@@ -110,6 +135,7 @@ export class AuthStack extends cdk.Stack {
       supportedIdentityProviders: [
         cognito.UserPoolClientIdentityProvider.COGNITO,
         cognito.UserPoolClientIdentityProvider.GOOGLE,
+        ...(hasApple ? [appleIdp] : []),
       ],
       oAuth: {
         flows: { authorizationCodeGrant: true },
@@ -126,8 +152,8 @@ export class AuthStack extends cdk.Stack {
       refreshTokenValidity: cdk.Duration.days(90),
     });
 
-    // Ensure the CLI client is created after the Google provider
     this.cliClient.node.addDependency(googleProvider);
+    if (appleProvider) this.cliClient.node.addDependency(appleProvider);
 
     // Mobile client — for iOS/macOS native apps, uses custom URL scheme
     this.mobileClient = this.userPool.addClient("MobileClient", {
@@ -139,6 +165,7 @@ export class AuthStack extends cdk.Stack {
       supportedIdentityProviders: [
         cognito.UserPoolClientIdentityProvider.COGNITO,
         cognito.UserPoolClientIdentityProvider.GOOGLE,
+        ...(hasApple ? [appleIdp] : []),
       ],
       oAuth: {
         flows: { authorizationCodeGrant: true },
@@ -155,6 +182,7 @@ export class AuthStack extends cdk.Stack {
       refreshTokenValidity: cdk.Duration.days(30),
     });
     this.mobileClient.node.addDependency(googleProvider);
+    if (appleProvider) this.mobileClient.node.addDependency(appleProvider);
 
     new cdk.CfnOutput(this, "UserPoolId", {
       value: this.userPool.userPoolId,

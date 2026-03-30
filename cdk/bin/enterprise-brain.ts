@@ -24,6 +24,12 @@ if (!googleClientId || !googleClientSecretArn) {
   );
 }
 
+// Sign in with Apple — optional, only wired when all four values are present
+const appleClientId = app.node.tryGetContext("appleClientId") ?? process.env.APPLE_CLIENT_ID;
+const appleKeyId = app.node.tryGetContext("appleKeyId") ?? process.env.APPLE_KEY_ID;
+const applePrivateKeyArn = app.node.tryGetContext("applePrivateKeyArn") ?? process.env.APPLE_PRIVATE_KEY_ARN;
+const appleTeamId = app.node.tryGetContext("appleTeamId") ?? process.env.APPLE_TEAM_ID;
+
 function parseStringOrArray(val: unknown, fallback: string[]): string[] {
   if (!val) return fallback;
   if (Array.isArray(val)) return val;
@@ -49,6 +55,10 @@ const auth = new AuthStack(app, "EnterpriseBrainAuth", {
   googleClientSecretArn,
   callbackUrls,
   logoutUrls,
+  appleClientId,
+  appleKeyId,
+  applePrivateKeyArn,
+  appleTeamId,
 });
 const data = new DataStack(app, "EnterpriseBrainData", { env });
 const api = new ApiStack(app, "EnterpriseBrainApi", {

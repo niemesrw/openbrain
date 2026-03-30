@@ -135,6 +135,10 @@ jobs:
           ALARM_EMAIL: ${{ secrets.ALARM_EMAIL }}
           CUSTOM_DOMAIN: ${{ secrets.CUSTOM_DOMAIN }}
           GITHUB_APP_ID: ${{ secrets.GH_APP_ID }}
+          APPLE_CLIENT_ID: ${{ secrets.APPLE_CLIENT_ID }}
+          APPLE_KEY_ID: ${{ secrets.APPLE_KEY_ID }}
+          APPLE_PRIVATE_KEY_ARN: ${{ secrets.APPLE_PRIVATE_KEY_ARN }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
       # --- Fetch CDK outputs for web build ---
 
@@ -209,6 +213,10 @@ jobs:
         env:
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET_ARN: ${{ secrets.GOOGLE_CLIENT_SECRET_ARN }}
+          APPLE_CLIENT_ID: ${{ secrets.APPLE_CLIENT_ID }}
+          APPLE_KEY_ID: ${{ secrets.APPLE_KEY_ID }}
+          APPLE_PRIVATE_KEY_ARN: ${{ secrets.APPLE_PRIVATE_KEY_ARN }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
       # --- Print deployment info ---
 
