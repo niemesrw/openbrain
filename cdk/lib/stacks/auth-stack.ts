@@ -1,5 +1,9 @@
 import * as cdk from "aws-cdk-lib";
 import * as cognito from "aws-cdk-lib/aws-cognito";
+import * as iam from "aws-cdk-lib/aws-iam";
+import * as lambda from "aws-cdk-lib/aws-lambda";
+import * as lambdaNode from "aws-cdk-lib/aws-lambda-nodejs";
+import * as path from "path";
 import { Construct } from "constructs";
 
 interface AuthStackProps extends cdk.StackProps {
@@ -183,6 +187,26 @@ export class AuthStack extends cdk.Stack {
     });
     this.mobileClient.node.addDependency(googleProvider);
     if (appleProvider) this.mobileClient.node.addDependency(appleProvider);
+
+    // Pre-Signup trigger — links federated identities with same email to one user
+    const preSignUpFn = new lambdaNode.NodejsFunction(this, "PreSignUpFn", {
+      entry: path.join(__dirname, "../../../lambda/src/cognito-pre-signup.ts"),
+      handler: "handler",
+      runtime: lambda.Runtime.NODEJS_22_X,
+      timeout: cdk.Duration.seconds(10),
+    });
+
+    preSignUpFn.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: [
+          "cognito-idp:ListUsers",
+          "cognito-idp:AdminLinkProviderForUser",
+        ],
+        resources: [this.userPool.userPoolArn],
+      })
+    );
+
+    this.userPool.addTrigger(cognito.UserPoolOperation.PRE_SIGN_UP, preSignUpFn);
 
     new cdk.CfnOutput(this, "UserPoolId", {
       value: this.userPool.userPoolId,
