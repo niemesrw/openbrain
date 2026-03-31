@@ -57,7 +57,7 @@ export function BrainInput({ chatValue, onChatChange, onChatSubmit, onCapture, l
 
   return (
     <div className="fixed left-0 right-0 glass-panel pt-4 pb-3 px-4" style={{ bottom: "var(--bottom-nav-height, 76px)" }}>
-      <div className="max-w-3xl mx-auto">
+      <div className="max-w-lg md:max-w-4xl mx-auto md:px-4">
         <div
           className={`relative bg-brain-surface rounded-2xl transition-all ${
             isCapture

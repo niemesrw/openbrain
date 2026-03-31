@@ -27,6 +27,16 @@
   }
 }
 
+:root {
+  --bottom-nav-height: 76px;
+}
+
+@media (min-width: 768px) {
+  :root {
+    --bottom-nav-height: 0px;
+  }
+}
+
 .material-symbols-outlined {
   font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
   font-family: 'Material Symbols Outlined';

@@ -21,6 +21,9 @@ export function Layout() {
   const isAuth = !!user;
   const initial = user?.getUsername()?.[0]?.toUpperCase() ?? "U";
 
+  const isActive = (to: string) =>
+    location.pathname === to || location.pathname.startsWith(to + "/");
+
   return (
     <div className="min-h-screen bg-brain-base">
       {/* Top header */}
@@ -29,26 +32,53 @@ export function Layout() {
           <span className="material-symbols-outlined text-brain-primary text-2xl">psychology</span>
           OpenBrain
         </Link>
+
         {isAuth ? (
-          <button
-            onClick={handleSignOut}
-            className="w-8 h-8 rounded-full bg-brain-surface flex items-center justify-center text-xs text-brain-muted font-label font-semibold hover:bg-brain-high transition-colors"
-            title="Sign out"
-            aria-label="Sign out"
-          >
-            {initial}
-          </button>
+          <>
+            {/* Desktop nav links */}
+            <nav className="hidden md:flex items-center gap-6">
+              {NAV_TABS.map(({ to, label }) => (
+                <Link
+                  key={to}
+                  to={to}
+                  className={`text-sm font-label transition-colors ${
+                    isActive(to) ? "text-brain-primary" : "text-brain-muted hover:text-white"
+                  }`}
+                >
+                  {label}
+                </Link>
+              ))}
+              <button
+                onClick={handleSignOut}
+                title="Sign out"
+                aria-label="Sign out"
+                className="w-8 h-8 rounded-full bg-brain-surface flex items-center justify-center text-xs text-brain-muted font-label font-semibold hover:bg-brain-high transition-colors"
+              >
+                {initial}
+              </button>
+            </nav>
+
+            {/* Mobile: avatar only */}
+            <button
+              onClick={handleSignOut}
+              title="Sign out"
+              aria-label="Sign out"
+              className="md:hidden w-8 h-8 rounded-full bg-brain-surface flex items-center justify-center text-xs text-brain-muted font-label font-semibold hover:bg-brain-high transition-colors"
+            >
+              {initial}
+            </button>
+          </>
         ) : (
           <div className="flex items-center gap-4">
             <Link
               to="/guide"
-              className={`text-sm font-label transition-colors ${location.pathname === "/guide" ? "text-brain-primary" : "text-brain-muted hover:text-white"}`}
+              className={`text-sm font-label transition-colors ${isActive("/guide") ? "text-brain-primary" : "text-brain-muted hover:text-white"}`}
             >
               Guide
             </Link>
             <Link
               to="/login"
-              className={`text-sm font-label transition-colors ${location.pathname === "/login" ? "text-brain-primary" : "text-brain-muted hover:text-white"}`}
+              className={`text-sm font-label transition-colors ${isActive("/login") ? "text-brain-primary" : "text-brain-muted hover:text-white"}`}
             >
               Log in
             </Link>
@@ -62,17 +92,17 @@ export function Layout() {
         )}
       </header>
 
-      {/* Main content */}
-      <main className={`max-w-lg mx-auto px-4 pt-20 ${isAuth ? "pb-24" : "pb-12"}`}>
+      {/* Main content — narrow on mobile, wide on desktop */}
+      <main className={`mx-auto px-4 pt-20 md:px-8 ${isAuth ? "max-w-lg md:max-w-4xl pb-24 md:pb-10" : "max-w-lg pb-12"}`}>
         <Outlet />
       </main>
 
-      {/* Bottom nav — authenticated users only */}
+      {/* Bottom nav — mobile only */}
       {isAuth && (
-        <nav className="fixed bottom-0 left-0 right-0 z-50 bg-[#0e0e0e]/80 backdrop-blur-2xl rounded-t-[24px] border-t border-brain-outline/15 shadow-[0_-8px_32px_rgba(0,0,0,0.5)]">
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#0e0e0e]/80 backdrop-blur-2xl rounded-t-[24px] border-t border-brain-outline/15 shadow-[0_-8px_32px_rgba(0,0,0,0.5)]">
           <div className="max-w-lg mx-auto flex items-center justify-around px-2 pt-3 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
             {NAV_TABS.map(({ to, label, icon }) => {
-              const active = location.pathname === to || location.pathname.startsWith(to + "/");
+              const active = isActive(to);
               return (
                 <Link
                   key={to}
