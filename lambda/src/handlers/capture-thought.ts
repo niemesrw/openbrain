@@ -8,6 +8,8 @@ import { describeImage } from "../services/vision";
 import { validateThoughtText } from "./validate-thought-text";
 import type { CaptureArgs, UserContext } from "../types";
 
+const ALLOWED_SOURCES = new Set(["github", "slack", "google-meet"]);
+
 let sqsClient: SQSClient | undefined;
 function getSqsClient(): SQSClient {
   if (!sqsClient) sqsClient = new SQSClient({});
@@ -18,7 +20,7 @@ export async function handleCaptureThought(
   args: CaptureArgs,
   user: UserContext
 ): Promise<string> {
-  const { text, scope = "private", media_url, source_url, type: typeOverride } = args;
+  const { text, scope = "private", media_url, source_url, type: typeOverride, _source } = args;
 
   const validationError = validateThoughtText(text);
   if (validationError) return validationError;
@@ -70,6 +72,8 @@ export async function handleCaptureThought(
     dates_mentioned: JSON.stringify(metadata.dates_mentioned),
     ...(resolvedMediaUrl && { media_url: resolvedMediaUrl }),
     ...(source_url && { source_url }),
+    // Allowlist source values — reject anything not from a known system agent
+    ...(_source && ALLOWED_SOURCES.has(_source) && { source: _source }),
     // Attribution for shared captures
     ...(scope === "shared" && {
       display_name: user.displayName || "anonymous",

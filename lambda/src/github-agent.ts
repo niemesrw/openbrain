@@ -103,7 +103,7 @@ export async function handler(event: SQSEvent): Promise<void> {
     // Capture to the user's brain
     try {
       const result = await handleCaptureThought(
-        { text: context.summary, scope: "private" },
+        { text: context.summary, scope: "private", _source: "github" },
         { userId: installation.userId, agentName: "github-agent" }
       );
       console.log("[github-agent] Captured thought", {

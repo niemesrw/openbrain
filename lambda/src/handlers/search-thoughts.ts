@@ -5,6 +5,7 @@ import {
   buildMetadataFilter,
 } from "../services/vectors";
 import type { SearchArgs, UserContext } from "../types";
+import { xmlEscape } from "../utils/xml-escape";
 
 function safeParseArray(value: unknown): string[] {
   if (Array.isArray(value)) return value;
@@ -92,7 +93,8 @@ export async function handleSearchThoughts(
         const topics = Array.isArray(m.topics)
           ? m.topics.join(", ")
           : "none";
-        return `[${date}] (${similarity}% match)\n${m.content || ""}\nType: ${m.type || "unknown"} | Topics: ${topics}`;
+        const sourceLabel = m.source ? ` [source: ${m.source}]` : "";
+        return `[${date}] (${similarity}% match)${sourceLabel}\n<thought-content>\n${xmlEscape(m.content || "")}\n</thought-content>\nType: ${m.type || "unknown"} | Topics: ${topics}`;
       })
       .join("\n\n---\n\n")
   );

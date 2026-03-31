@@ -1,5 +1,6 @@
 import { resolveIndexes, listAllVectors } from "../services/vectors";
 import type { BrowseArgs, UserContext } from "../types";
+import { xmlEscape } from "../utils/xml-escape";
 
 function safeParseArray(value: unknown): string[] {
   if (Array.isArray(value)) return value;
@@ -88,7 +89,8 @@ export async function handleBrowseRecent(
         const topics = Array.isArray(m.topics)
           ? m.topics.join(", ")
           : "none";
-        return `[${date}] ${m.type || "unknown"}\n${m.content || ""}\nTopics: ${topics}`;
+        const sourceLabel = m.source ? ` [source: ${m.source}]` : "";
+        return `[${date}] ${m.type || "unknown"}${sourceLabel}\n<thought-content>\n${xmlEscape(m.content || "")}\n</thought-content>\nTopics: ${topics}`;
       })
       .join("\n\n---\n\n")
   );

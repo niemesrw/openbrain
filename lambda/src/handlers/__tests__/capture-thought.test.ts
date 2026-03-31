@@ -296,6 +296,24 @@ describe("handleCaptureThought", () => {
     expect(call).not.toHaveProperty("source_url");
   });
 
+  it("stores _source in metadata when provided", async () => {
+    await handleCaptureThought({ text: "GitHub PR merged", _source: "github" }, USER);
+
+    expect(mockPutVector).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.any(String),
+      EMBEDDING,
+      expect.objectContaining({ source: "github" })
+    );
+  });
+
+  it("omits source from metadata when _source is not provided", async () => {
+    await handleCaptureThought({ text: "User thought" }, USER);
+
+    const call = mockPutVector.mock.calls[0][3];
+    expect(call).not.toHaveProperty("source");
+  });
+
   it("overrides AI-chosen type when args.type is provided", async () => {
     mockExtractMetadata.mockResolvedValue({
       type: "observation",

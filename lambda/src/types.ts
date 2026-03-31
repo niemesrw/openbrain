@@ -21,6 +21,8 @@ export interface S3VectorMetadata {
   media_url?: string;
   /** Source URL of the article or page this thought was captured from */
   source_url?: string;
+  /** Origin of this thought — e.g. "github", "slack". Absent for user-captured thoughts. */
+  source?: string;
 }
 
 export interface UserContext {
@@ -62,6 +64,8 @@ export interface CaptureArgs {
   source_url?: string;
   /** Optional explicit type override — overrides the AI-chosen type when provided */
   type?: "observation" | "task" | "idea" | "reference" | "person_note";
+  /** Internal: origin tag injected by system agents (e.g. "github", "slack"). Not exposed in MCP schema. */
+  _source?: string;
 }
 
 export interface UpdateThoughtArgs {

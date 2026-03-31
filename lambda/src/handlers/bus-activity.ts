@@ -1,5 +1,6 @@
 import { listAllVectors } from "../services/vectors";
 import type { BusActivityArgs, UserContext } from "../types";
+import { xmlEscape } from "../utils/xml-escape";
 
 export async function handleBusActivity(
   args: BusActivityArgs,
@@ -99,7 +100,8 @@ export async function handleBusActivity(
     const type = m.type || "?";
     const content = (m.content || "").slice(0, 100);
     const ago = Math.round((Date.now() - (m.created_at ?? 0)) / 60000);
-    lines.push(`  [${type}] ${actor} (${ago}m ago): ${content}`);
+    const sourceLabel = m.source ? ` [source: ${m.source}]` : "";
+    lines.push(`  [${type}] ${actor} (${ago}m ago)${sourceLabel}:\n  <thought-content>${xmlEscape(content)}</thought-content>`);
   }
 
   return lines.join("\n");

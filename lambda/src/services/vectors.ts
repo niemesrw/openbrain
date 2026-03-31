@@ -72,6 +72,8 @@ export interface VectorMetadata {
   tenant_id?: string;
   media_url?: string;
   source_url?: string;
+  /** Origin of this thought — e.g. "github", "slack". Absent for user-captured thoughts. */
+  source?: string;
 }
 
 export async function queryVectors(
