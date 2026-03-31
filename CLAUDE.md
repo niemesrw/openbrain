@@ -344,6 +344,7 @@ Before submitting a pull request, ensure:
 4. **Error handling** — Use `err instanceof Error ? err.message : String(err)` when logging errors to handle non-Error throws correctly.
 5. **Web build** — If `web/` files changed, run `cd web && npm run build` to ensure the SPA builds cleanly before deploying via CDK.
 6. **Guide** — If this adds or changes a user-facing feature (new tool, integration, or UI), update `web/src/pages/GuidePage.tsx`.
+7. **Security boundaries** — When implementing any security boundary (delimiter wrapping, input validation, allowlists, escaping), explicitly reason about what an attacker controls and whether they can escape the boundary. Ask: "if the input contains the delimiter/closing tag itself, does the boundary still hold?" Common failures: XML/HTML wrappers without escaping the content, allowlists that are enforced after use rather than before, type validation that only runs at the TypeScript layer but not at runtime.
 
 ## Troubleshooting
 
