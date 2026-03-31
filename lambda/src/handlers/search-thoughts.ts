@@ -48,7 +48,15 @@ export async function handleSearchThoughts(
       // S3 Vectors cosine distance: 0 = identical, 2 = opposite
       // Convert to similarity: 1 - (distance / 2)
       const similarity = 1 - (v.distance ?? 2) / 2;
-      return similarity >= threshold;
+      if (similarity < threshold) return false;
+      // Enforce tenant isolation on shared index results — always use the authenticated
+      // user's ID, never the caller-supplied value, to prevent cross-tenant reads.
+      // Backward-compatible: thoughts without tenant_id are included.
+      if (!v._indexName.startsWith("private-")) {
+        const tid = ((v.metadata ?? {}) as Record<string, unknown>).tenant_id;
+        if (tid && tid !== user.userId) return false;
+      }
+      return true;
     })
     .sort((a, b) => (a.distance ?? 2) - (b.distance ?? 2))
     .slice(0, limit);

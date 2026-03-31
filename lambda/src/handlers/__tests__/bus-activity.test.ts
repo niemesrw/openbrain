@@ -40,56 +40,65 @@ beforeEach(() => jest.spyOn(Date, "now").mockReturnValue(NOW));
 afterEach(() => jest.restoreAllMocks());
 
 describe("handleBusActivity", () => {
-  it("returns all recent shared thoughts when no filters applied", async () => {
+  it("returns only the authenticated user's shared thoughts (server-enforced tenant isolation)", async () => {
     mockList.mockResolvedValue([
       makeVector("k1", { tenant_id: "user-123", content: "thought A" }),
       makeVector("k2", { tenant_id: "user-456", content: "thought B" }),
     ]);
     const result = await handleBusActivity({}, USER);
     expect(result).toContain("thought A");
-    expect(result).toContain("thought B");
+    expect(result).not.toContain("thought B");
   });
 
-  it("filters results to matching tenant_id", async () => {
+  it("cannot be bypassed by omitting tenant_id arg (bypass prevention)", async () => {
     mockList.mockResolvedValue([
       makeVector("k1", { tenant_id: "user-123", content: "my thought" }),
       makeVector("k2", { tenant_id: "user-456", content: "other tenant thought" }),
     ]);
-    const result = await handleBusActivity({ tenant_id: "user-123" }, USER);
+    // No tenant_id arg — server must still scope to user.userId
+    const result = await handleBusActivity({}, USER);
     expect(result).toContain("my thought");
     expect(result).not.toContain("other tenant thought");
   });
 
-  it("excludes all results when tenant_id matches nothing", async () => {
+  it("filters results to authenticated user's tenant (caller-supplied tenant_id is ignored)", async () => {
+    mockList.mockResolvedValue([
+      makeVector("k1", { tenant_id: "user-123", content: "my thought" }),
+      makeVector("k2", { tenant_id: "user-456", content: "other tenant thought" }),
+    ]);
+    // Even if caller passes a different tenant_id, server enforces user.userId
+    const result = await handleBusActivity({ tenant_id: "user-456" }, USER);
+    expect(result).toContain("my thought");
+    expect(result).not.toContain("other tenant thought");
+  });
+
+  it("excludes all results when no thoughts match the authenticated user's tenant", async () => {
     mockList.mockResolvedValue([
       makeVector("k1", { tenant_id: "user-456", content: "someone else" }),
     ]);
-    const result = await handleBusActivity({ tenant_id: "user-123" }, USER);
+    const result = await handleBusActivity({}, USER);
     expect(result).toContain("No shared activity");
   });
 
-  it("includes old thoughts without tenant_id regardless of tenant filter (backward compat)", async () => {
+  it("old thoughts without tenant_id are excluded (strict filter)", async () => {
     mockList.mockResolvedValue([
       makeVector("k1", { content: "old thought no tenant" }), // no tenant_id key
       makeVector("k2", { tenant_id: "user-123", content: "my new thought" }),
       makeVector("k3", { tenant_id: "user-456", content: "other tenant" }),
     ]);
-    // NOTE: bus-activity does NOT have backward-compat passthrough like browse-recent —
-    // it only filters when tenant_id is explicitly provided, so thoughts without the
-    // field are excluded (strict filter). This test documents the current behavior.
-    const result = await handleBusActivity({ tenant_id: "user-123" }, USER);
+    const result = await handleBusActivity({}, USER);
     expect(result).toContain("my new thought");
     expect(result).not.toContain("other tenant");
     // old thought without tenant_id is excluded by the strict filter
     expect(result).not.toContain("old thought no tenant");
   });
 
-  it("applies agent filter in addition to tenant_id filter", async () => {
+  it("applies agent filter in addition to tenant enforcement", async () => {
     mockList.mockResolvedValue([
       makeVector("k1", { tenant_id: "user-123", agent_id: "bot-a", content: "bot-a thought" }),
       makeVector("k2", { tenant_id: "user-123", agent_id: "bot-b", content: "bot-b thought" }),
     ]);
-    const result = await handleBusActivity({ tenant_id: "user-123", agent: "bot-a" }, USER);
+    const result = await handleBusActivity({ agent: "bot-a" }, USER);
     expect(result).toContain("bot-a thought");
     expect(result).not.toContain("bot-b thought");
   });
@@ -100,7 +109,7 @@ describe("handleBusActivity", () => {
       makeVector("k1", { tenant_id: "user-123", content: "recent", created_at: NOW }),
       makeVector("k2", { tenant_id: "user-123", content: "old post", created_at: tooOld }),
     ]);
-    const result = await handleBusActivity({ tenant_id: "user-123", hours: 24 }, USER);
+    const result = await handleBusActivity({ hours: 24 }, USER);
     expect(result).toContain("recent");
     expect(result).not.toContain("old post");
   });
@@ -110,7 +119,7 @@ describe("handleBusActivity", () => {
       makeVector("k1", { tenant_id: "user-123", content: "json thought" }),
       makeVector("k2", { tenant_id: "user-456", content: "other" }),
     ]);
-    const raw = await handleBusActivity({ tenant_id: "user-123", _format: "json" }, USER);
+    const raw = await handleBusActivity({ _format: "json" }, USER);
     const parsed = JSON.parse(raw);
     expect(parsed.summary.total).toBe(1);
     expect(parsed.recent[0].content).toBe("json thought");
@@ -122,7 +131,7 @@ describe("handleBusActivity", () => {
       makeVector("k2", { tenant_id: "user-123", content: "t2" }),
       makeVector("k3", { tenant_id: "user-123", content: "t3" }),
     ]);
-    const raw = await handleBusActivity({ tenant_id: "user-123", limit: 2, _format: "json" }, USER);
+    const raw = await handleBusActivity({ limit: 2, _format: "json" }, USER);
     const parsed = JSON.parse(raw);
     expect(parsed.summary.total).toBe(2);
   });

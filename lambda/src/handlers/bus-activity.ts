@@ -4,12 +4,14 @@ import { xmlEscape } from "../utils/xml-escape";
 
 export async function handleBusActivity(
   args: BusActivityArgs,
-  _user: UserContext
+  user: UserContext
 ): Promise<string> {
   const hours = args.hours ?? 24;
   const limit = args.limit ?? 50;
   const agentFilter = args.agent;
-  const tenantFilter = args.tenant_id;
+  // Always enforce tenant isolation using the authenticated user's ID — ignore any
+  // caller-supplied tenant_id to prevent cross-tenant reads of the shared bus.
+  const tenantFilter = user.userId;
   const _format = args._format;
 
   const cutoff = Date.now() - hours * 60 * 60 * 1000;

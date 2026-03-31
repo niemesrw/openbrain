@@ -37,16 +37,16 @@ export async function handleBrowseRecent(
       return Array.isArray(topics) && topics.includes(topic);
     });
   }
-  // tenant_id filter applies to shared results — backward-compatible: thoughts without
-  // tenant_id (captured before this feature) are always included when filtering
-  if (tenant_id) {
-    all = all.filter(
-      (v) =>
-        v._indexName === `private-${user.userId}` ||
-        !v.metadata.tenant_id ||
-        v.metadata.tenant_id === tenant_id
-    );
-  }
+  // Always enforce tenant isolation on shared index results using the authenticated user's
+  // ID as the effective tenant, ignoring any caller-supplied tenant_id to prevent
+  // cross-tenant reads. Backward-compatible: thoughts without tenant_id are included.
+  const effectiveTenantId = user.userId;
+  all = all.filter(
+    (v) =>
+      v._indexName === `private-${user.userId}` ||
+      !v.metadata.tenant_id ||
+      v.metadata.tenant_id === effectiveTenantId
+  );
 
   if (human_only) {
     all = all.filter((v) => !v.metadata.source);

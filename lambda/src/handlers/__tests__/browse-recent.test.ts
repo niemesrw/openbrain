@@ -80,21 +80,33 @@ describe("handleBrowseRecent", () => {
     expect(result).not.toContain("react thought");
   });
 
-  it("filters shared results by tenant_id when provided", async () => {
+  it("filters shared results by authenticated user's tenant_id (server-enforced)", async () => {
     mockResolveIndexes.mockReturnValue(["shared"]);
     mockListAllVectors.mockResolvedValue([
       makeVector("k1", { tenant_id: "user-123", content: "my shared thought" }),
       makeVector("k2", { tenant_id: "user-456", content: "other user thought" }),
     ]);
 
-    // Simulate: scope=shared, list all, then filter to tenant_id=user-123
-    // The handler passes _indexName as the shared index, so private check won't match
-    // We need to use scope=shared here
+    const result = await handleBrowseRecent({ scope: "shared" }, USER);
+
+    expect(result).toContain("my shared thought");
+    expect(result).not.toContain("other user thought");
+  });
+
+  it("ignores caller-supplied tenant_id and always uses authenticated user (bypass prevention)", async () => {
+    mockResolveIndexes.mockReturnValue(["shared"]);
+    mockListAllVectors.mockResolvedValue([
+      makeVector("k1", { tenant_id: "user-123", content: "my shared thought" }),
+      makeVector("k2", { tenant_id: "user-456", content: "other user thought" }),
+    ]);
+
+    // Caller tries to read another user's shared thoughts by passing their tenant_id
     const result = await handleBrowseRecent(
-      { scope: "shared", tenant_id: "user-123" },
+      { scope: "shared", tenant_id: "user-456" },
       USER
     );
 
+    // Server enforces user.userId = "user-123", so other user's thought is excluded
     expect(result).toContain("my shared thought");
     expect(result).not.toContain("other user thought");
   });
@@ -104,10 +116,7 @@ describe("handleBrowseRecent", () => {
       makeVector("k1", { content: "private thought no tenant" }),
     ]);
 
-    const result = await handleBrowseRecent(
-      { scope: "private", tenant_id: "user-123" },
-      USER
-    );
+    const result = await handleBrowseRecent({ scope: "private" }, USER);
 
     // Private index results pass through even without tenant_id in metadata
     expect(result).toContain("private thought no tenant");
@@ -121,17 +130,14 @@ describe("handleBrowseRecent", () => {
       makeVector("k3", { content: "other user thought", tenant_id: "user-456" }),
     ]);
 
-    const result = await handleBrowseRecent(
-      { scope: "shared", tenant_id: "user-123" },
-      USER
-    );
+    const result = await handleBrowseRecent({ scope: "shared" }, USER);
 
     expect(result).toContain("old shared thought");
     expect(result).toContain("new shared mine");
     expect(result).not.toContain("other user thought");
   });
 
-  it("filters correctly with scope=all and tenant_id", async () => {
+  it("filters correctly with scope=all (tenant enforcement on shared, private always included)", async () => {
     mockResolveIndexes.mockReturnValue([`private-${USER.userId}`, "shared"]);
     mockListAllVectors
       .mockResolvedValueOnce([makeVector("k1", { content: "private thought" })])
@@ -140,10 +146,7 @@ describe("handleBrowseRecent", () => {
         makeVector("k3", { content: "shared other", tenant_id: "user-456" }),
       ]);
 
-    const result = await handleBrowseRecent(
-      { scope: "all", tenant_id: "user-123" },
-      USER
-    );
+    const result = await handleBrowseRecent({ scope: "all" }, USER);
 
     expect(result).toContain("private thought");
     expect(result).toContain("shared mine");

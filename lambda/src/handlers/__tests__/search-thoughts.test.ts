@@ -13,7 +13,7 @@ const mockBuildMetadataFilter = vectors.buildMetadataFilter as jest.MockedFuncti
 const USER = { userId: "user-123" };
 const EMBEDDING = [0.1, 0.2, 0.3];
 
-const makeVector = (key: string, content: string, distance = 0.2) => ({
+const makeVector = (key: string, content: string, distance = 0.2, tenantId?: string) => ({
   key,
   distance,
   metadata: {
@@ -23,6 +23,7 @@ const makeVector = (key: string, content: string, distance = 0.2) => ({
     created_at: 1700000000000,
     action_items: "[]",
     dates_mentioned: "[]",
+    ...(tenantId !== undefined && { tenant_id: tenantId }),
   },
 });
 
@@ -116,6 +117,45 @@ describe("handleSearchThoughts", () => {
     expect(mockBuildMetadataFilter).toHaveBeenCalledWith(
       expect.objectContaining({ type: "task", topic: "work" })
     );
+  });
+
+  it("filters out shared results from other tenants (server-enforced tenant isolation)", async () => {
+    mockResolveIndexes.mockReturnValue(["shared"]);
+    mockQueryVectors.mockResolvedValue([
+      makeVector("id-mine", "my shared thought", 0.1, "user-123"),
+      makeVector("id-theirs", "other user thought", 0.1, "user-456"),
+    ]);
+
+    const result = await handleSearchThoughts({ query: "thought", scope: "shared" }, USER);
+
+    expect(result).toContain("my shared thought");
+    expect(result).not.toContain("other user thought");
+  });
+
+  it("includes old shared thoughts without tenant_id (backward compat)", async () => {
+    mockResolveIndexes.mockReturnValue(["shared"]);
+    mockQueryVectors.mockResolvedValue([
+      makeVector("id-old", "old thought no tenant", 0.1),
+      makeVector("id-mine", "my new thought", 0.1, "user-123"),
+      makeVector("id-theirs", "other user thought", 0.1, "user-456"),
+    ]);
+
+    const result = await handleSearchThoughts({ query: "thought", scope: "shared" }, USER);
+
+    expect(result).toContain("old thought no tenant");
+    expect(result).toContain("my new thought");
+    expect(result).not.toContain("other user thought");
+  });
+
+  it("does not apply tenant filter to private index results", async () => {
+    mockResolveIndexes.mockReturnValue(["private-user-123"]);
+    mockQueryVectors.mockResolvedValue([
+      makeVector("id-1", "private thought no tenant", 0.1),
+    ]);
+
+    const result = await handleSearchThoughts({ query: "thought" }, USER);
+
+    expect(result).toContain("private thought no tenant");
   });
 
   it("includes media_url in JSON response when vector metadata contains it", async () => {
