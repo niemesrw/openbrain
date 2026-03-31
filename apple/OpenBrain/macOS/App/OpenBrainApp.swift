@@ -15,9 +15,18 @@ struct OpenBrainApp: App {
         }
         .windowStyle(.titleBar)
         .defaultSize(width: 1000, height: 700)
+        .commands {
+            CommandGroup(after: .windowArrangement) {
+                Button("Show OpenBrain") {
+                    NSApp.activate(ignoringOtherApps: true)
+                }
+                .keyboardShortcut("b", modifiers: [.command, .shift])
+            }
+        }
 
         MenuBarExtra("Open Brain", systemImage: "brain") {
             MenuBarView(authService: authService)
         }
+        .menuBarExtraStyle(.window)
     }
 }

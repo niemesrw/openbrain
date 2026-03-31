@@ -5,27 +5,36 @@ struct SidebarView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text("Open Brain")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .textCase(.uppercase)
-                .padding(.horizontal, 16)
-                .padding(.top, 12)
-                .padding(.bottom, 4)
-
-            ForEach(SidebarSection.allCases) { section in
-                SidebarButton(
-                    section: section,
-                    isSelected: selection == section
-                ) {
-                    selection = section
-                }
-            }
-
+            sectionGroup("Brain", sections: [.brain, .capture])
+            Divider().padding(.horizontal, 12).padding(.vertical, 4)
+            sectionGroup("Library", sections: [.search, .browse, .stats])
+            Divider().padding(.horizontal, 12).padding(.vertical, 4)
+            sectionGroup(nil, sections: [.settings])
             Spacer()
         }
         .padding(.vertical, 4)
         .navigationTitle("Open Brain")
+    }
+
+    @ViewBuilder
+    private func sectionGroup(_ title: String?, sections: [SidebarSection]) -> some View {
+        if let title {
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+                .padding(.horizontal, 16)
+                .padding(.top, 10)
+                .padding(.bottom, 2)
+        }
+        ForEach(sections) { section in
+            SidebarButton(
+                section: section,
+                isSelected: selection == section
+            ) {
+                selection = section
+            }
+        }
     }
 }
 
