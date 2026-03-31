@@ -27,13 +27,10 @@ export function CallbackPage() {
       return;
     }
 
-    let cancelled = false;
     const state = searchParams.get("state");
     handleOAuthCallback(code, state)
-      .then(() => { if (!cancelled) navigate("/dashboard", { replace: true }); })
-      .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : String(err)); });
-
-    return () => { cancelled = true; };
+      .then(() => navigate("/dashboard", { replace: true }))
+      .catch((err) => setError(err instanceof Error ? err.message : String(err)));
   }, [searchParams, navigate]);
 
   if (error) {

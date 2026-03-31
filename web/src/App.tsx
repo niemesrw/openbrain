@@ -10,6 +10,7 @@ import { SettingsPage } from "./pages/SettingsPage";
 import { GitHubCallbackPage } from "./pages/GitHubCallbackPage";
 import { SlackCallbackPage } from "./pages/SlackCallbackPage";
 import { GoogleCallbackPage } from "./pages/GoogleCallbackPage";
+import { AgentsPage } from "./pages/AgentsPage";
 import { GuidePage } from "./pages/GuidePage";
 import { PrivacyPage } from "./pages/PrivacyPage";
 import { TermsPage } from "./pages/TermsPage";
@@ -31,6 +32,7 @@ export function App() {
           <Route element={<RequireAuth />}>
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/feed" element={<FeedPage />} />
+            <Route path="/agents" element={<AgentsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/github/callback" element={<GitHubCallbackPage />} />
             <Route path="/slack/callback" element={<SlackCallbackPage />} />
