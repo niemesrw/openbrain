@@ -102,7 +102,6 @@ export function DashboardPage() {
   const [insightDismissed, setInsightDismissed] = useState(false);
   const [recentThoughts, setRecentThoughts] = useState<Thought[]>([]);
   const [browseLoading, setBrowseLoading] = useState(false);
-  const [activeType, setActiveType] = useState<string | null>(null);
   const [activeTopic, setActiveTopic] = useState<string | null>(null);
   const [limit, setLimit] = useState(20);
   const [hasMore, setHasMore] = useState(false);
@@ -117,6 +116,7 @@ export function DashboardPage() {
   const [searchResults, setSearchResults] = useState<Thought[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const searchIdRef = useRef(0);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const requestIdRef = useRef(0);
@@ -148,7 +148,7 @@ export function DashboardPage() {
     if (mode !== "browse" || !browseStale) return;
     const id = ++requestIdRef.current;
     setBrowseLoading(true);
-    browseRecent({ type: activeType || undefined, topic: activeTopic || undefined, limit: limit + 1 })
+    browseRecent({ topic: activeTopic || undefined, limit: limit + 1 })
       .then((results) => {
         if (id !== requestIdRef.current) return;
         setHasMore(results.length > limit);
@@ -157,7 +157,7 @@ export function DashboardPage() {
       })
       .catch(() => { if (id === requestIdRef.current) setRecentThoughts([]); })
       .finally(() => { if (id === requestIdRef.current) setBrowseLoading(false); });
-  }, [activeType, activeTopic, limit, mode, browseStale]);
+  }, [activeTopic, limit, mode, browseStale]);
 
   // Debounced semantic search
   useEffect(() => {
@@ -166,13 +166,14 @@ export function DashboardPage() {
       setSearchLoading(false);
       return;
     }
+    const id = ++searchIdRef.current;
     setSearchLoading(true);
     clearTimeout(searchTimerRef.current);
     searchTimerRef.current = setTimeout(() => {
       searchThoughts(searchQuery, { limit: 20 })
-        .then(setSearchResults)
-        .catch(() => setSearchResults([]))
-        .finally(() => setSearchLoading(false));
+        .then((results) => { if (id === searchIdRef.current) setSearchResults(results); })
+        .catch(() => { if (id === searchIdRef.current) setSearchResults([]); })
+        .finally(() => { if (id === searchIdRef.current) setSearchLoading(false); });
     }, 400);
     return () => clearTimeout(searchTimerRef.current);
   }, [searchQuery]);
@@ -235,7 +236,6 @@ export function DashboardPage() {
     setMode("browse");
     setLimit(20);
     setBrowseStale(true);
-    setActiveType(null);
     setActiveTopic(topic);
   };
 
@@ -254,7 +254,7 @@ export function DashboardPage() {
     [stats],
   );
 
-  const hasFilters = !!(activeType || activeTopic);
+  const hasFilters = !!activeTopic;
 
   return (
     <div className="pb-32 pt-4">
@@ -359,13 +359,8 @@ export function DashboardPage() {
                       #{activeTopic}
                     </span>
                   )}
-                  {activeType && (
-                    <span className="px-3 py-1 rounded-full text-xs font-label bg-brain-primary/10 text-brain-primary">
-                      {activeType.replace("_", " ")}
-                    </span>
-                  )}
                   <button
-                    onClick={() => { setActiveTopic(null); setActiveType(null); setLimit(20); setBrowseStale(true); }}
+                    onClick={() => { setActiveTopic(null); setLimit(20); setBrowseStale(true); }}
                     className="text-xs font-label text-brain-muted/60 hover:text-brain-muted transition-colors ml-1"
                   >
                     Clear ×

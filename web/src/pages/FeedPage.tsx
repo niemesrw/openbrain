@@ -14,7 +14,9 @@ function relativeTime(ts: number | null): string {
   if (m < 60) return `${m}m ago`;
   const h = Math.floor(m / 60);
   if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
+  const d = Math.floor(h / 24);
+  if (d < 30) return `${d}d ago`;
+  return new Date(ts).toLocaleDateString();
 }
 
 // Segmented control pill
@@ -65,11 +67,6 @@ function FeedCard({ thought, scope }: { thought: Thought; scope: Segment }) {
             </div>
           </div>
 
-          {thought.similarity != null && (
-            <span className="shrink-0 text-[10px] font-label font-bold px-2 py-0.5 rounded-full bg-brain-secondary/10 text-brain-secondary uppercase tracking-widest">
-              Rel: {thought.similarity}%
-            </span>
-          )}
         </div>
 
         {/* Content */}
@@ -83,20 +80,6 @@ function FeedCard({ thought, scope }: { thought: Thought; scope: Segment }) {
           >
             {expanded ? "Show less ↑" : "Show more ↓"}
           </button>
-        )}
-
-        {/* Similarity bar */}
-        {thought.similarity != null && (
-          <div className="h-0.5 rounded-full bg-brain-high overflow-hidden">
-            <div
-              className="h-full rounded-full transition-all"
-              style={{
-                width: `${thought.similarity}%`,
-                backgroundColor: color,
-                boxShadow: `0 0 8px ${color}66`,
-              }}
-            />
-          </div>
         )}
 
         {/* Topics + people */}
@@ -161,21 +144,21 @@ export function FeedPage() {
   const [thoughts, setThoughts] = useState<Thought[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const isLoadingRef = useRef(false);
+  const requestIdRef = useRef(0);
 
   const loadFeed = useCallback(async (scope: Segment) => {
-    if (isLoadingRef.current) return;
-    isLoadingRef.current = true;
+    const id = ++requestIdRef.current;
     setLoading(true);
     setError(null);
     try {
       const results = await browseRecent({ scope, limit: 50 });
+      if (id !== requestIdRef.current) return;
       setThoughts(results);
     } catch (e: unknown) {
+      if (id !== requestIdRef.current) return;
       setError(e instanceof Error ? e.message : String(e));
     } finally {
-      isLoadingRef.current = false;
-      setLoading(false);
+      if (id === requestIdRef.current) setLoading(false);
     }
   }, []);
 
@@ -200,12 +183,15 @@ export function FeedPage() {
         <button
           onClick={() => loadFeed(segment)}
           disabled={loading}
+          aria-label="Refresh"
+          title="Refresh"
+          aria-busy={loading}
           className="text-sm text-brain-muted hover:text-white disabled:opacity-40 font-label transition-colors"
         >
           {loading ? (
-            <div className="w-4 h-4 border border-brain-muted/30 border-t-brain-muted rounded-full animate-spin" />
+            <div className="w-4 h-4 border border-brain-muted/30 border-t-brain-muted rounded-full animate-spin" aria-hidden="true" />
           ) : (
-            <span className="material-symbols-outlined text-xl">refresh</span>
+            <span className="material-symbols-outlined text-xl" aria-hidden="true">refresh</span>
           )}
         </button>
       </div>
