@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { listAgents, getBusActivity } from "../lib/brain-api";
 import type { Agent, BusActivity } from "../lib/brain-types";
 
@@ -32,8 +32,11 @@ export function AgentsPage() {
   const [activity, setActivity] = useState<BusActivity | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const isLoadingRef = useRef(false);
 
   const load = useCallback(async () => {
+    if (isLoadingRef.current) return;
+    isLoadingRef.current = true;
     setLoading(true);
     setError(null);
     try {
@@ -46,16 +49,18 @@ export function AgentsPage() {
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
+      isLoadingRef.current = false;
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     load();
+    // bus_activity does a full index scan — poll at 60s to limit cost
     const interval = setInterval(() => {
       if (document.visibilityState !== "visible") return;
       load();
-    }, 30_000);
+    }, 60_000);
     return () => clearInterval(interval);
   }, [load]);
 
@@ -131,8 +136,8 @@ export function AgentsPage() {
           <p className="text-[10px] font-label font-bold text-brain-muted uppercase tracking-widest">
             Recent · {activity.summary.total} thoughts in {activity.summary.hours}h
           </p>
-          {activity.recent.map((item, i) => (
-            <div key={i} className="bg-brain-surface rounded-xl p-4 space-y-2">
+          {activity.recent.map((item) => (
+            <div key={`${item.agent}-${item.created_at}-${item.content.slice(0, 16)}`} className="bg-brain-surface rounded-xl p-4 space-y-2">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-[10px] font-label font-bold text-brain-secondary uppercase tracking-widest truncate">
                   {item.agent}

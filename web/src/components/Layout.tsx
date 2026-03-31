@@ -34,6 +34,7 @@ export function Layout() {
             onClick={handleSignOut}
             className="w-8 h-8 rounded-full bg-brain-surface flex items-center justify-center text-xs text-brain-muted font-label font-semibold hover:bg-brain-high transition-colors"
             title="Sign out"
+            aria-label="Sign out"
           >
             {initial}
           </button>
@@ -69,7 +70,7 @@ export function Layout() {
       {/* Bottom nav — authenticated users only */}
       {isAuth && (
         <nav className="fixed bottom-0 left-0 right-0 z-50 bg-[#0e0e0e]/80 backdrop-blur-2xl rounded-t-[24px] border-t border-brain-outline/15 shadow-[0_-8px_32px_rgba(0,0,0,0.5)]">
-          <div className="max-w-lg mx-auto flex items-center justify-around px-2 pt-3 pb-6">
+          <div className="max-w-lg mx-auto flex items-center justify-around px-2 pt-3 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
             {NAV_TABS.map(({ to, label, icon }) => {
               const active = location.pathname === to || location.pathname.startsWith(to + "/");
               return (

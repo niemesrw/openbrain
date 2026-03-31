@@ -56,7 +56,7 @@ export function BrainInput({ chatValue, onChatChange, onChatSubmit, onCapture, l
     : "Ask your brain something, or tell it what you're thinking...";
 
   return (
-    <div className="fixed bottom-[76px] left-0 right-0 glass-panel pt-4 pb-3 px-4">
+    <div className="fixed left-0 right-0 glass-panel pt-4 pb-3 px-4" style={{ bottom: "var(--bottom-nav-height, 76px)" }}>
       <div className="max-w-3xl mx-auto">
         <div
           className={`relative bg-brain-surface rounded-2xl transition-all ${
