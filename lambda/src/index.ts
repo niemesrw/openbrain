@@ -47,6 +47,7 @@ function createMcpServer(user: UserContext): McpServer {
       topic: z.string().optional().describe("Filter by topic"),
       scope: READ_SCOPE_ENUM,
       tenant_id: z.string().optional().describe("Filter shared thoughts by tenant (userId). Thoughts without tenant_id are always included for backward compatibility."),
+      human_only: z.boolean().optional().describe("When true, exclude thoughts captured by system agents (github, slack, etc.)"),
       _format: FORMAT_ENUM,
     },
   }, async (args) => ({

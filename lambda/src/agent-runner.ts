@@ -165,6 +165,7 @@ export const AGENT_TOOLS: Tool[] = [
             limit: { type: "number", description: "Max number of thoughts to return (default 10)" },
             type: { type: "string", description: "Filter by thought type (observation, task, idea, reference, person_note)" },
             topic: { type: "string", description: "Filter by topic tag" },
+            human_only: { type: "boolean", description: "When true, exclude thoughts captured by system agents (github, slack, etc.)" },
           },
           required: [],
         },

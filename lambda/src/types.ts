@@ -49,6 +49,8 @@ export interface BrowseArgs {
   topic?: string;
   scope?: "private" | "shared" | "all";
   tenant_id?: string;
+  /** When true, exclude thoughts captured by system agents (source field is set) */
+  human_only?: boolean;
   _format?: "json";
 }
 

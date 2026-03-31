@@ -12,6 +12,7 @@ export interface Thought {
   created_at: number | null;
   similarity?: number;
   scope: Scope;
+  source?: string;
   media_url?: string;
 }
 

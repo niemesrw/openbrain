@@ -91,6 +91,10 @@ function buildTools(user: UserContext) {
           .string()
           .optional()
           .describe("Filter shared thoughts by tenant (userId)"),
+        human_only: z
+          .boolean()
+          .optional()
+          .describe("When true, exclude thoughts captured by system agents (github, slack, etc.)"),
       }),
       execute: async (args) => executeTool("browse_recent", args, user),
     }),

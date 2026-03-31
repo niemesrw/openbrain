@@ -14,7 +14,7 @@ export async function handleBrowseRecent(
   args: BrowseArgs,
   user: UserContext
 ): Promise<string> {
-  const { limit = 10, type, topic, scope = "private", tenant_id, _format } = args;
+  const { limit = 10, type, topic, scope = "private", tenant_id, human_only, _format } = args;
 
   const indexes = resolveIndexes(user.userId, scope);
 
@@ -48,6 +48,10 @@ export async function handleBrowseRecent(
     );
   }
 
+  if (human_only) {
+    all = all.filter((v) => !v.metadata.source);
+  }
+
   // Sort by created_at descending, take limit
   all.sort((a, b) => (b.metadata.created_at ?? 0) - (a.metadata.created_at ?? 0));
   const recent = all.slice(0, limit);
@@ -72,6 +76,7 @@ export async function handleBrowseRecent(
           dates_mentioned: safeParseArray(m.dates_mentioned),
           created_at: m.created_at || null,
           scope: indexScope,
+          ...(m.source && { source: m.source }),
           ...(m.media_url && { media_url: m.media_url }),
         };
       }),

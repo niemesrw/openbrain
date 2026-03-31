@@ -75,6 +75,7 @@ export async function handleSearchThoughts(
           created_at: m.created_at || null,
           similarity,
           scope: indexScope,
+          ...(m.source && { source: m.source }),
           ...(m.media_url && { media_url: m.media_url }),
         };
       }),

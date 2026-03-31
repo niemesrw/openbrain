@@ -27,7 +27,7 @@ export async function searchThoughts(
 }
 
 export async function browseRecent(
-  filters?: { type?: string; topic?: string; scope?: ReadScope; limit?: number }
+  filters?: { type?: string; topic?: string; scope?: ReadScope; limit?: number; human_only?: boolean }
 ): Promise<Thought[]> {
   const result = await callTool("browse_recent", {
     scope: "all",

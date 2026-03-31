@@ -151,6 +151,50 @@ describe("handleBrowseRecent", () => {
   });
 
 
+  it("excludes agent-sourced thoughts when human_only=true", async () => {
+    mockListAllVectors.mockResolvedValue([
+      makeVector("k1", { content: "my own thought" }),
+      { key: "k2", metadata: { ...makeVector("k2", { content: "github commit" }).metadata, source: "github" } },
+    ]);
+
+    const result = await handleBrowseRecent({ human_only: true }, USER);
+
+    expect(result).toContain("my own thought");
+    expect(result).not.toContain("github commit");
+  });
+
+  it("includes agent-sourced thoughts when human_only is not set", async () => {
+    mockListAllVectors.mockResolvedValue([
+      makeVector("k1", { content: "my own thought" }),
+      { key: "k2", metadata: { ...makeVector("k2", { content: "github commit" }).metadata, source: "github" } },
+    ]);
+
+    const result = await handleBrowseRecent({}, USER);
+
+    expect(result).toContain("my own thought");
+    expect(result).toContain("github commit");
+  });
+
+  it("includes source in JSON response when present", async () => {
+    mockListAllVectors.mockResolvedValue([
+      { key: "k1", metadata: { ...makeVector("k1", { content: "github commit" }).metadata, source: "github" } },
+    ]);
+
+    const raw = await handleBrowseRecent({ _format: "json" }, USER);
+    const parsed = JSON.parse(raw);
+
+    expect(parsed.thoughts[0].source).toBe("github");
+  });
+
+  it("omits source from JSON response when not set", async () => {
+    mockListAllVectors.mockResolvedValue([makeVector("k1", { content: "user thought" })]);
+
+    const raw = await handleBrowseRecent({ _format: "json" }, USER);
+    const parsed = JSON.parse(raw);
+
+    expect(parsed.thoughts[0]).not.toHaveProperty("source");
+  });
+
   it("returns no thoughts message when empty", async () => {
     mockListAllVectors.mockResolvedValue([]);
 

@@ -107,6 +107,7 @@ export function DashboardPage() {
   const [hasMore, setHasMore] = useState(false);
   const [mode, setMode] = useState<"browse" | "chat">("browse");
   const [browseStale, setBrowseStale] = useState(true);
+  const [humanOnly, setHumanOnly] = useState(true);
   const [captureLoading, setCaptureLoading] = useState(false);
   const [captureError, setCaptureError] = useState<string | null>(null);
   const [captureSuccess, setCaptureSuccess] = useState(false);
@@ -148,7 +149,7 @@ export function DashboardPage() {
     if (mode !== "browse" || !browseStale) return;
     const id = ++requestIdRef.current;
     setBrowseLoading(true);
-    browseRecent({ topic: activeTopic || undefined, limit: limit + 1 })
+    browseRecent({ topic: activeTopic || undefined, limit: limit + 1, human_only: humanOnly || undefined, scope: humanOnly ? "private" : "all" })
       .then((results) => {
         if (id !== requestIdRef.current) return;
         setHasMore(results.length > limit);
@@ -157,7 +158,7 @@ export function DashboardPage() {
       })
       .catch(() => { if (id === requestIdRef.current) setRecentThoughts([]); })
       .finally(() => { if (id === requestIdRef.current) setBrowseLoading(false); });
-  }, [activeTopic, limit, mode, browseStale]);
+  }, [activeTopic, humanOnly, limit, mode, browseStale]);
 
   // Debounced semantic search
   useEffect(() => {
@@ -373,9 +374,22 @@ export function DashboardPage() {
                 <p className="text-[10px] font-label text-brain-muted uppercase tracking-widest">
                   {hasFilters ? "Filtered" : "Recent"}
                 </p>
-                {browseLoading && (
-                  <div className="w-3 h-3 border border-brain-muted/30 border-t-brain-muted rounded-full animate-spin" />
-                )}
+                <div className="flex items-center gap-2">
+                  {browseLoading && (
+                    <div className="w-3 h-3 border border-brain-muted/30 border-t-brain-muted rounded-full animate-spin" />
+                  )}
+                  <button
+                    onClick={() => { setHumanOnly((v) => !v); setBrowseStale(true); }}
+                    className={`text-[10px] font-label px-2 py-0.5 rounded-full transition-colors ${
+                      humanOnly
+                        ? "bg-brain-primary/15 text-brain-primary"
+                        : "bg-brain-surface text-brain-muted hover:text-white"
+                    }`}
+                    title={humanOnly ? "Showing your captures only — click to include agent activity" : "Showing all including agent activity — click to hide"}
+                  >
+                    {humanOnly ? "Mine" : "All"}
+                  </button>
+                </div>
               </div>
 
               <div className="space-y-3">
