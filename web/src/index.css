@@ -28,7 +28,7 @@
 }
 
 :root {
-  --bottom-nav-height: 76px;
+  --bottom-nav-height: calc(76px + env(safe-area-inset-bottom));
 }
 
 @media (min-width: 768px) {
