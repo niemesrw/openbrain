@@ -61,6 +61,7 @@ beforeEach(() => {
   process.env.SLACK_INSTALLATIONS_TABLE = "openbrain-slack-installations";
   process.env.SLACK_CLIENT_ID_SECRET_NAME = "openbrain/slack-client-id";
   process.env.SLACK_CLIENT_SECRET_SECRET_NAME = "openbrain/slack-client-secret";
+  process.env.SLACK_REDIRECT_URI = "https://example.com/slack/callback";
   mockSmSend.mockResolvedValue({ SecretString: CLIENT_SECRET });
 });
 
@@ -70,7 +71,7 @@ describe("handleSlackInstall", () => {
     expect(result.url).toContain("https://slack.com/oauth/v2/authorize");
     expect(result.url).toContain("client_id=");
     expect(result.url).toContain(encodeURIComponent("chat:write,im:history,im:write,commands"));
-    expect(result.url).toContain(encodeURIComponent("https://brain.blanxlait.ai/slack/callback"));
+    expect(result.url).toContain(encodeURIComponent("https://example.com/slack/callback"));
     expect(result.url).toContain("state=");
   });
 });

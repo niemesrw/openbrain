@@ -11,7 +11,7 @@ packages:
 settings:
   base:
     SWIFT_VERSION: "5.10"
-    DEVELOPMENT_TEAM: GCRLV5UC4Q
+    DEVELOPMENT_TEAM: YOUR_TEAM_ID  # Replace with your Apple Developer Team ID
     CODE_SIGN_STYLE: Automatic
 
 targets:

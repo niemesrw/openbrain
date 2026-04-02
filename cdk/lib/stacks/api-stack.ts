@@ -571,7 +571,7 @@ export class ApiStack extends cdk.Stack {
         GITHUB_EVENTS_QUEUE_URL: githubEventsQueue.queueUrl,
         GITHUB_WEBHOOK_SECRET_NAME: "openbrain/github-webhook-secret",
         GITHUB_INSTALLATIONS_TABLE: githubInstallationsTableName,
-        GITHUB_APP_ID: process.env.GITHUB_APP_ID ?? "3202126",
+        GITHUB_APP_ID: process.env.GITHUB_APP_ID ?? "",
         GITHUB_APP_PRIVATE_KEY_SECRET_NAME: githubAppPrivateKeySecretName,
         ...(process.env.OPENBRAIN_MCP_URL && { OPENBRAIN_MCP_URL: process.env.OPENBRAIN_MCP_URL }),
         ...(process.env.OPENBRAIN_AGENT_API_KEY && { OPENBRAIN_AGENT_API_KEY: process.env.OPENBRAIN_AGENT_API_KEY }),
@@ -607,7 +607,7 @@ export class ApiStack extends cdk.Stack {
         GITHUB_INSTALLATIONS_TABLE: githubInstallationsTableName,
         EMBEDDING_MODEL_ID: "amazon.titan-embed-text-v2:0",
         METADATA_MODEL_ID: "us.anthropic.claude-haiku-4-5-20251001-v1:0",
-        GITHUB_APP_ID: process.env.GITHUB_APP_ID ?? "3202126",
+        GITHUB_APP_ID: process.env.GITHUB_APP_ID ?? "",
         GITHUB_APP_PRIVATE_KEY_SECRET_NAME: githubAppPrivateKeySecretName,
       },
       bundling: {
@@ -666,7 +666,7 @@ export class ApiStack extends cdk.Stack {
         USER_POOL_ID: userPool.userPoolId,
         AGENT_KEYS_TABLE: agentKeysTableName,
         GITHUB_INSTALLATIONS_TABLE: githubInstallationsTableName,
-        GITHUB_APP_ID: process.env.GITHUB_APP_ID ?? "3202126",
+        GITHUB_APP_ID: process.env.GITHUB_APP_ID ?? "",
         GITHUB_APP_PRIVATE_KEY_SECRET_NAME: githubAppPrivateKeySecretName,
       },
       bundling: {
@@ -974,6 +974,9 @@ export class ApiStack extends cdk.Stack {
         SLACK_INSTALLATIONS_TABLE: slackInstallationsTableName,
         SLACK_CLIENT_ID_SECRET_NAME: slackClientIdSecretName,
         SLACK_CLIENT_SECRET_SECRET_NAME: slackClientSecretSecretName,
+        ...(( customDomain || webOrigin) && {
+          SLACK_REDIRECT_URI: `https://${customDomain ?? webOrigin}/slack/callback`,
+        }),
       },
       bundling: {
         externalModules: ["@aws-sdk/*"],

@@ -246,30 +246,29 @@ After migration, suggest the user test by asking a different AI client about som
 
 ## AWS CLI
 
-Always use `--profile blanxlait-ai` for all AWS CLI commands in this repo.
+Always use the appropriate AWS CLI profile for this repo (e.g. `--profile your-profile`).
 
 ## Infrastructure
 
-### AWS Accounts (BLANXLAIT org)
+### AWS Accounts
 
-| Account | ID | Purpose |
-|---------|-----|---------|
-| Management | `982682372189` | Org root, CDK bootstrap, OIDC provider |
-| AI (blanxlait-ai) | `057122451218` | **Production deployment target** |
-| Log Archive | `779315395440` | SecurityLake |
-| Security | `429971481640` | Security tooling |
+| Account | Purpose |
+|---------|---------|
+| Management | Org root, CDK bootstrap, OIDC provider |
+| Deploy target | Production deployment target |
 
-**Region:** `us-east-1`
+Set `MANAGEMENT_ACCOUNT` and `AI_ACCOUNT` as GitHub Actions repository variables before deploying.
+
+**Region:** `us-east-1` (or your preferred region)
 
 ### GitHub App
 
-The BLANXLAIT GitHub App for Open Brain:
+Create a GitHub App in your organization for Open Brain:
 
 | Property | Value |
 |----------|-------|
-| App slug | `openbrain-agent` |
-| App settings URL | `https://github.com/organizations/BLANXLAIT/settings/apps/openbrain-agent` |
-| Setup URL (post-install redirect) | `https://brain.blanxlait.ai/github/callback` |
+| App slug | your app slug |
+| Setup URL (post-install redirect) | `https://your-web-url/github/callback` |
 
 Users connect via **Settings → Connect GitHub** in the web dashboard. The install redirects to `/github/callback`, which calls `POST /github/connect` to register the installation (DynamoDB `openbrain-users` table: `installationId → userId`). GitHub events then flow through SQS → `githubAgentHandler` → S3 Vectors brain capture.
 
@@ -280,26 +279,33 @@ Required GitHub Actions secrets for deploy:
 | `GH_APP_ID` | GitHub App ID (numeric) |
 | `GH_APP_PRIVATE_KEY` | GitHub App private key (PEM) — stored in Secrets Manager as `openbrain/github-app-private-key` |
 | `GH_APP_WEBHOOK_SECRET` | Webhook secret — stored in Secrets Manager as `openbrain/github-webhook-secret` |
-| `GITHUB_APP_SLUG` | `openbrain-agent` — injected as `VITE_GITHUB_APP_SLUG` at web build time |
+| `GITHUB_APP_SLUG` | Your app slug — injected as `VITE_GITHUB_APP_SLUG` at web build time |
+
+Required GitHub Actions repository variables:
+
+| Variable | Description |
+|----------|-------------|
+| `MANAGEMENT_ACCOUNT` | AWS management account ID |
+| `AI_ACCOUNT` | AWS deployment target account ID |
 
 ### GitHub Actions OIDC Auth
 
-Deployments use a two-hop auth flow (defined in `blanxlait-aws-infra`):
-1. GitHub OIDC → `arn:aws:iam::982682372189:role/GitHubActionsRole` (management account)
-2. Assume role → `arn:aws:iam::057122451218:role/GitHubDeployRole` (AI account, AdministratorAccess)
+Deployments use a two-hop auth flow:
+1. GitHub OIDC → `arn:aws:iam::<MANAGEMENT_ACCOUNT>:role/GitHubActionsRole` (management account)
+2. Assume role → `arn:aws:iam::<AI_ACCOUNT>:role/GitHubDeployRole` (deploy account, AdministratorAccess)
 
-Trust policy scoped to `repo:BLANXLAIT/*:*`.
+Trust policy scoped to `repo:YOUR_ORG/*:*`.
 
 ### Google OAuth
 
-- **GCP Project:** `560120385866` / `openbrain-490609`
-- Google client secret must be stored in AWS Secrets Manager in the AI account (`057122451218`)
+- Create a GCP project and OAuth 2.0 client for Google Sign-In
+- Store the Google client secret in AWS Secrets Manager
 - CDK reads the secret ARN at deploy time via `-c googleClientSecretArn=<ARN>`
 - The Google Client ID is passed via `-c googleClientId=<ID>`
 
 ### Self-Hosted Runners
 
-The org has self-hosted GitHub Actions runners (macOS ARM64, Linux ARM64).
+Optional: self-hosted GitHub Actions runners (macOS ARM64, Linux ARM64).
 Use `runs-on: self-hosted` in workflows targeting these runners.
 
 ## Development Notes
@@ -317,7 +323,7 @@ Uses S3 Vectors with an index-per-scope design. The `shared` index is created by
 
 ### Deploy (`.github/workflows/deploy.yml`)
 
-Triggered on push to `main`. Deploys all 5 CDK stacks to the AI account (`057122451218`). Uses OIDC → management account → cross-account assume role to AI account. Requires GitHub secrets: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET_ARN`, and `CLOUDFRONT_CALLBACK_URL` (set after first deploy).
+Triggered on push to `main`. Deploys all 5 CDK stacks to the deploy account. Uses OIDC → management account → cross-account assume role to deploy account. Requires GitHub secrets: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET_ARN`, and `CLOUDFRONT_CALLBACK_URL` (set after first deploy). Also requires repository variables `MANAGEMENT_ACCOUNT` and `AI_ACCOUNT`.
 
 ### Integration Tests (`.github/workflows/integration-tests.yml`)
 
@@ -361,21 +367,20 @@ Native apps live in `apple/`. Both use **XcodeGen** — edit `project.yml`, then
 
 | Property | Value |
 |----------|-------|
-| Team ID | `GCRLV5UC4Q` |
-| Bundle ID prefix | `com.blanxlait.openbrain` |
+| Team ID | Your Apple Developer Team ID (from developer.apple.com) |
+| Bundle ID prefix | `com.your-org.openbrain` |
 
-Team ID is not a secret — it's committed directly in `project.yml` and entitlements.
+Update `DEVELOPMENT_TEAM` in `apple/OpenBrain/project.yml` and re-run `xcodegen generate`.
 
 ### App Store Connect API (for CI)
 
-| Property | Value |
-|----------|-------|
-| Key Name | BLANXLAIT CI |
-| Key ID | `XGFA878VQB` |
-| Issuer ID | `69a6de83-1bd1-47e3-e053-5b8c7c11a4d1` |
-| Access | App Manager |
+Create an App Manager key at [App Store Connect → Users and Access → Integrations](https://appstoreconnect.apple.com/access/integrations/api).
 
-Key ID and Issuer ID can go in GitHub secrets. The `.p8` private key file is a secret — never commit it.
+| Property | Where to set |
+|----------|-------------|
+| Key ID | GitHub secret `ASC_KEY_ID` |
+| Issuer ID | GitHub secret `ASC_ISSUER_ID` |
+| `.p8` private key | GitHub secret — never commit it |
 
 ### Xcode Cloud
 
@@ -390,4 +395,4 @@ Both scripts should run `brew install xcodegen && xcodegen generate` before the 
 
 ### Per-project vs shared API keys
 
-One shared Team key (`BLANXLAIT CI`) is fine for this org — per-project keys only matter for blast-radius isolation at scale. Stick with the shared key.
+One shared Team key is fine for most orgs — per-project keys only matter for blast-radius isolation at scale.

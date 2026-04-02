@@ -28,8 +28,8 @@ export function SupportPage() {
       <section className="space-y-2">
         <h2 className="text-lg font-semibold font-headline text-white">Email</h2>
         <p>
-          <a href="mailto:hello@blanxlait.ai" className="text-brain-primary hover:text-brain-primary/80">
-            hello@blanxlait.ai
+          <a href="mailto:hello@example.com" className="text-brain-primary hover:text-brain-primary/80">
+            hello@example.com
           </a>
         </p>
       </section>

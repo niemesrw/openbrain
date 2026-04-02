@@ -132,7 +132,7 @@ export function Layout() {
         <footer className="px-6 py-6 text-center text-sm text-brain-muted/40 flex justify-center gap-6 font-label">
           <Link to="/privacy" className="hover:text-brain-muted transition-colors">Privacy</Link>
           <Link to="/terms" className="hover:text-brain-muted transition-colors">Terms</Link>
-          <a href="mailto:hello@blanxlait.ai" className="hover:text-brain-muted transition-colors">Contact</a>
+          <a href="mailto:hello@example.com" className="hover:text-brain-muted transition-colors">Contact</a>
         </footer>
       )}
     </div>

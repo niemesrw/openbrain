@@ -42,8 +42,8 @@ export function PrivacyPage() {
         <p>
           You can delete individual thoughts from the dashboard. To delete your account and all
           associated data, contact us at{" "}
-          <a href="mailto:hello@blanxlait.ai" className="text-brain-primary hover:text-brain-primary/80">
-            hello@blanxlait.ai
+          <a href="mailto:hello@example.com" className="text-brain-primary hover:text-brain-primary/80">
+            hello@example.com
           </a>
           .
         </p>
@@ -53,8 +53,8 @@ export function PrivacyPage() {
         <h2 className="text-lg font-semibold font-headline text-white">Contact</h2>
         <p>
           Questions?{" "}
-          <a href="mailto:hello@blanxlait.ai" className="text-brain-primary hover:text-brain-primary/80">
-            hello@blanxlait.ai
+          <a href="mailto:hello@example.com" className="text-brain-primary hover:text-brain-primary/80">
+            hello@example.com
           </a>
         </p>
       </section>

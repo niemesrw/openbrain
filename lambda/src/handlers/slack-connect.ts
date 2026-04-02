@@ -17,9 +17,11 @@ const STATE_TTL_MS = 15 * 60 * 1000; // 15 minutes
 const SLACK_INSTALLATIONS_TABLE = process.env.SLACK_INSTALLATIONS_TABLE!;
 const SLACK_CLIENT_ID_SECRET_NAME = process.env.SLACK_CLIENT_ID_SECRET_NAME!;
 const SLACK_CLIENT_SECRET_SECRET_NAME = process.env.SLACK_CLIENT_SECRET_SECRET_NAME!;
-// Allow per-environment override; fall back to production domain
-const REDIRECT_URI =
-  process.env.SLACK_REDIRECT_URI ?? "https://brain.blanxlait.ai/slack/callback";
+function getRedirectUri(): string {
+  const uri = process.env.SLACK_REDIRECT_URI;
+  if (!uri) throw new Error("SLACK_REDIRECT_URI environment variable is not set");
+  return uri;
+}
 const SLACK_SCOPES = "chat:write,im:history,im:write,commands";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
@@ -104,7 +106,7 @@ export async function handleSlackInstall(user: UserContext): Promise<{ url: stri
     `https://slack.com/oauth/v2/authorize` +
     `?client_id=${encodeURIComponent(clientId)}` +
     `&scope=${encodeURIComponent(SLACK_SCOPES)}` +
-    `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}` +
+    `&redirect_uri=${encodeURIComponent(getRedirectUri())}` +
     `&state=${encodeURIComponent(state)}`;
   return { url };
 }
@@ -130,7 +132,7 @@ export async function handleSlackCallback(
 
   verifyState(state, user.userId, clientSecret);
 
-  const params = new URLSearchParams({ code, redirect_uri: REDIRECT_URI });
+  const params = new URLSearchParams({ code, redirect_uri: getRedirectUri() });
   const resp = await fetch("https://slack.com/api/oauth.v2.access", {
     method: "POST",
     headers: {

@@ -1,9 +1,10 @@
 import Foundation
 
 public enum Constants {
-    public static let baseURL = URL(string: "https://brain.blanxlait.ai")!
+    // Replace with your deployed API Gateway URL (output of CDK deploy)
+    public static let baseURL = URL(string: "https://your-api-id.execute-api.us-east-1.amazonaws.com")!
     public static let callbackScheme = "openbrain"
     public static let callbackURL = "openbrain://callback"
-    public static let keychainServiceName = "ai.blanxlait.brain"
+    public static let keychainServiceName = "com.your-bundle-id.openbrain"
     public static let keychainTokensKey = "auth_tokens"
 }

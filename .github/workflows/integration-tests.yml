@@ -20,7 +20,7 @@ jobs:
       # OIDC to management account
       - uses: aws-actions/configure-aws-credentials@v5
         with:
-          role-to-assume: arn:aws:iam::982682372189:role/GitHubActionsRole
+          role-to-assume: arn:aws:iam::${{ vars.MANAGEMENT_ACCOUNT }}:role/GitHubActionsRole
           aws-region: us-east-1
 
       # Fetch credentials from Secrets Manager and export as env vars

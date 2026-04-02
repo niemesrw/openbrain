@@ -172,7 +172,7 @@ describe("handleSlackEvent - slash command", () => {
     const result = (await handleSlackEvent(makeSlashPayload("search test"))) as Result;
     expect(result.statusCode).toBe(200);
     const body = JSON.parse(result.body);
-    expect(body.text).toContain("Connect at brain.blanxlait.ai");
+    expect(body.text).toContain("Open the app and go to Settings to connect.");
   });
 
   it("prompts unlinked Slack users to connect their brain", async () => {
@@ -180,7 +180,7 @@ describe("handleSlackEvent - slash command", () => {
     const result = (await handleSlackEvent(makeSlashPayload("search test", { user_id: "U-other" }))) as Result;
     expect(result.statusCode).toBe(200);
     const body = JSON.parse(result.body);
-    expect(body.text).toContain("Connect at brain.blanxlait.ai");
+    expect(body.text).toContain("Open the app and go to Settings to connect.");
     expect(mockSearch).not.toHaveBeenCalled();
   });
 

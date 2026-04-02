@@ -104,7 +104,7 @@ async function handleSlashCommand(
   const installation = await getInstallation(teamId, slackUserId);
   if (!installation) {
     return slashResponse(
-      "Your Slack account isn't linked to Open Brain yet. Connect at brain.blanxlait.ai → Settings."
+      "Your Slack account isn't linked to Open Brain yet. Open the app and go to Settings to connect."
     );
   }
 

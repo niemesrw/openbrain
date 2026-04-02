@@ -37,7 +37,7 @@ const GOOGLE_CONNECTIONS_TABLE = process.env.GOOGLE_CONNECTIONS_TABLE!;
 const GOOGLE_CLIENT_ID_SECRET_NAME = process.env.GOOGLE_CLIENT_ID_SECRET_NAME!;
 const GOOGLE_CLIENT_SECRET_SECRET_NAME = process.env.GOOGLE_CLIENT_SECRET_SECRET_NAME!;
 const REDIRECT_URI =
-  process.env.GOOGLE_REDIRECT_URI ?? "https://brain.blanxlait.ai/google/callback";
+  process.env.GOOGLE_REDIRECT_URI!;
 
 // gmail.metadata scope — no CASA audit required
 const GOOGLE_SCOPES = [
