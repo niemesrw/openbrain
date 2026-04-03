@@ -31,7 +31,7 @@ targets:
       - package: OpenBrainKit
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.your-org.openbrain.ios
+        PRODUCT_BUNDLE_IDENTIFIER: ai.blanxlait.brain.ios2
         PRODUCT_NAME: Brain
         CODE_SIGN_ENTITLEMENTS: iOS/OpenBrain.entitlements
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
@@ -41,7 +41,7 @@ targets:
       properties:
         CFBundleName: Brain
         CFBundleDisplayName: Brain
-        CFBundleIdentifier: com.your-org.openbrain.ios
+        CFBundleIdentifier: ai.blanxlait.brain.ios2
         CFBundleVersion: "1"
         CFBundleShortVersionString: "1.0.0"
         CFBundlePackageType: APPL
@@ -80,7 +80,7 @@ targets:
       - package: OpenBrainKit
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.your-org.openbrain.macos
+        PRODUCT_BUNDLE_IDENTIFIER: ai.blanxlait.brain.macos
         PRODUCT_NAME: Brain
         CODE_SIGN_ENTITLEMENTS: macOS/OpenBrain.entitlements
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
@@ -90,7 +90,7 @@ targets:
       properties:
         CFBundleName: Brain
         CFBundleDisplayName: Brain
-        CFBundleIdentifier: com.your-org.openbrain.macos
+        CFBundleIdentifier: ai.blanxlait.brain.macos
         CFBundleVersion: "1"
         CFBundleShortVersionString: "1.0.0"
         CFBundlePackageType: APPL
