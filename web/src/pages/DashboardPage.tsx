@@ -2,11 +2,11 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { useChat } from "ai/react";
 import {
   browseRecent,
+  searchThoughts,
   getStats,
   captureThought,
   updateThought,
   deleteThought,
-  searchThoughts,
 } from "../lib/brain-api";
 import { getInsight, type InsightData } from "../lib/api";
 import { getIdToken } from "../lib/auth";
@@ -15,6 +15,7 @@ import { ErrorAlert } from "../components/ErrorAlert";
 import { ThoughtCard } from "../components/ThoughtCard";
 import { BrainInput } from "../components/BrainInput";
 import { InsightCard } from "../components/InsightCard";
+import { SearchBar } from "../components/SearchBar";
 
 const CHAT_URL = import.meta.env.VITE_CHAT_URL ?? "";
 
@@ -191,12 +192,30 @@ export function DashboardPage() {
     chatHandleSubmit({ preventDefault: () => {} } as React.FormEvent<HTMLFormElement>);
   };
 
-  const handleCapture = async (text: string, scope: Scope) => {
+  const handleSearch = async (query: string) => {
+    setSearchQuery(query);
+    setSearchLoading(true);
+    try {
+      const results = await searchThoughts(query);
+      setSearchResults(results);
+    } catch {
+      setSearchResults([]);
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  const handleSearchClear = () => {
+    setSearchQuery("");
+    setSearchResults([]);
+  };
+
+  const handleCapture = async (text: string, scope: Scope, type?: string) => {
     setCaptureLoading(true);
     setCaptureError(null);
     setCaptureSuccess(false);
     try {
-      await captureThought(text, scope);
+      await captureThought(text, scope, type);
       setCaptureSuccess(true);
       setTimeout(() => setCaptureSuccess(false), 3000);
       setMode("browse");

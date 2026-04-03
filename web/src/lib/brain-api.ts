@@ -82,13 +82,15 @@ function extractUrl(text: string): string | undefined {
 
 export async function captureThought(
   text: string,
-  scope: Scope = "private"
+  scope: Scope = "private",
+  type?: string
 ): Promise<string> {
   const sourceUrl = extractUrl(text);
   return callTool("capture_thought", {
     text,
     scope,
     ...(sourceUrl ? { source_url: sourceUrl } : {}),
+    ...(type && type !== "auto" ? { type } : {}),
   });
 }
 

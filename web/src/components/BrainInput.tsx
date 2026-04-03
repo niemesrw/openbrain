@@ -1,11 +1,20 @@
 import { useState, useRef, useEffect, type KeyboardEvent, type ChangeEvent } from "react";
 import type { Scope } from "../lib/brain-types";
 
+const THOUGHT_TYPES = [
+  { value: "auto", label: "Auto-detect" },
+  { value: "observation", label: "Observation" },
+  { value: "task", label: "Task" },
+  { value: "idea", label: "Idea" },
+  { value: "reference", label: "Reference" },
+  { value: "person_note", label: "Person note" },
+];
+
 interface BrainInputProps {
   chatValue: string;
   onChatChange: (e: ChangeEvent<HTMLTextAreaElement>) => void;
   onChatSubmit: () => void;
-  onCapture: (text: string, scope: Scope) => void;
+  onCapture: (text: string, scope: Scope, type?: string) => void;
   loading: boolean;
 }
 
@@ -13,6 +22,7 @@ export function BrainInput({ chatValue, onChatChange, onChatSubmit, onCapture, l
   const [captureValue, setCaptureValue] = useState("");
   const [mode, setMode] = useState<"chat" | "capture">("chat");
   const [scope, setScope] = useState<Scope>("private");
+  const [thoughtType, setThoughtType] = useState("auto");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const isCapture = mode === "capture";
@@ -37,8 +47,9 @@ export function BrainInput({ chatValue, onChatChange, onChatSubmit, onCapture, l
   const handleSubmit = () => {
     if (!displayValue.trim() || loading) return;
     if (isCapture) {
-      onCapture(captureValue.trim(), scope);
+      onCapture(captureValue.trim(), scope, thoughtType);
       setCaptureValue("");
+      setThoughtType("auto");
     } else {
       onChatSubmit();
     }
@@ -58,6 +69,23 @@ export function BrainInput({ chatValue, onChatChange, onChatSubmit, onCapture, l
   return (
     <div className="fixed left-0 right-0 glass-panel pt-4 pb-3 px-4" style={{ bottom: "var(--bottom-nav-height, 76px)" }}>
       <div className="max-w-lg md:max-w-4xl mx-auto md:px-4">
+        {isCapture && (
+          <div className="flex flex-wrap gap-1.5 mb-2 px-1">
+            {THOUGHT_TYPES.map(({ value, label }) => (
+              <button
+                key={value}
+                onClick={() => setThoughtType(value)}
+                className={`px-3 py-1 text-xs rounded-full border transition-colors font-label ${
+                  thoughtType === value
+                    ? "bg-brain-secondary/20 border-brain-secondary/50 text-brain-secondary"
+                    : "border-brain-outline/20 text-brain-muted/60 hover:text-brain-muted hover:border-brain-outline/50"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
         <div
           className={`relative bg-brain-surface rounded-2xl transition-all ${
             isCapture
