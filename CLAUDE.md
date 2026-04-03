@@ -98,7 +98,7 @@ Each Lambda only has the env vars explicitly set in `api-stack.ts`. Check there 
 
 - AWS CLI / CloudWatch logs (no AWS credentials in GitHub Actions for read access)
 - MCP tools (Open Brain brain search/capture — local Claude Code only)
-- `--profile blanxlait-ai` (local dev only)
+- Local AWS profiles (local dev only)
 
 ---
 

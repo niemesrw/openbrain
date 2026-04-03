@@ -39,7 +39,7 @@ export function TermsPage() {
       <section className="space-y-2">
         <h2 className="text-lg font-semibold font-headline text-white">Limitation of liability</h2>
         <p>
-          The service is provided "as is." BLANXLAIT is not liable for any loss of data or
+          The service is provided "as is." The maintainers are not liable for any loss of data or
           damages arising from use of the service.
         </p>
       </section>

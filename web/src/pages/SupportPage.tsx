@@ -15,12 +15,12 @@ export function SupportPage() {
         <h2 className="text-lg font-semibold font-headline text-white">GitHub</h2>
         <p>
           <a
-            href="https://github.com/BLANXLAIT/openbrain/issues"
+            href="https://github.com/niemesrw/openbrain/issues"
             className="text-brain-primary hover:text-brain-primary/80"
             target="_blank"
             rel="noopener noreferrer"
           >
-            github.com/BLANXLAIT/openbrain/issues
+            github.com/niemesrw/openbrain/issues
           </a>
         </p>
       </section>

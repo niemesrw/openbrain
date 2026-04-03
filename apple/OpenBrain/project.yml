@@ -1,6 +1,6 @@
 name: Brain
 options:
-  bundleIdPrefix: ai.blanxlait
+  bundleIdPrefix: com.your-org.openbrain  # Replace with your bundle ID prefix
   xcodeVersion: "16.0"
   generateEmptyDirectories: true
 
@@ -27,7 +27,7 @@ targets:
       - package: OpenBrainKit
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: ai.blanxlait.brain.ios2
+        PRODUCT_BUNDLE_IDENTIFIER: com.your-org.openbrain.ios
         PRODUCT_NAME: Brain
         CODE_SIGN_ENTITLEMENTS: iOS/OpenBrain.entitlements
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
@@ -37,7 +37,7 @@ targets:
       properties:
         CFBundleName: Brain
         CFBundleDisplayName: Brain
-        CFBundleIdentifier: ai.blanxlait.brain.ios2
+        CFBundleIdentifier: com.your-org.openbrain.ios
         CFBundleVersion: "1"
         CFBundleShortVersionString: "1.0.0"
         CFBundlePackageType: APPL
@@ -46,7 +46,7 @@ targets:
         CFBundleURLTypes:
           - CFBundleURLSchemes:
               - openbrain
-            CFBundleURLName: ai.blanxlait.brain.oauth
+            CFBundleURLName: com.your-org.openbrain.oauth
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: false
         ITSAppUsesNonExemptEncryption: false
@@ -74,7 +74,7 @@ targets:
       - package: OpenBrainKit
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: ai.blanxlait.brain.macos
+        PRODUCT_BUNDLE_IDENTIFIER: com.your-org.openbrain.macos
         PRODUCT_NAME: Brain
         CODE_SIGN_ENTITLEMENTS: macOS/OpenBrain.entitlements
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
@@ -84,7 +84,7 @@ targets:
       properties:
         CFBundleName: Brain
         CFBundleDisplayName: Brain
-        CFBundleIdentifier: ai.blanxlait.brain.macos
+        CFBundleIdentifier: com.your-org.openbrain.macos
         CFBundleVersion: "1"
         CFBundleShortVersionString: "1.0.0"
         CFBundlePackageType: APPL
@@ -93,7 +93,7 @@ targets:
         CFBundleURLTypes:
           - CFBundleURLSchemes:
               - openbrain
-            CFBundleURLName: ai.blanxlait.brain.oauth
+            CFBundleURLName: com.your-org.openbrain.oauth
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: false
         ITSAppUsesNonExemptEncryption: false

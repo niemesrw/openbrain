@@ -37,7 +37,7 @@ const INSTALLATION = {
   slackUserId: "U456",
   accessToken: "xoxb-test-token",
   botUserId: "B789",
-  teamName: "BLANXLAIT",
+  teamName: "Test Workspace",
 };
 
 beforeAll(() => {

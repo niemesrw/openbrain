@@ -6,7 +6,7 @@
 #
 # CI usage (credentials injected as env vars from Secrets Manager):
 #   OPENBRAIN_API_URL=https://... \
-#   OPENBRAIN_USERNAME=brain-ci@blanxlait.com \
+#   OPENBRAIN_USERNAME=your-ci-user@example.com \
 #   OPENBRAIN_PASSWORD=... \
 #   OPENBRAIN_CLIENT_ID=... \
 #   OPENBRAIN_USER_POOL_ID=... \

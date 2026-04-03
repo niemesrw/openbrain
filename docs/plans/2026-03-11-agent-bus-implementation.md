@@ -385,5 +385,5 @@ git push
 
 **Step 5: Verify CI**
 
-Run: `gh run list -R BLANXLAIT/openbrain -L 1`
+Run: `gh run list -R niemesrw/openbrain -L 1`
 Expected: "Deploy Supabase" workflow triggered and passing.

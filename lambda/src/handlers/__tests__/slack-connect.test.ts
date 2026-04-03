@@ -114,7 +114,7 @@ describe("verifyState", () => {
 describe("handleSlackCallback", () => {
   const slackOAuthSuccess = {
     ok: true,
-    team: { id: "T123", name: "BLANXLAIT" },
+    team: { id: "T123", name: "Test Workspace" },
     bot_user_id: "B456",
     access_token: "xoxb-token",
     authed_user: { id: "U789" },
@@ -139,11 +139,11 @@ describe("handleSlackCallback", () => {
     const state = makeState(USER.userId, CLIENT_SECRET);
     const result = await handleSlackCallback("auth-code", state, USER);
 
-    expect(result).toEqual({ ok: true, teamName: "BLANXLAIT", dmSent: true });
+    expect(result).toEqual({ ok: true, teamName: "Test Workspace", dmSent: true });
     const putInput = mockDdbSend.mock.calls[0][0].input;
     expect(putInput.Item.teamId).toBe("T123");
     expect(putInput.Item.userId).toBe(USER.userId);
-    expect(putInput.Item.teamName).toBe("BLANXLAIT");
+    expect(putInput.Item.teamName).toBe("Test Workspace");
     expect(putInput.Item.botUserId).toBe("B456");
     expect(putInput.Item.slackUserId).toBe("U789");
     expect(putInput.Item.installedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
@@ -268,7 +268,7 @@ describe("handleSlackInstallations", () => {
         {
           teamId: "T123",
           userId: "user-abc",
-          teamName: "BLANXLAIT",
+          teamName: "Test Workspace",
           botUserId: "B456",
           slackUserId: "U789",
           installedAt: "2026-03-28T00:00:00.000Z",
@@ -276,7 +276,7 @@ describe("handleSlackInstallations", () => {
       ],
     });
     const result = await handleSlackInstallations(USER);
-    expect(result.installations[0].teamName).toBe("BLANXLAIT");
+    expect(result.installations[0].teamName).toBe("Test Workspace");
     expect(result.installations[0].teamId).toBe("T123");
   });
 

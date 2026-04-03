@@ -9,7 +9,7 @@ features:
     always_online: true
   slash_commands:
     - command: /brain
-      url: https://mt5dgvg3pk.execute-api.us-east-1.amazonaws.com/webhooks/slack
+      url: https://YOUR_API_GATEWAY_URL/webhooks/slack
       description: Search and capture your brain
       usage_hint: "search <query> | capture <thought>"
       should_escape: false
@@ -20,7 +20,7 @@ features:
 
 oauth_config:
   redirect_urls:
-    - https://brain.blanxlait.ai/slack/callback
+    - https://YOUR_DOMAIN/slack/callback
   scopes:
     bot:
       - commands
@@ -31,7 +31,7 @@ oauth_config:
 
 settings:
   event_subscriptions:
-    request_url: https://mt5dgvg3pk.execute-api.us-east-1.amazonaws.com/webhooks/slack
+    request_url: https://YOUR_API_GATEWAY_URL/webhooks/slack
     bot_events:
       - message.im
   interactivity:

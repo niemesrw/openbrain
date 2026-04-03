@@ -8,7 +8,7 @@ import { Construct } from "constructs";
 import * as path from "path";
 
 interface WebStackProps extends cdk.StackProps {
-  /** e.g. "brain.blanxlait.ai" — if set, creates ACM cert + CloudFront alias */
+  /** e.g. "brain.your-domain.com" — if set, creates ACM cert + CloudFront alias */
   customDomain?: string;
   /** Hostname of the API Gateway endpoint (no protocol), used to proxy /mcp and /chat */
   apiEndpointHostname?: string;

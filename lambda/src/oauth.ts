@@ -479,7 +479,7 @@ function handleMcpServerCard(_event: APIGatewayProxyEventV2): APIGatewayProxyRes
       version: "2.0.0",
     },
     description: "Personal AI knowledge base with semantic search. One brain shared across all your AI clients.",
-    documentationUrl: "https://github.com/BLANXLAIT/openbrain",
+    documentationUrl: "https://github.com/niemesrw/openbrain",
     transport: {
       type: "streamable-http",
       endpoint: "/mcp",
@@ -508,7 +508,7 @@ Open Brain is an MCP server that stores thoughts, decisions, notes, and memories
 - [MCP Endpoint](${baseUrl}/mcp): Streamable HTTP transport, OAuth 2.1 auth
 - [Server Card](${baseUrl}/.well-known/mcp.json): MCP server discovery metadata
 - [OAuth Discovery](${baseUrl}/.well-known/oauth-protected-resource): OAuth protected resource metadata
-- [GitHub Repository](https://github.com/BLANXLAIT/openbrain): Source code and setup guide
+- [GitHub Repository](https://github.com/niemesrw/openbrain): Source code and setup guide
 
 ## Tools
 
@@ -525,8 +525,8 @@ Open Brain is an MCP server that stores thoughts, decisions, notes, and memories
 
 ## Optional
 
-- [Skills for Claude Desktop](https://github.com/BLANXLAIT/openbrain/blob/main/skills/claude-desktop.md): Project instructions
-- [Skills for ChatGPT](https://github.com/BLANXLAIT/openbrain/blob/main/skills/chatgpt-instructions.md): Custom GPT instructions
+- [Skills for Claude Desktop](https://github.com/niemesrw/openbrain/blob/main/skills/claude-desktop.md): Project instructions
+- [Skills for ChatGPT](https://github.com/niemesrw/openbrain/blob/main/skills/chatgpt-instructions.md): Custom GPT instructions
 `;
 
   return {
