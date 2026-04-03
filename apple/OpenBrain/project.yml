@@ -15,7 +15,7 @@ configFiles:
 settings:
   base:
     SWIFT_VERSION: "5.10"
-    DEVELOPMENT_TEAM: YOUR_TEAM_ID  # Replace with your Apple Developer Team ID
+    DEVELOPMENT_TEAM: $(DEVELOPMENT_TEAM)  # Set in Config.xcconfig
     CODE_SIGN_STYLE: Automatic
 
 targets:
