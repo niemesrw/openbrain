@@ -1,5 +1,6 @@
 // Copy this file to Config.xcconfig and fill in your values.
 // Config.xcconfig is gitignored — never commit real values.
 
-// API Gateway URL from CDK deploy output (no trailing slash)
-API_BASE_URL = https://your-api-id.execute-api.us-east-1.amazonaws.com
+// API Gateway hostname from CDK deploy output — no scheme, no trailing slash
+// xcconfig treats // as a comment, so store the host only; Swift prepends https://
+API_BASE_HOST = your-api-id.execute-api.us-east-1.amazonaws.com

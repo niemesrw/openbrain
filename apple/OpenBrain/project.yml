@@ -47,7 +47,7 @@ targets:
         CFBundlePackageType: APPL
         CFBundleExecutable: Brain
         MinimumOSVersion: "17.0"
-        APIBaseURL: $(API_BASE_URL)
+        APIBaseHost: $(API_BASE_HOST)
         KeychainServiceName: $(PRODUCT_BUNDLE_IDENTIFIER)
         CFBundleURLTypes:
           - CFBundleURLSchemes:
@@ -96,7 +96,7 @@ targets:
         CFBundlePackageType: APPL
         CFBundleExecutable: Brain
         LSMinimumSystemVersion: "14.0"
-        APIBaseURL: $(API_BASE_URL)
+        APIBaseHost: $(API_BASE_HOST)
         KeychainServiceName: $(PRODUCT_BUNDLE_IDENTIFIER)
         CFBundleURLTypes:
           - CFBundleURLSchemes:
