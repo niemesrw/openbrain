@@ -2,6 +2,9 @@
 # Xcode Cloud regenerates via ci_scripts/ci_post_clone.sh
 **/*.xcodeproj
 
+# Local build config — copy Config.xcconfig.example and fill in your values
+OpenBrain/Config.xcconfig
+
 # Swift package build artifacts
 **/.build/
 

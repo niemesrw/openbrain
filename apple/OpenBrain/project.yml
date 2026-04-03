@@ -8,6 +8,10 @@ packages:
   OpenBrainKit:
     path: ../shared/OpenBrainKit
 
+configFiles:
+  Debug: Config.xcconfig
+  Release: Config.xcconfig
+
 settings:
   base:
     SWIFT_VERSION: "5.10"
@@ -43,6 +47,7 @@ targets:
         CFBundlePackageType: APPL
         CFBundleExecutable: Brain
         MinimumOSVersion: "17.0"
+        APIBaseURL: $(API_BASE_URL)
         CFBundleURLTypes:
           - CFBundleURLSchemes:
               - openbrain
@@ -90,6 +95,7 @@ targets:
         CFBundlePackageType: APPL
         CFBundleExecutable: Brain
         LSMinimumSystemVersion: "14.0"
+        APIBaseURL: $(API_BASE_URL)
         CFBundleURLTypes:
           - CFBundleURLSchemes:
               - openbrain

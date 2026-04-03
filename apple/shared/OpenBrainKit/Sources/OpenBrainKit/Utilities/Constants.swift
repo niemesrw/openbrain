@@ -1,8 +1,23 @@
 import Foundation
 
 public enum Constants {
-    // Replace with your deployed API Gateway URL (output of CDK deploy)
-    public static let baseURL = URL(string: "https://your-api-id.execute-api.us-east-1.amazonaws.com")!
+    /// API Gateway URL injected at build time via Config.xcconfig (local) or
+    /// the OPENBRAIN_API_URL Xcode Cloud secret (CI). Never hardcoded.
+    public static let baseURL: URL = {
+        guard
+            let raw = Bundle.main.infoDictionary?["APIBaseURL"] as? String,
+            !raw.isEmpty,
+            let url = URL(string: raw)
+        else {
+            fatalError(
+                "APIBaseURL not configured. " +
+                "Copy apple/OpenBrain/Config.xcconfig.example to Config.xcconfig and set API_BASE_URL, " +
+                "then run `xcodegen generate`."
+            )
+        }
+        return url
+    }()
+
     public static let callbackScheme = "openbrain"
     public static let callbackURL = "openbrain://callback"
     public static let keychainServiceName = "com.your-bundle-id.openbrain"
