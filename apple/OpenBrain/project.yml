@@ -1,0 +1,102 @@
+name: Brain
+options:
+  bundleIdPrefix: com.your-org.openbrain  # Replace with your bundle ID prefix
+  xcodeVersion: "16.0"
+  generateEmptyDirectories: true
+
+packages:
+  OpenBrainKit:
+    path: ../shared/OpenBrainKit
+
+settings:
+  base:
+    SWIFT_VERSION: "5.10"
+    DEVELOPMENT_TEAM: YOUR_TEAM_ID  # Replace with your Apple Developer Team ID
+    CODE_SIGN_STYLE: Automatic
+
+targets:
+  Brain-iOS:
+    type: application
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: iOS
+        resourceFiles:
+          - iOS/PrivacyInfo.xcprivacy
+    dependencies:
+      - package: OpenBrainKit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.your-org.openbrain.ios
+        PRODUCT_NAME: Brain
+        CODE_SIGN_ENTITLEMENTS: iOS/OpenBrain.entitlements
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        IPHONEOS_DEPLOYMENT_TARGET: "17.0"
+    info:
+      path: iOS/Info.plist
+      properties:
+        CFBundleName: Brain
+        CFBundleDisplayName: Brain
+        CFBundleIdentifier: com.your-org.openbrain.ios
+        CFBundleVersion: "1"
+        CFBundleShortVersionString: "1.0.0"
+        CFBundlePackageType: APPL
+        CFBundleExecutable: Brain
+        MinimumOSVersion: "17.0"
+        CFBundleURLTypes:
+          - CFBundleURLSchemes:
+              - openbrain
+            CFBundleURLName: com.your-org.openbrain.oauth
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: false
+        ITSAppUsesNonExemptEncryption: false
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+
+  Brain-macOS:
+    type: application
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - path: macOS
+        resourceFiles:
+          - macOS/PrivacyInfo.xcprivacy
+    dependencies:
+      - package: OpenBrainKit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.your-org.openbrain.macos
+        PRODUCT_NAME: Brain
+        CODE_SIGN_ENTITLEMENTS: macOS/OpenBrain.entitlements
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        MACOSX_DEPLOYMENT_TARGET: "14.0"
+    info:
+      path: macOS/Info.plist
+      properties:
+        CFBundleName: Brain
+        CFBundleDisplayName: Brain
+        CFBundleIdentifier: com.your-org.openbrain.macos
+        CFBundleVersion: "1"
+        CFBundleShortVersionString: "1.0.0"
+        CFBundlePackageType: APPL
+        CFBundleExecutable: Brain
+        LSMinimumSystemVersion: "14.0"
+        CFBundleURLTypes:
+          - CFBundleURLSchemes:
+              - openbrain
+            CFBundleURLName: com.your-org.openbrain.oauth
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: false
+        ITSAppUsesNonExemptEncryption: false
+        NSPrincipalClass: NSApplication
+        LSApplicationCategoryType: public.app-category.productivity
+        LSUIElement: true

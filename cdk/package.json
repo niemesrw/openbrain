@@ -1,0 +1,25 @@
+{
+  "name": "enterprise-brain-cdk",
+  "version": "1.0.0",
+  "bin": {
+    "enterprise-brain": "bin/enterprise-brain.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "cdk": "cdk",
+    "synth": "cdk synth",
+    "deploy": "cdk deploy --all"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "aws-cdk": "^2.178.0",
+    "esbuild": "^0.27.3",
+    "ts-node": "^10.9.2",
+    "typescript": "~5.7.0"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "^2.178.0",
+    "constructs": "^10.4.0"
+  }
+}

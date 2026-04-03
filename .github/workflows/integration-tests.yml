@@ -1,0 +1,41 @@
+name: Integration Tests
+
+on:
+  workflow_dispatch: # Manual-only until /openbrain/ci/credentials secret is provisioned (see #4)
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  integration-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+
+      # OIDC to management account
+      - uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.MANAGEMENT_ACCOUNT }}:role/GitHubActionsRole
+          aws-region: us-east-1
+
+      # Fetch credentials from Secrets Manager and export as env vars
+      - name: Load test credentials
+        run: |
+          SECRET=$(aws secretsmanager get-secret-value \
+            --secret-id /openbrain/ci/credentials \
+            --region us-east-1 \
+            --query SecretString \
+            --output text)
+          echo "OPENBRAIN_API_URL=$(echo $SECRET | jq -r .api_url)" >> $GITHUB_ENV
+          echo "OPENBRAIN_USERNAME=$(echo $SECRET | jq -r .username)" >> $GITHUB_ENV
+          echo "OPENBRAIN_PASSWORD=$(echo $SECRET | jq -r .password)" >> $GITHUB_ENV
+          echo "OPENBRAIN_CLIENT_ID=$(echo $SECRET | jq -r .client_id)" >> $GITHUB_ENV
+          echo "OPENBRAIN_USER_POOL_ID=$(echo $SECRET | jq -r .user_pool_id)" >> $GITHUB_ENV
+
+      - name: Run integration tests
+        run: ./tests/run.sh

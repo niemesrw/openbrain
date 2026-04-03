@@ -1,0 +1,13 @@
+.env
+.gemini/
+.claude/
+node_modules/
+*-export.json
+cdk/cdk.out/
+lambda/dist/
+cli/dist/
+web/dist/
+web/tsconfig.tsbuildinfo
+web/tsconfig.node.tsbuildinfo
+excalidraw.log
+**/.DS_Store

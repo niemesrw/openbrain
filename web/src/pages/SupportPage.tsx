@@ -1,0 +1,38 @@
+export function SupportPage() {
+  return (
+    <div className="max-w-2xl mx-auto py-8 space-y-6 text-white/80">
+      <h1 className="text-3xl font-bold font-headline text-white">Support</h1>
+
+      <section className="space-y-2">
+        <h2 className="text-lg font-semibold font-headline text-white">Get help</h2>
+        <p>
+          For questions, bug reports, or feature requests, open an issue on GitHub or email us
+          directly.
+        </p>
+      </section>
+
+      <section className="space-y-2">
+        <h2 className="text-lg font-semibold font-headline text-white">GitHub</h2>
+        <p>
+          <a
+            href="https://github.com/niemesrw/openbrain/issues"
+            className="text-brain-primary hover:text-brain-primary/80"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            github.com/niemesrw/openbrain/issues
+          </a>
+        </p>
+      </section>
+
+      <section className="space-y-2">
+        <h2 className="text-lg font-semibold font-headline text-white">Email</h2>
+        <p>
+          <a href="mailto:hello@example.com" className="text-brain-primary hover:text-brain-primary/80">
+            hello@example.com
+          </a>
+        </p>
+      </section>
+    </div>
+  );
+}

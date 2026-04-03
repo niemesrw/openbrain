@@ -1,0 +1,231 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '*.md'
+      - 'docs/**'
+      - 'skills/**'
+      - 'migrations/**'
+  workflow_dispatch:
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  MANAGEMENT_ACCOUNT: ${{ vars.MANAGEMENT_ACCOUNT }}
+  AI_ACCOUNT: ${{ vars.AI_ACCOUNT }}
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  test:
+    name: Lambda unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Install Lambda dependencies
+        working-directory: lambda
+        run: npm ci
+      - name: Run Lambda tests
+        working-directory: lambda
+        run: npm test
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      # --- AWS Auth (two-hop: OIDC → management → AI account) ---
+
+      - name: Configure AWS credentials (Management)
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: arn:aws:iam::${{ env.MANAGEMENT_ACCOUNT }}:role/GitHubActionsRole
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Assume role in AI account
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: arn:aws:iam::${{ env.AI_ACCOUNT }}:role/GitHubDeployRole
+          aws-region: ${{ env.AWS_REGION }}
+          role-chaining: true
+
+      # --- Store GitHub App secrets in Secrets Manager ---
+      # CDK references secrets by name rather than embedding values in the CF template.
+      - name: Upsert GitHub webhook secret in Secrets Manager
+        run: |
+          aws secretsmanager describe-secret \
+            --secret-id openbrain/github-webhook-secret > /dev/null 2>&1 \
+          && aws secretsmanager put-secret-value \
+            --secret-id openbrain/github-webhook-secret \
+            --secret-string "$GH_APP_WEBHOOK_SECRET" \
+          || aws secretsmanager create-secret \
+            --name openbrain/github-webhook-secret \
+            --secret-string "$GH_APP_WEBHOOK_SECRET"
+        env:
+          GH_APP_WEBHOOK_SECRET: ${{ secrets.GH_APP_WEBHOOK_SECRET }}
+
+      - name: Upsert GitHub App private key in Secrets Manager
+        run: |
+          aws secretsmanager describe-secret \
+            --secret-id openbrain/github-app-private-key > /dev/null 2>&1 \
+          && aws secretsmanager put-secret-value \
+            --secret-id openbrain/github-app-private-key \
+            --secret-string "$GH_APP_PRIVATE_KEY" \
+          || aws secretsmanager create-secret \
+            --name openbrain/github-app-private-key \
+            --secret-string "$GH_APP_PRIVATE_KEY"
+        env:
+          GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
+
+      # --- Build Lambda ---
+
+      - name: Install Lambda dependencies
+        working-directory: lambda
+        run: npm ci
+
+      # --- Build web (needed for CDK synth even when deploying infra only) ---
+
+      - name: Install web dependencies
+        working-directory: web
+        run: rm -rf node_modules package-lock.json && npm install
+
+      - name: Build web placeholder
+        working-directory: web
+        run: mkdir -p dist && echo '<!doctype html><html><body>placeholder</body></html>' > dist/index.html
+
+      # --- Deploy infra stacks (everything except web) ---
+
+      - name: Install CDK dependencies
+        working-directory: cdk
+        run: npm ci
+
+      - name: CDK Deploy (infra stacks)
+        working-directory: cdk
+        run: |
+          # Deploy sequentially (--concurrency 1) so Api completes before Data
+          # starts. This ensures any removed Data exports are no longer imported
+          # by Api before Data tries to delete them.
+          npx cdk deploy \
+            EnterpriseBrainVectors \
+            EnterpriseBrainAuth \
+            EnterpriseBrainApi \
+            EnterpriseBrainData \
+            --require-approval never \
+            --concurrency 1
+        env:
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET_ARN: ${{ secrets.GOOGLE_CLIENT_SECRET_ARN }}
+          ALARM_EMAIL: ${{ secrets.ALARM_EMAIL }}
+          CUSTOM_DOMAIN: ${{ secrets.CUSTOM_DOMAIN }}
+          GITHUB_APP_ID: ${{ secrets.GH_APP_ID }}
+          APPLE_CLIENT_ID: ${{ secrets.APPLE_CLIENT_ID }}
+          APPLE_KEY_ID: ${{ secrets.APPLE_KEY_ID }}
+          APPLE_PRIVATE_KEY_ARN: ${{ secrets.APPLE_PRIVATE_KEY_ARN }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      # --- Fetch CDK outputs for web build ---
+
+      - name: Get stack outputs
+        id: outputs
+        run: |
+          API_URL=$(aws cloudformation describe-stacks \
+            --stack-name EnterpriseBrainApi \
+            --query "Stacks[0].Outputs[?ExportName=='BrainApiUrl'].OutputValue" \
+            --output text)
+          USER_POOL_ID=$(aws cloudformation describe-stacks \
+            --stack-name EnterpriseBrainAuth \
+            --query "Stacks[0].Outputs[?ExportName=='BrainUserPoolId'].OutputValue" \
+            --output text)
+          WEB_CLIENT_ID=$(aws cloudformation describe-stacks \
+            --stack-name EnterpriseBrainAuth \
+            --query "Stacks[0].Outputs[?ExportName=='BrainWebClientId'].OutputValue" \
+            --output text)
+          COGNITO_DOMAIN=$(aws cloudformation describe-stacks \
+            --stack-name EnterpriseBrainAuth \
+            --query "Stacks[0].Outputs[?ExportName=='BrainCognitoDomain'].OutputValue" \
+            --output text)
+          CHAT_URL=$(aws cloudformation describe-stacks \
+            --stack-name EnterpriseBrainApi \
+            --query "Stacks[0].Outputs[?OutputKey=='ChatStreamUrl'].OutputValue" \
+            --output text)
+          echo "api_url=$API_URL" >> "$GITHUB_OUTPUT"
+          echo "user_pool_id=$USER_POOL_ID" >> "$GITHUB_OUTPUT"
+          echo "web_client_id=$WEB_CLIENT_ID" >> "$GITHUB_OUTPUT"
+          echo "cognito_domain=$COGNITO_DOMAIN" >> "$GITHUB_OUTPUT"
+          echo "chat_url=$CHAT_URL" >> "$GITHUB_OUTPUT"
+
+      # --- Build and deploy web (rebuild with real env vars) ---
+
+      - name: Build web
+        working-directory: web
+        run: npm run build
+        env:
+          VITE_API_URL: ${{ steps.outputs.outputs.api_url }}
+          VITE_USER_POOL_ID: ${{ steps.outputs.outputs.user_pool_id }}
+          VITE_WEB_CLIENT_ID: ${{ steps.outputs.outputs.web_client_id }}
+          VITE_COGNITO_DOMAIN: ${{ steps.outputs.outputs.cognito_domain }}
+          VITE_GITHUB_APP_SLUG: ${{ secrets.GH_APP_SLUG }}
+          VITE_CHAT_URL: ${{ steps.outputs.outputs.chat_url }}
+
+      - name: CDK Deploy (web stack)
+        working-directory: cdk
+        run: npx cdk deploy EnterpriseBrainWeb --require-approval never
+        env:
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET_ARN: ${{ secrets.GOOGLE_CLIENT_SECRET_ARN }}
+          CUSTOM_DOMAIN: ${{ secrets.CUSTOM_DOMAIN }}
+
+      # --- Update Cognito callback URLs with CloudFront domain ---
+
+      - name: Get CloudFront URL
+        id: web
+        run: |
+          WEB_URL=$(aws cloudformation describe-stacks \
+            --stack-name EnterpriseBrainWeb \
+            --query "Stacks[0].Outputs[?ExportName=='BrainWebUrl'].OutputValue" \
+            --output text)
+          echo "url=$WEB_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Redeploy auth with production callback URLs
+        working-directory: cdk
+        run: |
+          WEB_URL="${{ steps.web.outputs.url }}"
+          npx cdk deploy EnterpriseBrainAuth --require-approval never \
+            -c callbackUrls='["http://localhost:5173/callback","http://localhost:19836/callback","'"$WEB_URL"'/callback"]' \
+            -c logoutUrls='["http://localhost:5173/login","http://localhost:19836/logout","'"$WEB_URL"'/login"]'
+        env:
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET_ARN: ${{ secrets.GOOGLE_CLIENT_SECRET_ARN }}
+          APPLE_CLIENT_ID: ${{ secrets.APPLE_CLIENT_ID }}
+          APPLE_KEY_ID: ${{ secrets.APPLE_KEY_ID }}
+          APPLE_PRIVATE_KEY_ARN: ${{ secrets.APPLE_PRIVATE_KEY_ARN }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      # --- Print deployment info ---
+
+      - name: Deployment summary
+        run: |
+          echo "### Deployment Complete" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Resource | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|----------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| API URL | ${{ steps.outputs.outputs.api_url }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Web URL | ${{ steps.web.outputs.url }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Cognito Domain | ${{ steps.outputs.outputs.cognito_domain }} |" >> "$GITHUB_STEP_SUMMARY"

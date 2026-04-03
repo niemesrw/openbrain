@@ -1,0 +1,5 @@
+Brain is a personal AI knowledge base. Users sign in with Google or Apple ID — no separate account creation is required.
+
+To review the app, sign in with any Apple ID. The app will create a new brain for that account automatically. You can capture thoughts, search, browse, and chat with the AI.
+
+The backend is self-hosted on AWS (deployed via the open-source repo).
