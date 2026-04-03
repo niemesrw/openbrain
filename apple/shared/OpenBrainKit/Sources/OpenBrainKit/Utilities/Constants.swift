@@ -20,6 +20,10 @@ public enum Constants {
 
     public static let callbackScheme = "openbrain"
     public static let callbackURL = "openbrain://callback"
-    public static let keychainServiceName = "com.your-bundle-id.openbrain"
+    public static let keychainServiceName: String = {
+        Bundle.main.infoDictionary?["KeychainServiceName"] as? String
+            ?? Bundle.main.bundleIdentifier
+            ?? "com.your-bundle-id.openbrain"
+    }()
     public static let keychainTokensKey = "auth_tokens"
 }

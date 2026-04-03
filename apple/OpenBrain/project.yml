@@ -48,6 +48,7 @@ targets:
         CFBundleExecutable: Brain
         MinimumOSVersion: "17.0"
         APIBaseURL: $(API_BASE_URL)
+        KeychainServiceName: $(PRODUCT_BUNDLE_IDENTIFIER)
         CFBundleURLTypes:
           - CFBundleURLSchemes:
               - openbrain
@@ -96,6 +97,7 @@ targets:
         CFBundleExecutable: Brain
         LSMinimumSystemVersion: "14.0"
         APIBaseURL: $(API_BASE_URL)
+        KeychainServiceName: $(PRODUCT_BUNDLE_IDENTIFIER)
         CFBundleURLTypes:
           - CFBundleURLSchemes:
               - openbrain
