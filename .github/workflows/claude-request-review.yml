@@ -1,0 +1,19 @@
+name: Request Copilot Review for Claude PRs
+
+on:
+  pull_request:
+    types: [opened]
+
+jobs:
+  request-review:
+    # Only run on PRs opened by the Claude Code Action (github-actions bot)
+    if: github.event.pull_request.user.login == 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Request Copilot review
+        run: gh pr edit ${{ github.event.pull_request.number }} --add-reviewer Copilot
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}

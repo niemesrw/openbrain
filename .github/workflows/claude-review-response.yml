@@ -1,0 +1,142 @@
+name: Claude Responds to Copilot Review
+
+on:
+  pull_request_review:
+    types: [submitted]
+
+jobs:
+  respond:
+    # Only respond to Copilot reviews on Claude-opened PRs
+    if: |
+      github.event.review.user.login == 'copilot-pull-request-reviewer[bot]' &&
+      github.event.pull_request.user.login == 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+
+    steps:
+      - name: Check round limit and count inline comments
+        id: check
+        run: |
+          PR=${{ github.event.pull_request.number }}
+          REVIEW_ID=${{ github.event.review.id }}
+
+          # Count inline comments on this specific Copilot review
+          COMMENT_COUNT=$(gh api repos/${{ github.repository }}/pulls/${PR}/reviews/${REVIEW_ID}/comments --jq 'length')
+          echo "comment_count=$COMMENT_COUNT" >> "$GITHUB_OUTPUT"
+
+          # Determine current round from labels
+          LABELS=$(gh pr view $PR --json labels --jq '[.labels[].name] | join(" ")')
+          if echo "$LABELS" | grep -q "review-round-3"; then
+            echo "limit_reached=true" >> "$GITHUB_OUTPUT"
+            echo "round=3" >> "$GITHUB_OUTPUT"
+          elif echo "$LABELS" | grep -q "review-round-2"; then
+            echo "limit_reached=false" >> "$GITHUB_OUTPUT"
+            echo "round=3" >> "$GITHUB_OUTPUT"
+          elif echo "$LABELS" | grep -q "review-round-1"; then
+            echo "limit_reached=false" >> "$GITHUB_OUTPUT"
+            echo "round=2" >> "$GITHUB_OUTPUT"
+          else
+            echo "limit_reached=false" >> "$GITHUB_OUTPUT"
+            echo "round=1" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # --- No inline comments: auto-merge ---
+
+      - name: Auto-merge when Copilot has no inline comments
+        if: steps.check.outputs.comment_count == '0'
+        run: |
+          gh pr merge ${{ github.event.pull_request.number }} --squash --auto
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # --- Round limit reached: ask for human review ---
+
+      - name: Post limit-reached comment
+        if: steps.check.outputs.comment_count != '0' && steps.check.outputs.limit_reached == 'true'
+        run: |
+          gh pr comment ${{ github.event.pull_request.number }} \
+            --body "⚠️ Reached maximum review rounds (3) with unresolved Copilot comments. Human review needed."
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # --- Address comments ---
+
+      - name: Bump review-round label
+        if: steps.check.outputs.comment_count != '0' && steps.check.outputs.limit_reached == 'false'
+        run: |
+          ROUND=${{ steps.check.outputs.round }}
+          # Ensure label exists
+          gh label create "review-round-${ROUND}" --color "0075ca" --force 2>/dev/null || true
+          gh pr edit ${{ github.event.pull_request.number }} --add-label "review-round-${ROUND}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/checkout@v5
+        if: steps.check.outputs.comment_count != '0' && steps.check.outputs.limit_reached == 'false'
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 1
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git credentials
+        if: steps.check.outputs.comment_count != '0' && steps.check.outputs.limit_reached == 'false'
+        run: |
+          git config --global credential.helper store
+          echo "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com" > ~/.git-credentials
+
+      - name: Configure Open Brain MCP
+        if: steps.check.outputs.comment_count != '0' && steps.check.outputs.limit_reached == 'false'
+        run: |
+          mkdir -p ~/.claude
+          cat > ~/.claude/settings.json << 'SETTINGS'
+          {
+            "mcpServers": {
+              "open-brain": {
+                "type": "http",
+                "url": "https://uxitxxbqrd.execute-api.us-east-1.amazonaws.com/mcp",
+                "headers": {
+                  "x-api-key": "OPENBRAIN_KEY_PLACEHOLDER"
+                }
+              }
+            }
+          }
+          SETTINGS
+          sed -i "s/OPENBRAIN_KEY_PLACEHOLDER/${{ secrets.OPENBRAIN_AGENT_API_KEY }}/" ~/.claude/settings.json
+        env:
+          OPENBRAIN_AGENT_API_KEY: ${{ secrets.OPENBRAIN_AGENT_API_KEY }}
+
+      - name: Run Claude Code to address review comments
+        if: steps.check.outputs.comment_count != '0' && steps.check.outputs.limit_reached == 'false'
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          claude_args: "--dangerously-skip-permissions"
+          prompt: |
+            You are addressing Copilot code review comments on PR #${{ github.event.pull_request.number }} (round ${{ steps.check.outputs.round }}).
+
+            STEP 1 — Read CLAUDE.md "For Agents" section first.
+
+            STEP 2 — Fetch the Copilot review:
+            Run: gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/reviews/${{ github.event.review.id }}/comments
+
+            STEP 3 — For each inline comment:
+            - Read the file and line referenced
+            - Understand what Copilot is flagging
+            - Make the minimal fix that addresses the concern
+            - Do NOT over-engineer or refactor beyond what the comment asks for
+
+            STEP 4 — Run tests if lambda/ files were changed:
+            cd lambda && npm test
+
+            STEP 5 — Commit and push all changes to the PR branch.
+
+            STEP 6 — Post a comment on the PR summarising what was changed and why, referencing each Copilot comment addressed.
