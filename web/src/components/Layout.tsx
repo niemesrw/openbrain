@@ -1,5 +1,5 @@
-import { Link, Outlet, useNavigate, useLocation } from "react-router-dom";
-import { getCurrentUser, signOut } from "../lib/auth";
+import { Link, Outlet, useLocation } from "react-router-dom";
+import { getCurrentUser } from "../lib/auth";
 
 const NAV_TABS = [
   { to: "/dashboard", label: "Brain", icon: "psychology" },
@@ -9,14 +9,8 @@ const NAV_TABS = [
 ];
 
 export function Layout() {
-  const navigate = useNavigate();
   const location = useLocation();
   const user = getCurrentUser();
-
-  const handleSignOut = () => {
-    signOut();
-    navigate("/login");
-  };
 
   const isAuth = !!user;
   const initial = user?.getUsername()?.[0]?.toUpperCase() ?? "U";
@@ -48,25 +42,31 @@ export function Layout() {
                   {label}
                 </Link>
               ))}
-              <button
-                onClick={handleSignOut}
-                title="Sign out"
-                aria-label="Sign out"
+              <Link
+                to="/guide"
+                className={`text-sm font-label transition-colors ${isActive("/guide") ? "text-brain-primary" : "text-brain-muted hover:text-white"}`}
+              >
+                Guide
+              </Link>
+              <Link
+                to="/settings"
+                title="Profile"
+                aria-label="Profile"
                 className="w-8 h-8 rounded-full bg-brain-surface flex items-center justify-center text-xs text-brain-muted font-label font-semibold hover:bg-brain-high transition-colors"
               >
                 {initial}
-              </button>
+              </Link>
             </nav>
 
             {/* Mobile: avatar only */}
-            <button
-              onClick={handleSignOut}
-              title="Sign out"
-              aria-label="Sign out"
+            <Link
+              to="/settings"
+              title="Profile"
+              aria-label="Profile"
               className="md:hidden w-8 h-8 rounded-full bg-brain-surface flex items-center justify-center text-xs text-brain-muted font-label font-semibold hover:bg-brain-high transition-colors"
             >
               {initial}
-            </button>
+            </Link>
           </>
         ) : (
           <div className="flex items-center gap-4">

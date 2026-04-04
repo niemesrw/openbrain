@@ -2,7 +2,6 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { useChat } from "ai/react";
 import {
   browseRecent,
-  searchThoughts,
   getStats,
   captureThought,
   updateThought,
@@ -15,7 +14,6 @@ import { ErrorAlert } from "../components/ErrorAlert";
 import { ThoughtCard } from "../components/ThoughtCard";
 import { BrainInput } from "../components/BrainInput";
 import { InsightCard } from "../components/InsightCard";
-import { SearchBar } from "../components/SearchBar";
 
 const CHAT_URL = import.meta.env.VITE_CHAT_URL ?? "";
 
@@ -113,13 +111,6 @@ export function DashboardPage() {
   const [captureError, setCaptureError] = useState<string | null>(null);
   const [captureSuccess, setCaptureSuccess] = useState(false);
 
-  // Search
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<Thought[]>([]);
-  const [searchLoading, setSearchLoading] = useState(false);
-  const searchTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const searchIdRef = useRef(0);
-
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const requestIdRef = useRef(0);
 
@@ -161,25 +152,6 @@ export function DashboardPage() {
       .finally(() => { if (id === requestIdRef.current) setBrowseLoading(false); });
   }, [activeTopic, humanOnly, limit, mode, browseStale]);
 
-  // Debounced semantic search
-  useEffect(() => {
-    if (!searchQuery.trim()) {
-      setSearchResults([]);
-      setSearchLoading(false);
-      return;
-    }
-    const id = ++searchIdRef.current;
-    setSearchLoading(true);
-    clearTimeout(searchTimerRef.current);
-    searchTimerRef.current = setTimeout(() => {
-      searchThoughts(searchQuery, { limit: 20 })
-        .then((results) => { if (id === searchIdRef.current) setSearchResults(results); })
-        .catch(() => { if (id === searchIdRef.current) setSearchResults([]); })
-        .finally(() => { if (id === searchIdRef.current) setSearchLoading(false); });
-    }, 400);
-    return () => clearTimeout(searchTimerRef.current);
-  }, [searchQuery]);
-
   useEffect(() => {
     if (mode === "chat") {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -190,24 +162,6 @@ export function DashboardPage() {
     if (!input.trim() || chatLoading) return;
     setMode("chat");
     chatHandleSubmit({ preventDefault: () => {} } as React.FormEvent<HTMLFormElement>);
-  };
-
-  const handleSearch = async (query: string) => {
-    setSearchQuery(query);
-    setSearchLoading(true);
-    try {
-      const results = await searchThoughts(query);
-      setSearchResults(results);
-    } catch {
-      setSearchResults([]);
-    } finally {
-      setSearchLoading(false);
-    }
-  };
-
-  const handleSearchClear = () => {
-    setSearchQuery("");
-    setSearchResults([]);
   };
 
   const handleCapture = async (text: string, scope: Scope, type?: string) => {
@@ -232,7 +186,6 @@ export function DashboardPage() {
     setLimit(20);
     setBrowseStale(true);
     setActiveTopic(topic);
-    setSearchQuery("");
   };
 
   const handleEditThought = async (id: string, text: string, scope: Scope) => {
@@ -292,57 +245,9 @@ export function DashboardPage() {
             <h1 className="font-headline text-3xl font-bold tracking-tight mb-4 leading-tight">
               Expand Your<br />Neural Network
             </h1>
-
-            {/* Search bar */}
-            <div className="relative">
-              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-brain-muted/50 text-xl pointer-events-none">
-                search
-              </span>
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search your brain..."
-                className="w-full bg-brain-surface text-white placeholder-brain-muted/50 rounded-xl pl-10 pr-10 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-brain-secondary/50 transition-all font-body"
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery("")}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-brain-muted/50 hover:text-brain-muted transition-colors"
-                >
-                  <span className="material-symbols-outlined text-lg">close</span>
-                </button>
-              )}
-            </div>
           </div>
 
-          {/* ---- SEARCH RESULTS ---- */}
-          {searchQuery ? (
-            <div className="space-y-3">
-              {searchLoading && (
-                <>
-                  {[...Array(3)].map((_, i) => (
-                    <div key={i} className="bg-brain-surface rounded-xl h-20 animate-pulse" />
-                  ))}
-                </>
-              )}
-              {!searchLoading && searchResults.length === 0 && (
-                <p className="text-brain-muted/60 text-center py-8 font-label text-sm">
-                  No results for "{searchQuery}"
-                </p>
-              )}
-              {!searchLoading && searchResults.map((t, i) => (
-                <ThoughtCard
-                  key={t.id ?? String(t.created_at ?? i)}
-                  thought={t}
-                  onUpdate={handleEditThought}
-                  onDelete={handleDeleteThought}
-                />
-              ))}
-            </div>
-          ) : (
-            <>
-              {/* Insight card */}
+          {/* Insight card */}
               {insight && !insightDismissed && (
                 <InsightCard
                   insight={insight}
@@ -435,8 +340,6 @@ export function DashboardPage() {
                   Load more
                 </button>
               )}
-            </>
-          )}
         </>
       )}
 

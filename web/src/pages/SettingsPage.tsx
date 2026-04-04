@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   getGitHubInstallations,
   disconnectGitHubInstallation,
@@ -12,7 +13,9 @@ import {
   disconnectGoogleConnection,
   syncGmail,
   type GoogleConnection,
+  deleteAccount,
 } from "../lib/api";
+import { signOut } from "../lib/auth";
 
 const GITHUB_APP_SLUG = import.meta.env.VITE_GITHUB_APP_SLUG as string | undefined;
 const installUrl = GITHUB_APP_SLUG
@@ -223,6 +226,7 @@ function GoogleConnectionRow({
 }
 
 export function SettingsPage() {
+  const navigate = useNavigate();
   const [installations, setInstallations] = useState<GitHubInstallation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -236,6 +240,9 @@ export function SettingsPage() {
   const [googleLoading, setGoogleLoading] = useState(true);
   const [googleError, setGoogleError] = useState("");
   const [connectingGoogle, setConnectingGoogle] = useState(false);
+
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
 
   useEffect(() => {
     getGitHubInstallations()
@@ -271,6 +278,31 @@ export function SettingsPage() {
     } catch (e: unknown) {
       setGoogleError(e instanceof Error ? e.message : "Failed to start Gmail connection");
       setConnectingGoogle(false);
+    }
+  }
+
+  function handleSignOut() {
+    signOut();
+    navigate("/login");
+  }
+
+  async function handleDeleteAccount() {
+    if (
+      !window.confirm(
+        "Permanently delete your account and all data? This cannot be undone."
+      )
+    ) {
+      return;
+    }
+    setDeleting(true);
+    setDeleteError("");
+    try {
+      await deleteAccount();
+      signOut();
+      navigate("/login");
+    } catch (e: unknown) {
+      setDeleteError(e instanceof Error ? e.message : "Failed to delete account");
+      setDeleting(false);
     }
   }
 
@@ -422,6 +454,42 @@ export function SettingsPage() {
             ))}
           </div>
         )}
+      </section>
+
+      {/* Account section */}
+      <section>
+        <h2 className="text-lg font-semibold font-headline text-white mb-4">Account</h2>
+        <div className="bg-brain-surface rounded-xl px-4 py-3 space-y-3">
+          <div className="flex items-center justify-between py-1">
+            <div>
+              <p className="text-white font-medium text-sm">Sign out</p>
+              <p className="text-brain-muted/60 text-xs font-label mt-0.5">Sign out of this device</p>
+            </div>
+            <button
+              onClick={handleSignOut}
+              className="text-brain-muted hover:text-white text-sm font-label transition-colors"
+            >
+              Sign out
+            </button>
+          </div>
+          <div className="border-t border-brain-outline/20" />
+          <div className="flex items-center justify-between py-1">
+            <div>
+              <p className="text-brain-error font-medium text-sm">Delete account</p>
+              <p className="text-brain-muted/60 text-xs font-label mt-0.5">Permanently delete all data. Cannot be undone.</p>
+            </div>
+            <button
+              onClick={handleDeleteAccount}
+              disabled={deleting}
+              className="text-brain-error hover:text-brain-error/80 text-sm font-label disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {deleting ? "Deleting…" : "Delete"}
+            </button>
+          </div>
+          {deleteError && (
+            <p className="text-brain-error text-xs font-label pb-1">{deleteError}</p>
+          )}
+        </div>
       </section>
     </div>
   );

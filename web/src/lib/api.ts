@@ -270,3 +270,16 @@ export async function disconnectSlackInstallation(teamId: string): Promise<void>
     throw new Error(message);
   }
 }
+
+export async function deleteAccount(): Promise<void> {
+  const token = await getIdToken();
+  const apiUrl = getApiUrl();
+  const res = await fetch(`${apiUrl}/user`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => null) as { error?: string } | null;
+    throw new Error(body?.error ?? `Delete account error: ${res.status}`);
+  }
+}
