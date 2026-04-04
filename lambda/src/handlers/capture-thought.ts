@@ -8,7 +8,11 @@ import { describeImage } from "../services/vision";
 import { validateThoughtText } from "./validate-thought-text";
 import type { CaptureArgs, UserContext } from "../types";
 
-const ALLOWED_SOURCES = new Set(["github", "slack", "google-meet"]);
+const AGENT_SOURCE_MAP = new Map<string, string>([
+  ["github-agent", "github"],
+  ["slack-agent", "slack"],
+  ["google-meet-agent", "google-meet"],
+]);
 
 let sqsClient: SQSClient | undefined;
 function getSqsClient(): SQSClient {
@@ -20,7 +24,7 @@ export async function handleCaptureThought(
   args: CaptureArgs,
   user: UserContext
 ): Promise<string> {
-  const { text, scope = "private", media_url, source_url, type: typeOverride, _source } = args;
+  const { text, scope = "private", media_url, source_url, type: typeOverride } = args;
 
   const validationError = validateThoughtText(text);
   if (validationError) return validationError;
@@ -72,8 +76,8 @@ export async function handleCaptureThought(
     dates_mentioned: JSON.stringify(metadata.dates_mentioned),
     ...(resolvedMediaUrl && { media_url: resolvedMediaUrl }),
     ...(source_url && { source_url }),
-    // Allowlist source values — reject anything not from a known system agent
-    ...(_source && ALLOWED_SOURCES.has(_source) && { source: _source }),
+    // Derive source from authenticated agent identity — never from caller input
+    ...(user.agentName && AGENT_SOURCE_MAP.get(user.agentName) && { source: AGENT_SOURCE_MAP.get(user.agentName) }),
     // Attribution for shared captures
     ...(scope === "shared" && {
       display_name: user.displayName || "anonymous",

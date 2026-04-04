@@ -66,8 +66,6 @@ export interface CaptureArgs {
   source_url?: string;
   /** Optional explicit type override — overrides the AI-chosen type when provided */
   type?: "observation" | "task" | "idea" | "reference" | "person_note";
-  /** Internal: origin tag injected by system agents (e.g. "github", "slack"). Not exposed in MCP schema. */
-  _source?: string;
 }
 
 export interface UpdateThoughtArgs {

@@ -296,8 +296,11 @@ describe("handleCaptureThought", () => {
     expect(call).not.toHaveProperty("source_url");
   });
 
-  it("stores _source in metadata when provided", async () => {
-    await handleCaptureThought({ text: "GitHub PR merged", _source: "github" }, USER);
+  it("derives source from authenticated agent identity (github-agent → github)", async () => {
+    await handleCaptureThought(
+      { text: "GitHub PR merged" },
+      { userId: "user-123", agentName: "github-agent" }
+    );
 
     expect(mockPutVector).toHaveBeenCalledWith(
       expect.any(String),
@@ -307,8 +310,18 @@ describe("handleCaptureThought", () => {
     );
   });
 
-  it("omits source from metadata when _source is not provided", async () => {
+  it("omits source from metadata when user has no agentName", async () => {
     await handleCaptureThought({ text: "User thought" }, USER);
+
+    const call = mockPutVector.mock.calls[0][3];
+    expect(call).not.toHaveProperty("source");
+  });
+
+  it("omits source from metadata when agentName is not a known agent", async () => {
+    await handleCaptureThought(
+      { text: "Unknown agent thought" },
+      { userId: "user-123", agentName: "unknown-agent" }
+    );
 
     const call = mockPutVector.mock.calls[0][3];
     expect(call).not.toHaveProperty("source");
