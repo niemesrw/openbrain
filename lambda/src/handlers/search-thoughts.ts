@@ -15,12 +15,14 @@ function safeParseArray(value: unknown): string[] {
   return [];
 }
 
+const MAX_QUERY_CHARS = 2_000;
+
 export async function handleSearchThoughts(
   args: SearchArgs,
   user: UserContext
 ): Promise<string> {
   const {
-    query,
+    query: rawQuery,
     threshold = 0.5,
     limit = 10,
     type,
@@ -28,6 +30,12 @@ export async function handleSearchThoughts(
     scope = "private",
     _format,
   } = args;
+
+  if (typeof rawQuery !== "string") {
+    return `<search_results error="invalid_query"><message>${xmlEscape("The 'query' argument must be a string.")}</message></search_results>`;
+  }
+
+  const query = rawQuery.length > MAX_QUERY_CHARS ? rawQuery.slice(0, MAX_QUERY_CHARS) : rawQuery;
 
   const embedding = await generateEmbedding(query);
   const indexes = resolveIndexes(user.userId, scope);

@@ -10,6 +10,9 @@ const client = new BedrockRuntimeClient({});
 const MODEL_ID =
   process.env.CHAT_MODEL_ID ?? "us.anthropic.claude-haiku-4-5-20251001-v1:0";
 const MAX_TOOL_ROUNDS = 3;
+const MAX_MESSAGE_CHARS = 10_000;
+const MAX_HISTORY_MESSAGES = 20;
+const MAX_HISTORY_MSG_CHARS = 10_000;
 
 const SYSTEM_PROMPT = `You are the user's brain — their personal semantic memory. You hold their captured thoughts, observations, ideas, tasks, and notes. When they talk to you, you ARE their memory speaking back.
 
@@ -29,7 +32,7 @@ const BRAIN_TOOLS = [
     input_schema: {
       type: "object",
       properties: {
-        query: { type: "string" },
+        query: { type: "string", maxLength: 2000 },
         limit: { type: "number" },
         _format: { type: "string", enum: ["json"] },
       },
@@ -121,7 +124,7 @@ export async function handler(
   let body: ChatRequest;
   try {
     body = JSON.parse(event.body || "{}");
-    if (!body.message) throw new Error("missing message");
+    if (typeof body.message !== "string" || !body.message) throw new Error("missing message");
   } catch {
     return {
       statusCode: 400,
@@ -130,14 +133,24 @@ export async function handler(
     };
   }
 
+  if (body.message.length > MAX_MESSAGE_CHARS) {
+    return {
+      statusCode: 400,
+      headers: { "Content-Type": "application/json", ...cors },
+      body: JSON.stringify({ error: `message exceeds maximum length of ${MAX_MESSAGE_CHARS} characters` }),
+    };
+  }
+
   const toolsUsed: string[] = [];
   let thoughtsReferenced = 0;
 
   // Build messages array
   const messages: Array<{ role: string; content: unknown }> = [];
-  if (body.history) {
-    for (const msg of body.history.slice(-20)) {
-      messages.push({ role: msg.role, content: msg.content });
+  if (Array.isArray(body.history)) {
+    for (const msg of body.history.slice(-MAX_HISTORY_MESSAGES)) {
+      const raw = typeof msg.content === "string" ? msg.content : String(msg.content ?? "");
+      const content = raw.length > MAX_HISTORY_MSG_CHARS ? raw.slice(0, MAX_HISTORY_MSG_CHARS) : raw;
+      messages.push({ role: msg.role, content });
     }
   }
   messages.push({ role: "user", content: body.message });

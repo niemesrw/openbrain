@@ -182,4 +182,20 @@ describe("handleSearchThoughts", () => {
 
     expect(parsed.thoughts[0]).not.toHaveProperty("media_url");
   });
+
+  it("truncates query exceeding 2,000 characters before generating embedding", async () => {
+    const longQuery = "x".repeat(3_000);
+
+    await handleSearchThoughts({ query: longQuery }, USER);
+
+    expect(mockGenerateEmbedding).toHaveBeenCalledWith("x".repeat(2_000));
+  });
+
+  it("passes query unchanged when within 2,000 character limit", async () => {
+    const shortQuery = "short query";
+
+    await handleSearchThoughts({ query: shortQuery }, USER);
+
+    expect(mockGenerateEmbedding).toHaveBeenCalledWith(shortQuery);
+  });
 });

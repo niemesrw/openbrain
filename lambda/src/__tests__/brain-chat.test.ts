@@ -75,6 +75,38 @@ describe("brain-chat handler", () => {
     expect(result).toMatchObject({ statusCode: 400 });
   });
 
+  it("returns 400 when message exceeds 10,000 characters", async () => {
+    const longMessage = "a".repeat(10_001);
+    const result = await handler(makeEvent({ body: JSON.stringify({ message: longMessage }) }));
+    expect(result).toMatchObject({ statusCode: 400 });
+    const body = JSON.parse((result as { body: string }).body);
+    expect(body.error).toMatch(/exceeds maximum length/);
+  });
+
+  it("accepts message at exactly 10,000 characters", async () => {
+    mockSend.mockResolvedValueOnce(bedrockTextResponse("OK"));
+    const exactMessage = "a".repeat(10_000);
+    const result = await handler(makeEvent({ body: JSON.stringify({ message: exactMessage }) }));
+    expect(result).toMatchObject({ statusCode: 200 });
+  });
+
+  it("truncates history message content exceeding 10,000 characters", async () => {
+    mockSend.mockResolvedValueOnce(bedrockTextResponse("OK"));
+    const longContent = "b".repeat(15_000);
+    const result = await handler(makeEvent({
+      body: JSON.stringify({
+        message: "hello",
+        history: [{ role: "user", content: longContent }],
+      }),
+    }));
+    expect(result).toMatchObject({ statusCode: 200 });
+    // Verify Bedrock was called with truncated content
+    const { InvokeModelCommand } = jest.requireMock("@aws-sdk/client-bedrock-runtime");
+    const callArg = InvokeModelCommand.mock.calls[0][0];
+    const body = JSON.parse(callArg.body);
+    expect(body.messages[0].content.length).toBe(10_000);
+  });
+
   it("returns 200 with text response on end_turn", async () => {
     mockSend.mockResolvedValueOnce(bedrockTextResponse("I remember you've been working on AWS."));
 
