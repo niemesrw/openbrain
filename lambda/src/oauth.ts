@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import type {
   APIGatewayProxyEventV2,
   APIGatewayProxyResultV2,
@@ -9,7 +10,7 @@ import {
   UpdateUserPoolClientCommand,
 } from "@aws-sdk/client-cognito-identity-provider";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, PutCommand, GetCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
+import { DynamoDBDocumentClient, PutCommand, GetCommand, UpdateCommand, DeleteCommand } from "@aws-sdk/lib-dynamodb";
 import { isUrlClientId, resolveClientId } from "./oauth/cimd";
 
 const USER_POOL_ID = process.env.USER_POOL_ID!;
@@ -133,6 +134,79 @@ async function checkDcrRateLimit(sourceIp: string): Promise<boolean> {
 
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
 
+// Hard cap on total callback URLs per DCR client (after pruning ephemeral-port
+// loopback URIs) to prevent unbounded accumulation and stay well under Cognito's
+// 100-URL limit.
+const MAX_CALLBACK_URIS = 10;
+
+// Distributed lock helpers — serialize the Cognito read-modify-write to prevent
+// last-writer-wins data loss under concurrent authorization requests
+const LOCK_TTL_SECONDS = 30;
+const LOCK_MAX_WAIT_MS = 5000;
+const LOCK_POLL_MS = 200;
+
+/** Typed errors propagated from ensureLoopbackRedirectUri to its callers. */
+class LoopbackUpdateError extends Error {
+  constructor(
+    message: string,
+    public readonly code: "lock_timeout" | "cap_exceeded"
+  ) {
+    super(message);
+    this.name = "LoopbackUpdateError";
+  }
+}
+
+/**
+ * Acquire a per-client DynamoDB lock. Returns the owner token (a UUID) on
+ * success, or null if the lock could not be acquired within LOCK_MAX_WAIT_MS.
+ * The owner token must be passed to releaseLoopbackLock to prevent a request
+ * from releasing a lock it no longer owns (e.g., after TTL expiry + steal).
+ */
+async function acquireLoopbackLock(cognitoClientId: string): Promise<string | null> {
+  const lockKey = `lock#loopback#${cognitoClientId}`;
+  const lockOwner = randomUUID();
+  const expiresAt = Math.floor(Date.now() / 1000) + LOCK_TTL_SECONDS;
+  const deadline = Date.now() + LOCK_MAX_WAIT_MS;
+  while (Date.now() < deadline) {
+    try {
+      await ddb.send(
+        new PutCommand({
+          TableName: DCR_CLIENTS_TABLE,
+          Item: { clientId: lockKey, type: "lock", lockOwner, expiresAt },
+          ConditionExpression: "attribute_not_exists(clientId) OR expiresAt < :now",
+          ExpressionAttributeValues: { ":now": Math.floor(Date.now() / 1000) },
+        })
+      );
+      return lockOwner;
+    } catch (err: any) {
+      if (err.name !== "ConditionalCheckFailedException") throw err;
+      // Lock held by another request — wait and retry
+      await new Promise((r) => setTimeout(r, LOCK_POLL_MS));
+    }
+  }
+  return null; // could not acquire within deadline
+}
+
+/**
+ * Release the lock only if we still own it. The conditional delete prevents
+ * accidentally releasing a lock that was stolen after TTL expiry.
+ */
+async function releaseLoopbackLock(cognitoClientId: string, lockOwner: string): Promise<void> {
+  const lockKey = `lock#loopback#${cognitoClientId}`;
+  try {
+    await ddb.send(
+      new DeleteCommand({
+        TableName: DCR_CLIENTS_TABLE,
+        Key: { clientId: lockKey },
+        ConditionExpression: "lockOwner = :owner",
+        ExpressionAttributeValues: { ":owner": lockOwner },
+      })
+    );
+  } catch {
+    // Best-effort release; TTL will clean up if delete fails or owner mismatch
+  }
+}
+
 function isLoopbackUri(uri: string): boolean {
   try {
     return LOOPBACK_HOSTS.has(new URL(uri).hostname);
@@ -149,7 +223,9 @@ function isLoopbackUri(uri: string): boolean {
  * Security: only updates clients managed by our DCR (checked via DynamoDB).
  * Pruning: replaces old ephemeral-port loopback URLs with the current one,
  * keeping only the canonical (port-less) entries + the active port.
- * Concurrency: retries on conflict up to 3 times.
+ * Concurrency: serialized via a DynamoDB distributed lock to prevent the
+ * last-writer-wins race on Cognito's full-replace UpdateUserPoolClient.
+ * Cap: rejects updates when MAX_LOOPBACK_URIS would be exceeded after pruning.
  */
 async function ensureLoopbackRedirectUri(cognitoClientId: string, redirectUri: string): Promise<void> {
   try {
@@ -165,74 +241,98 @@ async function ensureLoopbackRedirectUri(cognitoClientId: string, redirectUri: s
     );
     if (!dcrRecord.Item) return; // not a DCR client, skip
 
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try {
-        const describeResult = await cognito.send(
+    // Acquire distributed lock to serialize the read-modify-write cycle.
+    // Without this, two concurrent requests can both read the same baseline list
+    // and the last writer silently drops the other session's redirect URI.
+    const lockOwner = await acquireLoopbackLock(cognitoClientId);
+    if (!lockOwner) {
+      throw new LoopbackUpdateError(
+        `Could not acquire loopback URI lock for ${cognitoClientId} within ${LOCK_MAX_WAIT_MS}ms`,
+        "lock_timeout"
+      );
+    }
+
+    let lockReleased = false;
+    try {
+      const describeResult = await cognito.send(
+        new DescribeUserPoolClientCommand({
+          UserPoolId: USER_POOL_ID,
+          ClientId: cognitoClientId,
+        })
+      );
+
+      const client = describeResult.UserPoolClient!;
+      const existingCallbacks = client.CallbackURLs ?? [];
+
+      if (existingCallbacks.includes(redirectUri)) return;
+
+      // Prune old ephemeral-port loopback URLs, keep canonical (no port) ones
+      const prunedCallbacks = existingCallbacks.filter((url) => {
+        try {
+          const u = new URL(url);
+          return !LOOPBACK_HOSTS.has(u.hostname) || !u.port;
+        } catch {
+          return true;
+        }
+      });
+
+      // Enforce hard cap: throw so the caller can surface a clear error to the
+      // client rather than silently redirecting with an unregistered URI
+      if (prunedCallbacks.length >= MAX_CALLBACK_URIS) {
+        throw new LoopbackUpdateError(
+          `Callback URL cap (${MAX_CALLBACK_URIS}) reached for client ${cognitoClientId}`,
+          "cap_exceeded"
+        );
+      }
+
+      // Cognito UpdateUserPoolClient replaces the full client config —
+      // all fields not included are reset to defaults. We must re-send
+      // the fields we want to preserve.
+      await cognito.send(
+        new UpdateUserPoolClientCommand({
+          UserPoolId: USER_POOL_ID,
+          ClientId: cognitoClientId,
+          ClientName: client.ClientName,
+          CallbackURLs: [...prunedCallbacks, redirectUri],
+          LogoutURLs: client.LogoutURLs,
+          AllowedOAuthFlows: client.AllowedOAuthFlows,
+          AllowedOAuthFlowsUserPoolClient: client.AllowedOAuthFlowsUserPoolClient,
+          AllowedOAuthScopes: client.AllowedOAuthScopes,
+          SupportedIdentityProviders: client.SupportedIdentityProviders,
+          ExplicitAuthFlows: client.ExplicitAuthFlows,
+          PreventUserExistenceErrors: client.PreventUserExistenceErrors,
+          TokenValidityUnits: client.TokenValidityUnits,
+          AccessTokenValidity: client.AccessTokenValidity,
+          IdTokenValidity: client.IdTokenValidity,
+          RefreshTokenValidity: client.RefreshTokenValidity,
+        })
+      );
+
+      // Release the lock before polling — Cognito propagation doesn't need
+      // serialization and holding the lock here blocks other callers for up to 5s.
+      await releaseLoopbackLock(cognitoClientId, lockOwner);
+      lockReleased = true;
+
+      // Poll until Cognito propagates the new callback URL (eventual consistency).
+      // Times out after 5s and falls through — same behaviour as a fixed sleep but
+      // much faster on the happy path (usually 1-3 polls).
+      const propagationDeadline = Date.now() + 5000;
+      while (Date.now() < propagationDeadline) {
+        await new Promise((r) => setTimeout(r, 300));
+        const check = await cognito.send(
           new DescribeUserPoolClientCommand({
             UserPoolId: USER_POOL_ID,
             ClientId: cognitoClientId,
           })
         );
-
-        const client = describeResult.UserPoolClient!;
-        const existingCallbacks = client.CallbackURLs ?? [];
-
-        if (existingCallbacks.includes(redirectUri)) return;
-
-        // Prune old ephemeral-port loopback URLs, keep canonical (no port) ones
-        const prunedCallbacks = existingCallbacks.filter((url) => {
-          try {
-            const u = new URL(url);
-            return !LOOPBACK_HOSTS.has(u.hostname) || !u.port;
-          } catch {
-            return true;
-          }
-        });
-
-        // Cognito UpdateUserPoolClient replaces the full client config —
-        // all fields not included are reset to defaults. We must re-send
-        // the fields we want to preserve.
-        await cognito.send(
-          new UpdateUserPoolClientCommand({
-            UserPoolId: USER_POOL_ID,
-            ClientId: cognitoClientId,
-            ClientName: client.ClientName,
-            CallbackURLs: [...prunedCallbacks, redirectUri],
-            LogoutURLs: client.LogoutURLs,
-            AllowedOAuthFlows: client.AllowedOAuthFlows,
-            AllowedOAuthFlowsUserPoolClient: client.AllowedOAuthFlowsUserPoolClient,
-            AllowedOAuthScopes: client.AllowedOAuthScopes,
-            SupportedIdentityProviders: client.SupportedIdentityProviders,
-            ExplicitAuthFlows: client.ExplicitAuthFlows,
-            PreventUserExistenceErrors: client.PreventUserExistenceErrors,
-            TokenValidityUnits: client.TokenValidityUnits,
-            AccessTokenValidity: client.AccessTokenValidity,
-            IdTokenValidity: client.IdTokenValidity,
-            RefreshTokenValidity: client.RefreshTokenValidity,
-          })
-        );
-        // Poll until Cognito propagates the new callback URL (eventual consistency).
-        // Times out after 5s and falls through — same behaviour as a fixed sleep but
-        // much faster on the happy path (usually 1-3 polls).
-        const deadline = Date.now() + 5000;
-        while (Date.now() < deadline) {
-          await new Promise((r) => setTimeout(r, 300));
-          const check = await cognito.send(
-            new DescribeUserPoolClientCommand({
-              UserPoolId: USER_POOL_ID,
-              ClientId: cognitoClientId,
-            })
-          );
-          if (check.UserPoolClient?.CallbackURLs?.includes(redirectUri)) return;
-        }
-        return;
-      } catch (error: any) {
-        if (attempt < 2 && error?.$metadata?.httpStatusCode === 409) continue;
-        throw error;
+        if (check.UserPoolClient?.CallbackURLs?.includes(redirectUri)) return;
       }
+    } finally {
+      if (!lockReleased) await releaseLoopbackLock(cognitoClientId, lockOwner);
     }
   } catch (error: any) {
-    console.error("Failed to update Cognito client callback URLs:", error.message);
+    if (error instanceof LoopbackUpdateError) throw error; // propagate to caller
+    console.error("Failed to update Cognito client callback URLs:", error instanceof Error ? error.message : String(error));
   }
 }
 
@@ -281,7 +381,25 @@ async function handleAuthorize(event: APIGatewayProxyEventV2): Promise<APIGatewa
   // RFC 8252 §7.3: allow any port for loopback redirect URIs.
   // Cognito requires exact match, so add the specific port to the client's callback URLs.
   if (resolvedClientId && params.redirect_uri) {
-    await ensureLoopbackRedirectUri(resolvedClientId, params.redirect_uri);
+    try {
+      await ensureLoopbackRedirectUri(resolvedClientId, params.redirect_uri);
+    } catch (err: any) {
+      if (err instanceof LoopbackUpdateError) {
+        if (err.code === "lock_timeout") {
+          return json(503, {
+            error: "server_error",
+            error_description: "Authorization server temporarily busy, please retry",
+          });
+        }
+        if (err.code === "cap_exceeded") {
+          return json(400, {
+            error: "invalid_request",
+            error_description: "Too many redirect URIs registered for this client",
+          });
+        }
+      }
+      throw err;
+    }
   }
 
   return {

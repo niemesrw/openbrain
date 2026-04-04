@@ -20,6 +20,7 @@ jest.mock("@aws-sdk/lib-dynamodb", () => {
     PutCommand: actual.PutCommand,
     GetCommand: actual.GetCommand,
     UpdateCommand: actual.UpdateCommand,
+    DeleteCommand: actual.DeleteCommand,
   };
 });
 
@@ -385,6 +386,246 @@ describe("OAuth handler", () => {
       // Should not touch DDB or Cognito for non-loopback URIs
       expect(mockDdbSend).not.toHaveBeenCalled();
       expect(mockCognitoSend).not.toHaveBeenCalled();
+    });
+
+    it("enforces MAX_CALLBACK_URIS cap — returns 400 when cap is reached after pruning", async () => {
+      // Trigger metadata load first
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          authorization_endpoint: "https://openbrain-test.auth.us-east-1.amazoncognito.com/oauth2/authorize",
+          token_endpoint: "https://openbrain-test.auth.us-east-1.amazoncognito.com/oauth2/token",
+        }),
+      });
+      const metaEvent = makeEvent({
+        rawPath: "/.well-known/oauth-authorization-server",
+        requestContext: { http: { method: "GET" } } as any,
+      });
+      await handler(metaEvent);
+
+      // DDB: DCR record exists
+      mockDdbSend.mockResolvedValueOnce({ Item: { clientId: "capped-client" } });
+      // DDB: lock acquire (PutCommand) succeeds
+      mockDdbSend.mockResolvedValueOnce({});
+      // Cognito: describe returns 10 non-loopback callback URLs (cap already reached after pruning)
+      const tenCallbacks = Array.from({ length: 10 }, (_, i) => `https://example.com/callback${i}`);
+      mockCognitoSend.mockResolvedValueOnce({
+        UserPoolClient: {
+          ClientName: "Capped",
+          CallbackURLs: tenCallbacks,
+          AllowedOAuthFlows: ["code"],
+          AllowedOAuthFlowsUserPoolClient: true,
+          AllowedOAuthScopes: ["openid"],
+          SupportedIdentityProviders: ["COGNITO"],
+        },
+      });
+      // DDB: lock release (DeleteCommand) succeeds — conditional on owner
+      mockDdbSend.mockResolvedValueOnce({});
+
+      const event = makeEvent({
+        rawPath: "/oauth/authorize",
+        rawQueryString: "client_id=capped-client&redirect_uri=http%3A%2F%2F127.0.0.1%3A1234%2Fcb",
+        queryStringParameters: {
+          client_id: "capped-client",
+          redirect_uri: "http://127.0.0.1:1234/cb",
+        },
+        requestContext: { http: { method: "GET" } } as any,
+      });
+
+      const result = await handler(event) as APIGatewayProxyStructuredResultV2;
+
+      // Cap exceeded → 400 so the client gets a clear error instead of a
+      // Cognito redirect with an unregistered redirect_uri
+      expect(result.statusCode).toBe(400);
+      const body = JSON.parse(result.body as string);
+      expect(body.error).toBe("invalid_request");
+      // Cognito UpdateUserPoolClient should NOT have been called
+      const updateCalls = (mockCognitoSend.mock.calls as any[]).filter(
+        (call) => call[0]?.constructor?.name === "UpdateUserPoolClientCommand"
+      );
+      expect(updateCalls).toHaveLength(0);
+    });
+
+    it("returns 503 when DynamoDB lock cannot be acquired within timeout", async () => {
+      // Trigger metadata load first
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          authorization_endpoint: "https://openbrain-test.auth.us-east-1.amazoncognito.com/oauth2/authorize",
+          token_endpoint: "https://openbrain-test.auth.us-east-1.amazoncognito.com/oauth2/token",
+        }),
+      });
+      await handler(makeEvent({
+        rawPath: "/.well-known/oauth-authorization-server",
+        requestContext: { http: { method: "GET" } } as any,
+      }));
+
+      // DDB: DCR record exists
+      mockDdbSend.mockResolvedValueOnce({ Item: { clientId: "busy-client" } });
+      // DDB: all lock acquire attempts fail (lock held the entire window)
+      // Jest fake timers won't help here — instead, mock LOCK_MAX_WAIT_MS by
+      // rejecting enough times to exhaust real attempts. We use fake timers to
+      // skip the poll sleeps so the test runs fast.
+      jest.useFakeTimers();
+      const lockConflict = Object.assign(new Error("ConditionalCheckFailed"), {
+        name: "ConditionalCheckFailedException",
+      });
+      // Reject all lock attempts for the duration of the test
+      mockDdbSend.mockRejectedValue(lockConflict);
+
+      const event = makeEvent({
+        rawPath: "/oauth/authorize",
+        rawQueryString: "client_id=busy-client&redirect_uri=http%3A%2F%2F127.0.0.1%3A9999%2Fcb",
+        queryStringParameters: {
+          client_id: "busy-client",
+          redirect_uri: "http://127.0.0.1:9999/cb",
+        },
+        requestContext: { http: { method: "GET" } } as any,
+      });
+
+      // Advance timers past LOCK_MAX_WAIT_MS (5000ms) while the handler runs
+      const handlerPromise = handler(event);
+      // Tick through all the 200ms poll sleeps + overshoot the deadline
+      for (let i = 0; i < 30; i++) {
+        await Promise.resolve();
+        jest.advanceTimersByTime(200);
+      }
+      jest.useRealTimers();
+
+      const result = await handlerPromise as APIGatewayProxyStructuredResultV2;
+      expect(result.statusCode).toBe(503);
+      const body = JSON.parse(result.body as string);
+      expect(body.error).toBe("server_error");
+    });
+
+    it("lock release uses conditional delete to prevent releasing a stolen lock", async () => {
+      // Trigger metadata load first
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          authorization_endpoint: "https://openbrain-test.auth.us-east-1.amazoncognito.com/oauth2/authorize",
+          token_endpoint: "https://openbrain-test.auth.us-east-1.amazoncognito.com/oauth2/token",
+        }),
+      });
+      await handler(makeEvent({
+        rawPath: "/.well-known/oauth-authorization-server",
+        requestContext: { http: { method: "GET" } } as any,
+      }));
+
+      // DDB: DCR record exists
+      mockDdbSend.mockResolvedValueOnce({ Item: { clientId: "owner-test-client" } });
+      // DDB: lock acquire succeeds
+      mockDdbSend.mockResolvedValueOnce({});
+      // Cognito: describe
+      mockCognitoSend.mockResolvedValueOnce({
+        UserPoolClient: {
+          ClientName: "OwnerTest",
+          CallbackURLs: ["https://example.com/callback"],
+          AllowedOAuthFlows: ["code"],
+          AllowedOAuthFlowsUserPoolClient: true,
+          AllowedOAuthScopes: ["openid"],
+          SupportedIdentityProviders: ["COGNITO"],
+        },
+      });
+      // Cognito: update
+      mockCognitoSend.mockResolvedValueOnce({});
+      // DDB: lock release (DeleteCommand with owner condition)
+      mockDdbSend.mockResolvedValueOnce({});
+      // Cognito: propagation poll — confirms URI present
+      mockCognitoSend.mockResolvedValueOnce({
+        UserPoolClient: {
+          CallbackURLs: ["https://example.com/callback", "http://127.0.0.1:5555/cb"],
+        },
+      });
+
+      const event = makeEvent({
+        rawPath: "/oauth/authorize",
+        rawQueryString: "client_id=owner-test-client&redirect_uri=http%3A%2F%2F127.0.0.1%3A5555%2Fcb",
+        queryStringParameters: {
+          client_id: "owner-test-client",
+          redirect_uri: "http://127.0.0.1:5555/cb",
+        },
+        requestContext: { http: { method: "GET" } } as any,
+      });
+
+      const result = await handler(event) as APIGatewayProxyStructuredResultV2;
+      expect(result.statusCode).toBe(302);
+
+      // Verify the DeleteCommand included the owner condition
+      const deleteCalls = (mockDdbSend.mock.calls as any[]).filter(
+        (call) => call[0]?.constructor?.name === "DeleteCommand"
+      );
+      expect(deleteCalls).toHaveLength(1);
+      const deleteInput = deleteCalls[0][0].input;
+      expect(deleteInput.ConditionExpression).toBe("lockOwner = :owner");
+      expect(deleteInput.ExpressionAttributeValues[":owner"]).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+      );
+
+      // Verify lock is released BEFORE the propagation poll
+      // (describe called once for read, update once, then delete, then poll-describe)
+      expect(mockCognitoSend).toHaveBeenCalledTimes(3); // describe + update + poll
+    });
+
+    it("serializes concurrent updates via DynamoDB lock — lock retry succeeds on second attempt", async () => {
+      // Trigger metadata load first
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          authorization_endpoint: "https://openbrain-test.auth.us-east-1.amazoncognito.com/oauth2/authorize",
+          token_endpoint: "https://openbrain-test.auth.us-east-1.amazoncognito.com/oauth2/token",
+        }),
+      });
+      const metaEvent = makeEvent({
+        rawPath: "/.well-known/oauth-authorization-server",
+        requestContext: { http: { method: "GET" } } as any,
+      });
+      await handler(metaEvent);
+
+      // DDB: DCR record exists
+      mockDdbSend.mockResolvedValueOnce({ Item: { clientId: "lock-test-client" } });
+      // DDB: lock acquire fails first (another holder), then succeeds
+      const lockConflict = Object.assign(new Error("ConditionalCheckFailed"), {
+        name: "ConditionalCheckFailedException",
+      });
+      mockDdbSend.mockRejectedValueOnce(lockConflict); // first attempt: locked
+      mockDdbSend.mockResolvedValueOnce({}); // second attempt: acquired
+      // Cognito: describe
+      mockCognitoSend.mockResolvedValueOnce({
+        UserPoolClient: {
+          ClientName: "LockTest",
+          CallbackURLs: ["http://127.0.0.1/callback"],
+          AllowedOAuthFlows: ["code"],
+          AllowedOAuthFlowsUserPoolClient: true,
+          AllowedOAuthScopes: ["openid"],
+          SupportedIdentityProviders: ["COGNITO"],
+        },
+      });
+      // Cognito: update
+      mockCognitoSend.mockResolvedValueOnce({});
+      // DDB: lock release (before propagation poll)
+      mockDdbSend.mockResolvedValueOnce({});
+      // Cognito: propagation poll — confirms URI present
+      mockCognitoSend.mockResolvedValueOnce({
+        UserPoolClient: {
+          CallbackURLs: ["http://127.0.0.1/callback", "http://127.0.0.1:7777/cb"],
+        },
+      });
+
+      const event = makeEvent({
+        rawPath: "/oauth/authorize",
+        rawQueryString: "client_id=lock-test-client&redirect_uri=http%3A%2F%2F127.0.0.1%3A7777%2Fcb",
+        queryStringParameters: {
+          client_id: "lock-test-client",
+          redirect_uri: "http://127.0.0.1:7777/cb",
+        },
+        requestContext: { http: { method: "GET" } } as any,
+      });
+
+      const result = await handler(event) as APIGatewayProxyStructuredResultV2;
+
+      expect(result.statusCode).toBe(302);
+      expect(mockCognitoSend).toHaveBeenCalledTimes(3); // describe + update + poll
     });
   });
 });
