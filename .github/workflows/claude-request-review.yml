@@ -6,8 +6,8 @@ on:
 
 jobs:
   request-review:
-    # Only run on PRs opened by the Claude Code Action (github-actions bot)
-    if: github.event.pull_request.user.login == 'github-actions[bot]'
+    # Only run on PRs opened by the Claude Code Action (opens as app/claude)
+    if: contains(github.event.pull_request.user.login, 'claude')
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write

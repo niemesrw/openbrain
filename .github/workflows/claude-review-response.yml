@@ -9,7 +9,7 @@ jobs:
     # Only respond to Copilot reviews on Claude-opened PRs
     if: |
       github.event.review.user.login == 'copilot-pull-request-reviewer[bot]' &&
-      github.event.pull_request.user.login == 'github-actions[bot]'
+      contains(github.event.pull_request.user.login, 'claude')
     runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:
