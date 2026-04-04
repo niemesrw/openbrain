@@ -14,6 +14,7 @@ jest.mock("@aws-sdk/lib-dynamodb", () => {
     DeleteCommand: jest.fn((input: unknown) => ({ input })),
     PutCommand: jest.fn((input: unknown) => ({ input })),
     QueryCommand: jest.fn((input: unknown) => ({ input })),
+    UpdateCommand: jest.fn((input: unknown) => ({ input })),
   };
 });
 
@@ -29,6 +30,7 @@ import {
   handleSlackCallback,
   handleSlackInstallations,
   handleSlackDisconnect,
+  getValidSlackInstallation,
   verifyState,
 } from "../slack-connect";
 
@@ -253,6 +255,153 @@ describe("handleSlackCallback", () => {
     // Clear cache by reimporting would be complex; test the getter directly via a fresh scenario
     // This validates the guard in getClientSecret — covered by the empty-string check
     expect("Slack client secret is empty or missing").toBeTruthy(); // documented behavior
+  });
+});
+
+describe("handleSlackCallback — token rotation fields", () => {
+  const slackOAuthWithRotation = {
+    ok: true,
+    team: { id: "T123", name: "Test Workspace" },
+    bot_user_id: "B456",
+    access_token: "xoxe.p-1-token",
+    refresh_token: "xoxe-1-refresh",
+    token_expires_in: 43200,
+    authed_user: { id: "U789" },
+  };
+
+  function mockFetchResponses(
+    oauthResp: unknown,
+    openResp: unknown = { ok: true, channel: { id: "D123" } },
+    dmResp: unknown = { ok: true }
+  ) {
+    mockFetch
+      .mockResolvedValueOnce({ ok: true, json: async () => oauthResp })
+      .mockResolvedValueOnce({ ok: true, json: async () => openResp })
+      .mockResolvedValueOnce({ ok: true, json: async () => dmResp });
+  }
+
+  it("stores refreshToken and accessTokenExpiry when Slack returns token rotation fields", async () => {
+    mockFetchResponses(slackOAuthWithRotation);
+    mockDdbSend.mockResolvedValue({});
+
+    const state = makeState(USER.userId, CLIENT_SECRET);
+    await handleSlackCallback("auth-code", state, USER);
+
+    const putInput = mockDdbSend.mock.calls[0][0].input;
+    expect(putInput.Item.refreshToken).toBe("xoxe-1-refresh");
+    expect(putInput.Item.accessTokenExpiry).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(putInput.Item.accessToken).toBe("xoxe.p-1-token");
+  });
+
+  it("stores installation without refreshToken when Slack does not use token rotation", async () => {
+    const slackOAuthNoRotation = {
+      ok: true,
+      team: { id: "T123", name: "Test Workspace" },
+      bot_user_id: "B456",
+      access_token: "xoxb-legacy-token",
+      authed_user: { id: "U789" },
+    };
+    mockFetchResponses(slackOAuthNoRotation);
+    mockDdbSend.mockResolvedValue({});
+
+    const state = makeState(USER.userId, CLIENT_SECRET);
+    await handleSlackCallback("auth-code", state, USER);
+
+    const putInput = mockDdbSend.mock.calls[0][0].input;
+    expect(putInput.Item.refreshToken).toBeUndefined();
+    expect(putInput.Item.accessTokenExpiry).toBeUndefined();
+    expect(putInput.Item.accessToken).toBe("xoxb-legacy-token");
+  });
+});
+
+describe("getValidSlackInstallation", () => {
+  const baseRecord = {
+    teamId: "T123",
+    userId: "user-abc",
+    teamName: "Test Workspace",
+    botUserId: "B456",
+    slackUserId: "U789",
+    accessToken: "xoxe.p-1-valid",
+    refreshToken: "xoxe-1-refresh",
+    accessTokenExpiry: new Date(Date.now() + 60 * 60 * 1000).toISOString(), // 1h from now
+    installedAt: "2026-01-01T00:00:00.000Z",
+  };
+
+  it("returns the installation with the existing access token when not expiring soon", async () => {
+    mockDdbSend.mockResolvedValueOnce({ Items: [baseRecord] });
+
+    const result = await getValidSlackInstallation("T123", "U789");
+    expect(result).not.toBeNull();
+    expect(result!.accessToken).toBe("xoxe.p-1-valid");
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("returns null when no installation is found", async () => {
+    mockDdbSend.mockResolvedValueOnce({ Items: [] });
+
+    const result = await getValidSlackInstallation("T-unknown", "U-nobody");
+    expect(result).toBeNull();
+  });
+
+  it("returns the installation without refresh when no refreshToken stored (legacy token)", async () => {
+    const legacyRecord = { ...baseRecord, refreshToken: undefined, accessTokenExpiry: undefined };
+    mockDdbSend.mockResolvedValueOnce({ Items: [legacyRecord] });
+
+    const result = await getValidSlackInstallation("T123", "U789");
+    expect(result).not.toBeNull();
+    expect(result!.accessToken).toBe("xoxe.p-1-valid");
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("refreshes the token via tooling.tokens.rotate when expiring within 5 minutes", async () => {
+    const expiredRecord = {
+      ...baseRecord,
+      accessToken: "xoxe.p-1-expiring",
+      accessTokenExpiry: new Date(Date.now() - 1000).toISOString(), // already expired
+    };
+    mockDdbSend
+      .mockResolvedValueOnce({ Items: [expiredRecord] }) // QueryCommand
+      .mockResolvedValueOnce({});                        // UpdateCommand (persist rotated tokens)
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        ok: true,
+        token: "xoxe.p-1-new",
+        refresh_token: "xoxe-1-new-refresh",
+        exp: Math.floor(Date.now() / 1000) + 43200,
+      }),
+    });
+
+    const result = await getValidSlackInstallation("T123", "U789");
+    expect(result).not.toBeNull();
+    expect(result!.accessToken).toBe("xoxe.p-1-new");
+    expect(result!.refreshToken).toBe("xoxe-1-new-refresh");
+
+    const rotateCall = mockFetch.mock.calls[0];
+    expect(rotateCall[0]).toContain("tooling.tokens.rotate");
+    expect(rotateCall[1].body).toContain("refresh_token=xoxe-1-refresh");
+
+    const updateInput = mockDdbSend.mock.calls[1][0].input;
+    expect(updateInput.Key).toEqual({ teamId: "T123", userId: "user-abc" });
+    expect(updateInput.ExpressionAttributeValues[":at"]).toBe("xoxe.p-1-new");
+    expect(updateInput.ExpressionAttributeValues[":rt"]).toBe("xoxe-1-new-refresh");
+  });
+
+  it("throws when token rotate API returns ok:false", async () => {
+    const expiredRecord = {
+      ...baseRecord,
+      accessTokenExpiry: new Date(Date.now() - 1000).toISOString(),
+    };
+    mockDdbSend.mockResolvedValueOnce({ Items: [expiredRecord] });
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ ok: false, error: "token_revoked" }),
+    });
+
+    await expect(getValidSlackInstallation("T123", "U789")).rejects.toThrow(
+      "Slack token rotate error: token_revoked"
+    );
   });
 });
 

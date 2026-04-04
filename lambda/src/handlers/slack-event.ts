@@ -1,40 +1,8 @@
 import type { APIGatewayProxyResultV2 } from "aws-lambda";
-import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, QueryCommand } from "@aws-sdk/lib-dynamodb";
 import { handleSearchThoughts } from "./search-thoughts";
 import { handleCaptureThought } from "./capture-thought";
+import { getValidSlackInstallation } from "./slack-connect";
 import type { UserContext } from "../types";
-
-const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
-
-interface SlackInstallationRecord {
-  teamId: string;
-  userId: string;
-  slackUserId: string;
-  accessToken: string;
-  botUserId: string;
-  teamName: string;
-}
-
-/**
- * Look up the Open Brain installation for a specific Slack user in a workspace.
- * Uses the team-slack-user-index GSI so each user gets their own brain context.
- */
-async function getInstallation(
-  teamId: string,
-  slackUserId: string
-): Promise<SlackInstallationRecord | null> {
-  const result = await ddb.send(
-    new QueryCommand({
-      TableName: process.env.SLACK_INSTALLATIONS_TABLE,
-      IndexName: "team-slack-user-index",
-      KeyConditionExpression: "teamId = :teamId AND slackUserId = :slackUserId",
-      ExpressionAttributeValues: { ":teamId": teamId, ":slackUserId": slackUserId },
-      Limit: 1,
-    })
-  );
-  return (result.Items?.[0] as SlackInstallationRecord | undefined) ?? null;
-}
 
 function buildUserContext(userId: string): UserContext {
   return { userId };
@@ -101,7 +69,9 @@ async function handleSlashCommand(
     return slashResponse("Missing team or user ID.");
   }
 
-  const installation = await getInstallation(teamId, slackUserId);
+  // Skip token refresh — slash commands only need userId, and refreshing here
+  // risks exceeding Slack's 3s ack timeout.
+  const installation = await getValidSlackInstallation(teamId, slackUserId, { skipRefresh: true });
   if (!installation) {
     return slashResponse(
       "Your Slack account isn't linked to Open Brain yet. Open the app and go to Settings to connect."
@@ -177,7 +147,7 @@ async function handleDmMessage(
 
   if (!teamId || !channel || !text || !slackUserId) return;
 
-  const installation = await getInstallation(teamId, slackUserId);
+  const installation = await getValidSlackInstallation(teamId, slackUserId);
   if (!installation) return; // user hasn't connected — silently ignore
 
   const user = buildUserContext(installation.userId);

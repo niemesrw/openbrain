@@ -371,6 +371,62 @@ describe("handleGoogleSync", () => {
     expect(refreshCall[0]).toContain("oauth2.googleapis.com/token");
   });
 
+  it("persists rotated refresh token when Google returns one during refresh", async () => {
+    const expiredConnection = {
+      ...connection,
+      accessTokenExpiry: new Date(Date.now() - 1000).toISOString(),
+    };
+    mockDdbSend
+      .mockResolvedValueOnce({ Item: expiredConnection }) // GetCommand
+      .mockResolvedValueOnce({})                          // UpdateCommand (persist refreshed token + new refresh token)
+      .mockResolvedValueOnce({});                         // UpdateCommand (persist historyId)
+
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          access_token: "ya29.new",
+          refresh_token: "1//new-refresh-token",
+          expires_in: 3600,
+        }),
+      })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ messages: [] }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ historyId: "999" }) });
+
+    await handleGoogleSync("alice@example.com", USER);
+
+    // The UpdateCommand for the token refresh should include the new refresh_token
+    const updateInput = mockDdbSend.mock.calls[1][0].input;
+    expect(updateInput.UpdateExpression).toContain("refreshToken = :rt");
+    expect(updateInput.ExpressionAttributeValues[":rt"]).toBe("1//new-refresh-token");
+    expect(updateInput.ExpressionAttributeValues[":at"]).toBe("ya29.new");
+  });
+
+  it("does not include refreshToken in UpdateExpression when Google does not return one", async () => {
+    const expiredConnection = {
+      ...connection,
+      accessTokenExpiry: new Date(Date.now() - 1000).toISOString(),
+    };
+    mockDdbSend
+      .mockResolvedValueOnce({ Item: expiredConnection })
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({});
+
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ access_token: "ya29.new", expires_in: 3600 }), // no refresh_token
+      })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ messages: [] }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ historyId: "999" }) });
+
+    await handleGoogleSync("alice@example.com", USER);
+
+    const updateInput = mockDdbSend.mock.calls[1][0].input;
+    expect(updateInput.UpdateExpression).not.toContain("refreshToken");
+    expect(updateInput.ExpressionAttributeValues[":at"]).toBe("ya29.new");
+  });
+
   it("captures CATEGORY_UPDATES emails (hotel confirmations, receipts, etc.)", async () => {
     const hotelConfirmation = {
       id: "msg1",

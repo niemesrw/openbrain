@@ -5,6 +5,7 @@ import {
   DeleteCommand,
   PutCommand,
   QueryCommand,
+  UpdateCommand,
 } from "@aws-sdk/lib-dynamodb";
 import {
   SecretsManagerClient,
@@ -56,6 +57,19 @@ export interface SlackInstallation {
   teamName: string;
   botUserId: string;
   slackUserId: string;
+  installedAt: string;
+}
+
+// Internal record shape — includes token fields not exposed in the public SlackInstallation list
+export interface SlackInstallationRecord {
+  teamId: string;
+  userId: string;
+  teamName: string;
+  botUserId: string;
+  slackUserId: string;
+  accessToken: string;
+  refreshToken?: string;
+  accessTokenExpiry?: string;
   installedAt: string;
 }
 
@@ -117,7 +131,17 @@ interface SlackOAuthResponse {
   team?: { id: string; name: string };
   bot_user_id?: string;
   access_token?: string;
+  refresh_token?: string;    // present when Slack token rotation is enabled
+  token_expires_in?: number; // seconds until access_token expires
   authed_user?: { id: string };
+}
+
+interface SlackTokenRotateResponse {
+  ok: boolean;
+  error?: string;
+  token?: string;
+  refresh_token?: string;
+  exp?: number; // Unix timestamp (seconds)
 }
 
 export async function handleSlackCallback(
@@ -163,18 +187,26 @@ export async function handleSlackCallback(
 
   const teamName = data.team?.name ?? "";
 
+  const item: Record<string, unknown> = {
+    teamId,
+    userId: user.userId,
+    teamName,
+    botUserId,
+    slackUserId,
+    accessToken,
+    installedAt: new Date().toISOString(),
+  };
+
+  // Store token rotation fields when Slack returns them (requires token_rotation enabled on app)
+  if (data.refresh_token) item.refreshToken = data.refresh_token;
+  if (data.token_expires_in) {
+    item.accessTokenExpiry = new Date(Date.now() + data.token_expires_in * 1000).toISOString();
+  }
+
   await ddb.send(
     new PutCommand({
       TableName: SLACK_INSTALLATIONS_TABLE,
-      Item: {
-        teamId,
-        userId: user.userId,
-        teamName,
-        botUserId,
-        slackUserId,
-        accessToken,
-        installedAt: new Date().toISOString(),
-      },
+      Item: item,
       ConditionExpression:
         "attribute_not_exists(teamId) OR userId = :uid",
       ExpressionAttributeValues: { ":uid": user.userId },
@@ -193,6 +225,129 @@ export async function handleSlackCallback(
   );
 
   return { ok: true, teamName, dmSent };
+}
+
+async function refreshSlackToken(
+  teamId: string,
+  userId: string,
+  refreshToken: string,
+  clientId: string,
+  clientSecret: string
+): Promise<{ accessToken: string; refreshToken: string; accessTokenExpiry: string }> {
+  const resp = await fetch("https://slack.com/api/tooling.tokens.rotate", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString("base64")}`,
+    },
+    body: new URLSearchParams({ refresh_token: refreshToken }).toString(),
+  });
+
+  if (!resp.ok) {
+    throw new Error(`Slack token rotate HTTP error: ${resp.status}`);
+  }
+
+  const data = (await resp.json()) as SlackTokenRotateResponse;
+  if (!data.ok) {
+    throw new Error(`Slack token rotate error: ${data.error ?? "unknown"}`);
+  }
+
+  const newAccessToken = data.token;
+  const newRefreshToken = data.refresh_token;
+  if (!newAccessToken) throw new Error("Slack token rotate response missing token");
+  if (!newRefreshToken) throw new Error("Slack token rotate response missing refresh_token");
+
+  // Slack returns exp as a Unix timestamp (seconds); convert to ISO string
+  const newExpiry = data.exp
+    ? new Date(data.exp * 1000).toISOString()
+    : new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(); // fallback: 12h
+
+  // ConditionExpression ensures we only write if the stored refresh token still
+  // matches the one we rotated — prevents a racing caller from overwriting a
+  // newer token that was already written by another concurrent refresh.
+  await ddb.send(
+    new UpdateCommand({
+      TableName: SLACK_INSTALLATIONS_TABLE,
+      Key: { teamId, userId },
+      UpdateExpression: "SET accessToken = :at, refreshToken = :rt, accessTokenExpiry = :exp",
+      ConditionExpression: "refreshToken = :oldRt",
+      ExpressionAttributeValues: {
+        ":at": newAccessToken,
+        ":rt": newRefreshToken,
+        ":exp": newExpiry,
+        ":oldRt": refreshToken,
+      },
+    })
+  ).catch((err: unknown) => {
+    // If the condition failed, another caller already rotated the token — that's fine.
+    if (err instanceof Error && err.name === "ConditionalCheckFailedException") return;
+    throw err;
+  });
+
+  return { accessToken: newAccessToken, refreshToken: newRefreshToken, accessTokenExpiry: newExpiry };
+}
+
+/**
+ * Look up the Slack installation for a specific user in a workspace and return it with a
+ * guaranteed-fresh access token. If token rotation is enabled and the token is expiring
+ * within 5 minutes, it is refreshed automatically before returning.
+ */
+export async function getValidSlackInstallation(
+  teamId: string,
+  slackUserId: string,
+  options: { skipRefresh?: boolean } = {}
+): Promise<SlackInstallationRecord | null> {
+  const result = await ddb.send(
+    new QueryCommand({
+      TableName: SLACK_INSTALLATIONS_TABLE,
+      IndexName: "team-slack-user-index",
+      KeyConditionExpression: "teamId = :teamId AND slackUserId = :slackUserId",
+      ExpressionAttributeValues: { ":teamId": teamId, ":slackUserId": slackUserId },
+      Limit: 1,
+    })
+  );
+
+  const item = result.Items?.[0] as SlackInstallationRecord & Record<string, unknown> | undefined;
+  if (!item) return null;
+
+  let { accessToken, refreshToken, accessTokenExpiry } = item as {
+    accessToken: string;
+    refreshToken?: string;
+    accessTokenExpiry?: string;
+  };
+
+  // Refresh if token rotation is enabled and token is expiring within 5 minutes.
+  // Treat invalid/NaN expiry as needing refresh so a corrupted value doesn't
+  // silently return an expired token.
+  if (!options.skipRefresh && refreshToken && accessTokenExpiry) {
+    const expiry = new Date(accessTokenExpiry).getTime();
+    const needsRefresh = !Number.isFinite(expiry) || Date.now() >= expiry - 5 * 60 * 1000;
+    if (needsRefresh) {
+      const [clientId, clientSecret] = await Promise.all([getClientId(), getClientSecret()]);
+      const refreshed = await refreshSlackToken(
+        teamId,
+        item.userId,
+        refreshToken,
+        clientId,
+        clientSecret
+      );
+      accessToken = refreshed.accessToken;
+      refreshToken = refreshed.refreshToken;
+      accessTokenExpiry = refreshed.accessTokenExpiry;
+    }
+  }
+
+  return {
+    teamId: item.teamId,
+    userId: item.userId,
+    teamName: item.teamName,
+    botUserId: item.botUserId,
+    slackUserId: item.slackUserId,
+    accessToken,
+    refreshToken,
+    accessTokenExpiry,
+    installedAt: item.installedAt,
+  };
 }
 
 async function sendConfirmationDm(accessToken: string, slackUserId: string): Promise<void> {

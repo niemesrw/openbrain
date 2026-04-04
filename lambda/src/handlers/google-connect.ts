@@ -313,13 +313,19 @@ async function refreshAccessToken(
   const expiresIn = data.expires_in ?? 3600;
   const newExpiry = new Date(Date.now() + expiresIn * 1000).toISOString();
 
-  // Persist updated access token + expiry
+  // Persist updated access token + expiry; also rotate the refresh token if Google returned one
+  const updateExpr = data.refresh_token
+    ? "SET accessToken = :at, accessTokenExpiry = :exp, refreshToken = :rt"
+    : "SET accessToken = :at, accessTokenExpiry = :exp";
+  const exprValues: Record<string, string> = { ":at": newAccessToken, ":exp": newExpiry };
+  if (data.refresh_token) exprValues[":rt"] = data.refresh_token;
+
   await ddb.send(
     new UpdateCommand({
       TableName: GOOGLE_CONNECTIONS_TABLE,
       Key: { userId, email },
-      UpdateExpression: "SET accessToken = :at, accessTokenExpiry = :exp",
-      ExpressionAttributeValues: { ":at": newAccessToken, ":exp": newExpiry },
+      UpdateExpression: updateExpr,
+      ExpressionAttributeValues: exprValues,
     })
   );
 
