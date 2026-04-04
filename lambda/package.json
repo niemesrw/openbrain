@@ -29,6 +29,9 @@
     "ts-jest": "^29.2.6",
     "typescript": "~5.7.0"
   },
+  "overrides": {
+    "jsondiffpatch": "0.7.3"
+  },
   "jest": {
     "preset": "ts-jest",
     "testEnvironment": "node",

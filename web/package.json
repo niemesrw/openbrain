@@ -17,6 +17,9 @@
     "react-markdown": "^10.1.0",
     "react-router-dom": "^7.0.0"
   },
+  "overrides": {
+    "jsondiffpatch": "0.7.3"
+  },
   "devDependencies": {
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
