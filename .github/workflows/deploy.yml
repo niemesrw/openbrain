@@ -135,6 +135,7 @@ jobs:
           ALARM_EMAIL: ${{ secrets.ALARM_EMAIL }}
           CUSTOM_DOMAIN: ${{ secrets.CUSTOM_DOMAIN }}
           GITHUB_APP_ID: ${{ secrets.GH_APP_ID }}
+          GITHUB_AGENT_RUNTIME_ARN: ${{ vars.GITHUB_AGENT_RUNTIME_ARN }}
           APPLE_CLIENT_ID: ${{ secrets.APPLE_CLIENT_ID }}
           APPLE_KEY_ID: ${{ secrets.APPLE_KEY_ID }}
           APPLE_PRIVATE_KEY_ARN: ${{ secrets.APPLE_PRIVATE_KEY_ARN }}

@@ -658,6 +658,13 @@ export class ApiStack extends cdk.Stack {
         `arn:aws:secretsmanager:${this.region}:${this.account}:secret:${githubAppPrivateKeySecretName}*`,
       ],
     }));
+    const githubAgentRuntimeArn = process.env.GITHUB_AGENT_RUNTIME_ARN;
+    if (githubAgentRuntimeArn) {
+      githubAgentHandler.addToRolePolicy(new iam.PolicyStatement({
+        actions: ["bedrock-agentcore:InvokeAgentRuntime"],
+        resources: [githubAgentRuntimeArn],
+      }));
+    }
 
     // GitHub REST Lambda — authenticated endpoints for installation management
     const githubRestHandler = new lambdaNode.NodejsFunction(this, "GitHubRestHandler", {
