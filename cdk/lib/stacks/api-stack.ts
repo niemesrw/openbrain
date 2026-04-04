@@ -609,6 +609,10 @@ export class ApiStack extends cdk.Stack {
         METADATA_MODEL_ID: "us.anthropic.claude-haiku-4-5-20251001-v1:0",
         GITHUB_APP_ID: process.env.GITHUB_APP_ID ?? "",
         GITHUB_APP_PRIVATE_KEY_SECRET_NAME: githubAppPrivateKeySecretName,
+        // Set via GitHub Actions repo variable once the AgentCore Runtime is deployed.
+        // If unset, the Lambda throws on every invocation so SQS retries/DLQ rather
+        // than silently dropping events.
+        GITHUB_AGENT_RUNTIME_ARN: process.env.GITHUB_AGENT_RUNTIME_ARN ?? "",
       },
       bundling: {
         externalModules: ["@aws-sdk/*"],
