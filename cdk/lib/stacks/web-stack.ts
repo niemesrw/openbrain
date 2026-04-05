@@ -77,10 +77,11 @@ export class WebStack extends cdk.Stack {
     // (including Authorization and x-api-key) with no caching.
     // Custom CachePolicy with headerBehavior is invalid when TTL=0.
     //
-    // /.well-known/mcp.json is always served from S3 (agent auto-discovery).
-    // When apiOrigin is also configured, /.well-known/* routes to API Gateway for OAuth
-    // discovery endpoints — CloudFront picks the more specific pattern so mcp.json still
-    // hits S3.
+    // /.well-known/mcp-discovery.json is always served from S3 (agent auto-discovery
+    // simplified card). When apiOrigin is also configured, /.well-known/* routes to
+    // API Gateway for OAuth discovery endpoints — CloudFront picks the more specific
+    // pattern so mcp-discovery.json still hits S3. In web-only deploys (no apiOrigin),
+    // /.well-known/* falls through to the default S3 behavior.
     const additionalBehaviors: Record<string, cloudfront.BehaviorOptions> = {
       // Simplified discovery doc at a non-standard path so it doesn't
       // conflict with the API's /.well-known/mcp.json MCP server card.
@@ -236,10 +237,10 @@ export class WebStack extends cdk.Stack {
     // -------------------------------------------------------------------------
     // CloudFront WAF — CommonRuleSet (scoped) + KnownBadInputs + IP reputation.
     // WAFv2 AssociateWebACL does not support HTTP API v2 stages, so this is the
-    // only WAF layer. CommonRuleSet is scoped to exclude /mcp and /chat because
-    // those paths accept large user-controlled natural-language payloads that
-    // reliably trigger SQLi/XSS rules as false positives. KnownBadInputs and IP
-    // reputation still apply to all paths including /mcp and /chat.
+    // only WAF layer. CommonRuleSet is scoped to exclude POST /mcp, POST /chat,
+    // /oauth/*, and /register — those paths carry user-controlled payloads or
+    // URL-encoded OAuth params (redirect_uri, client_id=https://...) that trigger
+    // SQLi/XSS false positives. KnownBadInputs and IP reputation apply to all paths.
     // CloudFront-scope WAFs must be deployed in us-east-1.
     // -------------------------------------------------------------------------
     const cloudFrontWaf = this.region === "us-east-1"
@@ -254,10 +255,12 @@ export class WebStack extends cdk.Stack {
           },
           rules: [
             {
-              // Scoped to exclude POST /mcp and POST /chat — those paths accept
-              // large user-controlled payloads that trigger false positives.
-              // GET /mcp is an unauthenticated health check with no body, so it
-              // is NOT excluded and remains covered by CommonRuleSet.
+              // Scoped to exclude POST /mcp, POST /chat, /oauth/*, and /register.
+              // POST /mcp and POST /chat accept large user-controlled payloads that
+              // trigger SQLi/XSS false positives. /oauth/* carries URL-encoded
+              // redirect_uri and client_id values (e.g. client_id=https://...) that
+              // trigger XSS rules. /register body contains redirect_uri arrays.
+              // /.well-known/* is GET-only JSON and stays covered by CommonRuleSet.
               name: "AWSManagedRulesCommonRuleSet",
               priority: 1,
               overrideAction: { none: {} },
@@ -314,6 +317,27 @@ export class WebStack extends cdk.Stack {
                                     },
                                   },
                                 ],
+                              },
+                            },
+                            {
+                              // /oauth/* — OAuth authorize/token proxy; query params
+                              // include URL-encoded redirect_uri and client_id values
+                              // that trigger XSS false positives.
+                              byteMatchStatement: {
+                                fieldToMatch: { uriPath: {} },
+                                positionalConstraint: "STARTS_WITH",
+                                searchString: "/oauth/",
+                                textTransformations: [{ priority: 0, type: "NONE" }],
+                              },
+                            },
+                            {
+                              // /register — Dynamic Client Registration endpoint;
+                              // request body contains redirect_uri arrays.
+                              byteMatchStatement: {
+                                fieldToMatch: { uriPath: {} },
+                                positionalConstraint: "STARTS_WITH",
+                                searchString: "/register",
+                                textTransformations: [{ priority: 0, type: "NONE" }],
                               },
                             },
                           ],
@@ -443,13 +467,12 @@ export class WebStack extends cdk.Stack {
     new s3deploy.BucketDeployment(this, "DeployWeb", {
       sources: [
         s3deploy.Source.asset(path.join(__dirname, "..", "..", "..", "web", "dist")),
-        // /.well-known/mcp.json — agent auto-discovery endpoint.
-        // Always written so requests never fall through to the SPA's /index.html
-        // error response. When apiUrl is absent (web-only deploy) the file
-        // signals that MCP discovery is not configured.
-        // mcp-discovery.json — simplified discovery doc at a non-standard path.
-        // Uses a different filename than /.well-known/mcp.json to avoid
-        // overwriting the API's canonical MCP server card (different schema).
+        // /.well-known/mcp-discovery.json — simplified agent auto-discovery card
+        // served from S3. Always written so requests to this path never fall
+        // through to the SPA's /index.html error response. When apiUrl is absent
+        // (web-only deploy) the file signals that MCP is not configured.
+        // Uses mcp-discovery.json (not mcp.json) to avoid overwriting the API's
+        // canonical MCP server card at /.well-known/mcp.json (different schema).
         s3deploy.Source.jsonData(
           ".well-known/mcp-discovery.json",
           apiUrl
