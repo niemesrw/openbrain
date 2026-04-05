@@ -1285,9 +1285,13 @@ export class ApiStack extends cdk.Stack {
       ],
     });
 
-    // Associate WAF with the HTTP API default stage
+    // Associate WAF with the HTTP API default stage.
+    // WAFv2 requires the standard 6-segment ARN format including the account ID.
+    // The legacy API Gateway convention (empty account, double-colon) is no longer
+    // accepted: arn:aws:apigateway:region::/apis/... → "The ARN isn't valid".
+    // Correct format: arn:aws:apigateway:region:account:/apis/{id}/stages/{name}
     const wafAssociation = new wafv2.CfnWebACLAssociation(this, "ApiWafAssociation", {
-      resourceArn: `arn:aws:apigateway:${this.region}::/apis/${this.api.apiId}/stages/${this.api.defaultStage!.stageName}`,
+      resourceArn: `arn:aws:apigateway:${this.region}:${this.account}:/apis/${this.api.apiId}/stages/${this.api.defaultStage!.stageName}`,
       webAclArn: webAcl.attrArn,
     });
     // Ensure the stage exists before associating
