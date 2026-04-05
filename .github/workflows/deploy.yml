@@ -135,6 +135,8 @@ jobs:
           ALARM_EMAIL: ${{ secrets.ALARM_EMAIL }}
           CUSTOM_DOMAIN: ${{ secrets.CUSTOM_DOMAIN }}
           GITHUB_APP_ID: ${{ secrets.GH_APP_ID }}
+          # Repo variable is AGENTCORE_RUNTIME_ARN; mapped here to GITHUB_AGENT_RUNTIME_ARN
+          # for CDK/Lambda compatibility (GitHub Actions blocks vars starting with GITHUB_).
           GITHUB_AGENT_RUNTIME_ARN: ${{ vars.AGENTCORE_RUNTIME_ARN }}
           APPLE_CLIENT_ID: ${{ secrets.APPLE_CLIENT_ID }}
           APPLE_KEY_ID: ${{ secrets.APPLE_KEY_ID }}

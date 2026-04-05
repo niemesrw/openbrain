@@ -1,0 +1,3 @@
+# Bedrock AgentCore CLI local state (contains absolute paths and account IDs)
+.bedrock_agentcore.yaml
+.bedrock_agentcore/

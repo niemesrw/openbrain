@@ -67,8 +67,10 @@ agentcore deploy
 After deploy, set the ARN as a GitHub Actions repo variable:
 
 ```
-GITHUB_AGENT_RUNTIME_ARN = arn:aws:bedrock-agentcore:us-east-1:<account>:runtime/github-agent-<id>
+AGENTCORE_RUNTIME_ARN = arn:aws:bedrock-agentcore:us-east-1:<account>:runtime/github-agent-<id>
 ```
+
+Note: the workflow maps this to the `GITHUB_AGENT_RUNTIME_ARN` env var for CDK/Lambda compatibility (GitHub Actions blocks repo variables starting with `GITHUB_`).
 
 ## IAM permissions required by the runtime role
 
