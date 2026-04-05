@@ -14,7 +14,6 @@ import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
 import * as cloudwatch from "aws-cdk-lib/aws-cloudwatch";
 import * as cwActions from "aws-cdk-lib/aws-cloudwatch-actions";
 import * as sns from "aws-cdk-lib/aws-sns";
-import * as wafv2 from "aws-cdk-lib/aws-wafv2";
 
 import { Construct } from "constructs";
 import * as path from "path";
@@ -1161,141 +1160,10 @@ export class ApiStack extends cdk.Stack {
       integration: googleRestIntegration,
     });
 
-    // -------------------------------------------------------------------------
-    // WAF — OWASP core rules + known-bad-inputs + IP reputation blocking
-    // -------------------------------------------------------------------------
-
-    const webAcl = new wafv2.CfnWebACL(this, "ApiWaf", {
-      name: `${this.stackName}-api-waf`,
-      scope: "REGIONAL",
-      defaultAction: { allow: {} },
-      visibilityConfig: {
-        cloudWatchMetricsEnabled: true,
-        metricName: "OpenBrainApiWaf",
-        sampledRequestsEnabled: true,
-      },
-      rules: [
-        {
-          name: "AWSManagedRulesCommonRuleSet",
-          priority: 1,
-          overrideAction: { none: {} },
-          statement: {
-            managedRuleGroupStatement: {
-              vendorName: "AWS",
-              name: "AWSManagedRulesCommonRuleSet",
-            },
-          },
-          visibilityConfig: {
-            cloudWatchMetricsEnabled: true,
-            metricName: "CommonRuleSet",
-            sampledRequestsEnabled: true,
-          },
-        },
-        {
-          name: "AWSManagedRulesKnownBadInputsRuleSet",
-          priority: 2,
-          overrideAction: { none: {} },
-          statement: {
-            managedRuleGroupStatement: {
-              vendorName: "AWS",
-              name: "AWSManagedRulesKnownBadInputsRuleSet",
-            },
-          },
-          visibilityConfig: {
-            cloudWatchMetricsEnabled: true,
-            metricName: "KnownBadInputs",
-            sampledRequestsEnabled: true,
-          },
-        },
-        {
-          name: "AWSManagedRulesAmazonIpReputationList",
-          priority: 3,
-          overrideAction: { none: {} },
-          statement: {
-            managedRuleGroupStatement: {
-              vendorName: "AWS",
-              name: "AWSManagedRulesAmazonIpReputationList",
-            },
-          },
-          visibilityConfig: {
-            cloudWatchMetricsEnabled: true,
-            metricName: "IpReputationList",
-            sampledRequestsEnabled: true,
-          },
-        },
-        // Rate-limit unauthenticated paths that are useful for reconnaissance/abuse:
-        // /register (DCR), /auth/* (config), /.well-known/* (discovery), /health.
-        // 300 requests per 5-minute window per IP ≈ 60 req/min — generous for humans,
-        // tight enough to stop automated scanners and DCR flooding.
-        {
-          name: "RateLimitUnauthenticatedPaths",
-          priority: 4,
-          action: { block: {} },
-          statement: {
-            rateBasedStatement: {
-              limit: 300,
-              evaluationWindowSec: 300,
-              aggregateKeyType: "IP",
-              scopeDownStatement: {
-                orStatement: {
-                  statements: [
-                    {
-                      byteMatchStatement: {
-                        fieldToMatch: { uriPath: {} },
-                        positionalConstraint: "EXACTLY",
-                        searchString: "/register",
-                        textTransformations: [{ priority: 0, type: "NONE" }],
-                      },
-                    },
-                    {
-                      byteMatchStatement: {
-                        fieldToMatch: { uriPath: {} },
-                        positionalConstraint: "STARTS_WITH",
-                        searchString: "/auth/",
-                        textTransformations: [{ priority: 0, type: "NONE" }],
-                      },
-                    },
-                    {
-                      byteMatchStatement: {
-                        fieldToMatch: { uriPath: {} },
-                        positionalConstraint: "STARTS_WITH",
-                        searchString: "/.well-known/",
-                        textTransformations: [{ priority: 0, type: "NONE" }],
-                      },
-                    },
-                    {
-                      byteMatchStatement: {
-                        fieldToMatch: { uriPath: {} },
-                        positionalConstraint: "EXACTLY",
-                        searchString: "/health",
-                        textTransformations: [{ priority: 0, type: "NONE" }],
-                      },
-                    },
-                  ],
-                },
-              },
-            },
-          },
-          visibilityConfig: {
-            cloudWatchMetricsEnabled: true,
-            metricName: "RateLimitUnauthenticated",
-            sampledRequestsEnabled: true,
-          },
-        },
-      ],
-    });
-
-    // Associate WAF with the HTTP API default stage.
-    // WAFv2 requires the standard 6-segment ARN format including the account ID.
-    // The legacy API Gateway convention (empty account, double-colon) is no longer
-    // accepted: arn:aws:apigateway:region::/apis/... → "The ARN isn't valid".
-    // Correct format: arn:aws:apigateway:region:account:/apis/{id}/stages/{name}
-    const wafAssociation = new wafv2.CfnWebACLAssociation(this, "ApiWafAssociation", {
-      resourceArn: `arn:aws:apigateway:${this.region}:${this.account}:/apis/${this.api.apiId}/stages/${this.api.defaultStage!.stageName}`,
-      webAclArn: webAcl.attrArn,
-    });
-    // Ensure the stage exists before associating
-    wafAssociation.node.addDependency(this.api.defaultStage!);
+    // NOTE: WAFv2 AssociateWebACL does not support HTTP API v2 (API Gateway v2)
+    // stages — only REST API stages (/restapis/) are accepted as resource ARNs.
+    // Common managed protections (CommonRuleSet, KnownBadInputs, IP reputation)
+    // and rate limiting are applied via the CloudFront WAF in web-stack.ts instead.
 
     // Outputs
     new cdk.CfnOutput(this, "ApiUrl", {

@@ -206,10 +206,12 @@ export class WebStack extends cdk.Stack {
     });
 
     // -------------------------------------------------------------------------
-    // CloudFront WAF — KnownBadInputs + IP reputation.
-    // CommonRuleSet is intentionally omitted here: CloudFront WAF sees all paths
-    // including the API proxy behaviors, and user thought content would trigger
-    // false positives. The API Gateway already has CommonRuleSet on its own WAF.
+    // CloudFront WAF — CommonRuleSet (scoped) + KnownBadInputs + IP reputation.
+    // WAFv2 AssociateWebACL does not support HTTP API v2 stages, so this is the
+    // only WAF layer. CommonRuleSet is scoped to exclude /mcp and /chat because
+    // those paths accept large user-controlled natural-language payloads that
+    // reliably trigger SQLi/XSS rules as false positives. KnownBadInputs and IP
+    // reputation still apply to all paths including /mcp and /chat.
     // CloudFront-scope WAFs must be deployed in us-east-1.
     // -------------------------------------------------------------------------
     const cloudFrontWaf = this.region === "us-east-1"
@@ -224,8 +226,52 @@ export class WebStack extends cdk.Stack {
           },
           rules: [
             {
-              name: "AWSManagedRulesKnownBadInputsRuleSet",
+              // Scoped to exclude /mcp and /chat — those paths accept large
+              // user-controlled payloads that trigger false positives.
+              name: "AWSManagedRulesCommonRuleSet",
               priority: 1,
+              overrideAction: { none: {} },
+              statement: {
+                managedRuleGroupStatement: {
+                  vendorName: "AWS",
+                  name: "AWSManagedRulesCommonRuleSet",
+                  scopeDownStatement: {
+                    notStatement: {
+                      statement: {
+                        orStatement: {
+                          statements: [
+                            {
+                              byteMatchStatement: {
+                                fieldToMatch: { uriPath: {} },
+                                positionalConstraint: "STARTS_WITH",
+                                searchString: "/mcp",
+                                textTransformations: [{ priority: 0, type: "NONE" }],
+                              },
+                            },
+                            {
+                              byteMatchStatement: {
+                                fieldToMatch: { uriPath: {} },
+                                positionalConstraint: "STARTS_WITH",
+                                searchString: "/chat",
+                                textTransformations: [{ priority: 0, type: "NONE" }],
+                              },
+                            },
+                          ],
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+              visibilityConfig: {
+                cloudWatchMetricsEnabled: true,
+                metricName: "WebCommonRuleSet",
+                sampledRequestsEnabled: true,
+              },
+            },
+            {
+              name: "AWSManagedRulesKnownBadInputsRuleSet",
+              priority: 2,
               overrideAction: { none: {} },
               statement: {
                 managedRuleGroupStatement: {
@@ -241,7 +287,7 @@ export class WebStack extends cdk.Stack {
             },
             {
               name: "AWSManagedRulesAmazonIpReputationList",
-              priority: 2,
+              priority: 3,
               overrideAction: { none: {} },
               statement: {
                 managedRuleGroupStatement: {
@@ -252,6 +298,56 @@ export class WebStack extends cdk.Stack {
               visibilityConfig: {
                 cloudWatchMetricsEnabled: true,
                 metricName: "WebIpReputation",
+                sampledRequestsEnabled: true,
+              },
+            },
+            // Rate-limit unauthenticated paths useful for reconnaissance/abuse:
+            // /register (DCR), /oauth/ (auth proxy), /.well-known/ (discovery).
+            // 300 requests per 5-minute window per IP ≈ 60 req/min.
+            {
+              name: "RateLimitUnauthenticatedPaths",
+              priority: 4,
+              action: { block: {} },
+              statement: {
+                rateBasedStatement: {
+                  limit: 300,
+                  evaluationWindowSec: 300,
+                  aggregateKeyType: "IP",
+                  scopeDownStatement: {
+                    orStatement: {
+                      statements: [
+                        {
+                          byteMatchStatement: {
+                            fieldToMatch: { uriPath: {} },
+                            positionalConstraint: "EXACTLY",
+                            searchString: "/register",
+                            textTransformations: [{ priority: 0, type: "NONE" }],
+                          },
+                        },
+                        {
+                          byteMatchStatement: {
+                            fieldToMatch: { uriPath: {} },
+                            positionalConstraint: "STARTS_WITH",
+                            searchString: "/oauth/",
+                            textTransformations: [{ priority: 0, type: "NONE" }],
+                          },
+                        },
+                        {
+                          byteMatchStatement: {
+                            fieldToMatch: { uriPath: {} },
+                            positionalConstraint: "STARTS_WITH",
+                            searchString: "/.well-known/",
+                            textTransformations: [{ priority: 0, type: "NONE" }],
+                          },
+                        },
+                      ],
+                    },
+                  },
+                },
+              },
+              visibilityConfig: {
+                cloudWatchMetricsEnabled: true,
+                metricName: "WebRateLimitUnauthenticated",
                 sampledRequestsEnabled: true,
               },
             },
