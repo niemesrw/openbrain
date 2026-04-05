@@ -268,10 +268,16 @@ export function GuidePage() {
               <h3 className="text-white font-semibold text-lg">GitHub</h3>
             </div>
             <p className="text-brain-muted text-sm">
-              Connect your GitHub account at <strong className="text-white">Settings → Connect GitHub</strong>. Open Brain will automatically capture commits, pull requests, and pushes as reference thoughts — so you can ask your AI "what was I working on last week?" and get real answers.
+              Connect your GitHub account at <strong className="text-white">Settings → Connect GitHub</strong>. Open Brain will automatically capture commits, pull requests, and releases as thoughts — so you can ask your AI "what was I working on last week?" and get real answers.
             </p>
             <p className="text-brain-muted text-sm">
-              Supports personal accounts and organizations. You control which events are captured.
+              What makes this more than just a log: a <strong className="text-white">Strands agent running on Amazon Bedrock AgentCore</strong> processes each event. Before capturing anything, it searches your existing brain for related context — prior PRs, issues, architectural decisions — and weaves them into a rich prose summary written from your perspective as a developer. It also filters out noise: bot activity, empty pushes, and tag bumps are silently skipped.
+            </p>
+            <p className="text-brain-muted text-sm">
+              The agent writes directly to S3 Vectors using IAM credentials rather than going through the MCP server. This keeps the capture path reliable and self-contained — no API keys to manage, no dependency on the MCP Lambda being healthy, and no extra HTTP round-trip. The agent runs inside AWS with the same permissions it needs and nothing more.
+            </p>
+            <p className="text-brain-muted text-sm">
+              Supports personal accounts and organizations.
             </p>
           </div>
 
