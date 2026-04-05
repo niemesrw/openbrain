@@ -226,8 +226,10 @@ export class WebStack extends cdk.Stack {
           },
           rules: [
             {
-              // Scoped to exclude /mcp and /chat — those paths accept large
-              // user-controlled payloads that trigger false positives.
+              // Scoped to exclude POST /mcp and POST /chat — those paths accept
+              // large user-controlled payloads that trigger false positives.
+              // GET /mcp is an unauthenticated health check with no body, so it
+              // is NOT excluded and remains covered by CommonRuleSet.
               name: "AWSManagedRulesCommonRuleSet",
               priority: 1,
               overrideAction: { none: {} },
@@ -241,19 +243,49 @@ export class WebStack extends cdk.Stack {
                         orStatement: {
                           statements: [
                             {
-                              byteMatchStatement: {
-                                fieldToMatch: { uriPath: {} },
-                                positionalConstraint: "STARTS_WITH",
-                                searchString: "/mcp",
-                                textTransformations: [{ priority: 0, type: "NONE" }],
+                              // POST /mcp — carries large JSON-RPC payloads
+                              andStatement: {
+                                statements: [
+                                  {
+                                    byteMatchStatement: {
+                                      fieldToMatch: { uriPath: {} },
+                                      positionalConstraint: "STARTS_WITH",
+                                      searchString: "/mcp",
+                                      textTransformations: [{ priority: 0, type: "NONE" }],
+                                    },
+                                  },
+                                  {
+                                    byteMatchStatement: {
+                                      fieldToMatch: { method: {} },
+                                      positionalConstraint: "EXACTLY",
+                                      searchString: "POST",
+                                      textTransformations: [{ priority: 0, type: "NONE" }],
+                                    },
+                                  },
+                                ],
                               },
                             },
                             {
-                              byteMatchStatement: {
-                                fieldToMatch: { uriPath: {} },
-                                positionalConstraint: "STARTS_WITH",
-                                searchString: "/chat",
-                                textTransformations: [{ priority: 0, type: "NONE" }],
+                              // POST /chat — carries large natural-language payloads
+                              andStatement: {
+                                statements: [
+                                  {
+                                    byteMatchStatement: {
+                                      fieldToMatch: { uriPath: {} },
+                                      positionalConstraint: "STARTS_WITH",
+                                      searchString: "/chat",
+                                      textTransformations: [{ priority: 0, type: "NONE" }],
+                                    },
+                                  },
+                                  {
+                                    byteMatchStatement: {
+                                      fieldToMatch: { method: {} },
+                                      positionalConstraint: "EXACTLY",
+                                      searchString: "POST",
+                                      textTransformations: [{ priority: 0, type: "NONE" }],
+                                    },
+                                  },
+                                ],
                               },
                             },
                           ],
