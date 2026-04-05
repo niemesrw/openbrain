@@ -6,6 +6,10 @@ export default defineConfig({
   define: {
     global: "globalThis",
   },
+  server: {
+    port: 5173,
+    strictPort: true, // fail loudly instead of silently picking a different port
+  },
   build: {
     outDir: "dist",
   },

@@ -383,7 +383,7 @@ export class ApiStack extends cdk.Stack {
       entry: path.join(__dirname, "..", "..", "..", "lambda", "src", "oauth.ts"),
       handler: "handler",
       memorySize: 256,
-      timeout: cdk.Duration.seconds(15),
+      timeout: cdk.Duration.seconds(29),
       environment: {
         USER_POOL_ID: userPool.userPoolId,
         REGION: this.region,

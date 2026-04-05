@@ -31,10 +31,10 @@ function getBaseUrl(event: APIGatewayProxyEventV2): string {
     : `https://${event.requestContext.domainName}`;
 }
 
-function json(statusCode: number, body: unknown): APIGatewayProxyResultV2 {
+function json(statusCode: number, body: unknown, extraHeaders?: Record<string, string>): APIGatewayProxyResultV2 {
   return {
     statusCode,
-    headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+    headers: { "Content-Type": "application/json", "Cache-Control": "no-store", ...extraHeaders },
     body: JSON.stringify(body),
   };
 }
@@ -149,7 +149,7 @@ const LOCK_POLL_MS = 200;
 class LoopbackUpdateError extends Error {
   constructor(
     message: string,
-    public readonly code: "lock_timeout" | "cap_exceeded"
+    public readonly code: "lock_timeout" | "cap_exceeded" | "propagation_timeout"
   ) {
     super(message);
     this.name = "LoopbackUpdateError";
@@ -314,9 +314,10 @@ async function ensureLoopbackRedirectUri(cognitoClientId: string, redirectUri: s
       lockReleased = true;
 
       // Poll until Cognito propagates the new callback URL (eventual consistency).
-      // Times out after 5s and falls through — same behaviour as a fixed sleep but
-      // much faster on the happy path (usually 1-3 polls).
-      const propagationDeadline = Date.now() + 5000;
+      // Throws propagation_timeout if Cognito hasn't accepted the URI within the
+      // window — callers must return a 503 so the MCP client retries. On retry
+      // the URI will already be registered and this check short-circuits immediately.
+      const propagationDeadline = Date.now() + 12000;
       while (Date.now() < propagationDeadline) {
         await new Promise((r) => setTimeout(r, 300));
         const check = await cognito.send(
@@ -327,6 +328,10 @@ async function ensureLoopbackRedirectUri(cognitoClientId: string, redirectUri: s
         );
         if (check.UserPoolClient?.CallbackURLs?.includes(redirectUri)) return;
       }
+      throw new LoopbackUpdateError(
+        `Cognito did not propagate callback URI ${redirectUri} within 12s — client should retry`,
+        "propagation_timeout"
+      );
     } finally {
       if (!lockReleased) await releaseLoopbackLock(cognitoClientId, lockOwner);
     }
@@ -385,11 +390,11 @@ async function handleAuthorize(event: APIGatewayProxyEventV2): Promise<APIGatewa
       await ensureLoopbackRedirectUri(resolvedClientId, params.redirect_uri);
     } catch (err: any) {
       if (err instanceof LoopbackUpdateError) {
-        if (err.code === "lock_timeout") {
+        if (err.code === "lock_timeout" || err.code === "propagation_timeout") {
           return json(503, {
             error: "server_error",
             error_description: "Authorization server temporarily busy, please retry",
-          });
+          }, { "Retry-After": "5" });
         }
         if (err.code === "cap_exceeded") {
           return json(400, {
