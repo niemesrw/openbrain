@@ -4,6 +4,7 @@ import * as cloudfront from "aws-cdk-lib/aws-cloudfront";
 import * as origins from "aws-cdk-lib/aws-cloudfront-origins";
 import * as acm from "aws-cdk-lib/aws-certificatemanager";
 import * as s3deploy from "aws-cdk-lib/aws-s3-deployment";
+import * as wafv2 from "aws-cdk-lib/aws-wafv2";
 import { Construct } from "constructs";
 import * as path from "path";
 
@@ -148,12 +149,116 @@ export class WebStack extends cdk.Stack {
           }
         : {};
 
+    // -------------------------------------------------------------------------
+    // Security headers — applied to the SPA default behavior only.
+    // API proxy behaviors are intentionally excluded so API Gateway can set its
+    // own response headers without conflict.
+    //
+    // CSP notes:
+    //   - style-src needs 'unsafe-inline' because React renders inline style={} attrs
+    //   - connect-src uses AWS-scoped wildcards to cover API Gateway, Lambda Function
+    //     URLs, and Cognito across deployment configurations (custom domain or not)
+    //   - img-src allows https: + data: for og:image enrichment and any base64 thumbs
+    // -------------------------------------------------------------------------
+    const cspValue = [
+      "default-src 'self'",
+      "script-src 'self'",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "font-src 'self' https://fonts.gstatic.com",
+      `connect-src 'self' https://*.amazoncognito.com https://*.execute-api.${this.region}.amazonaws.com https://*.lambda-url.${this.region}.on.aws`,
+      "img-src 'self' https: data:",
+      "frame-ancestors 'none'",
+      "base-uri 'self'",
+      `form-action 'self' https://*.amazoncognito.com`,
+      "upgrade-insecure-requests",
+    ].join("; ");
+
+    const securityHeadersPolicy = new cloudfront.ResponseHeadersPolicy(this, "SecurityHeaders", {
+      responseHeadersPolicyName: `openbrain-security-headers-${this.account}`,
+      securityHeadersBehavior: {
+        contentSecurityPolicy: {
+          contentSecurityPolicy: cspValue,
+          override: true,
+        },
+        frameOptions: {
+          frameOption: cloudfront.HeadersFrameOption.DENY,
+          override: true,
+        },
+        contentTypeOptions: { override: true },
+        strictTransportSecurity: {
+          accessControlMaxAge: cdk.Duration.days(730),
+          includeSubdomains: true,
+          override: true,
+        },
+        referrerPolicy: {
+          referrerPolicy: cloudfront.HeadersReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN,
+          override: true,
+        },
+      },
+    });
+
+    // -------------------------------------------------------------------------
+    // CloudFront WAF — KnownBadInputs + IP reputation.
+    // CommonRuleSet is intentionally omitted here: CloudFront WAF sees all paths
+    // including the API proxy behaviors, and user thought content would trigger
+    // false positives. The API Gateway already has CommonRuleSet on its own WAF.
+    // CloudFront-scope WAFs must be deployed in us-east-1.
+    // -------------------------------------------------------------------------
+    const cloudFrontWaf = this.region === "us-east-1"
+      ? new wafv2.CfnWebACL(this, "WebWaf", {
+          name: "openbrain-web-waf",
+          scope: "CLOUDFRONT",
+          defaultAction: { allow: {} },
+          visibilityConfig: {
+            cloudWatchMetricsEnabled: true,
+            metricName: "OpenBrainWebWaf",
+            sampledRequestsEnabled: true,
+          },
+          rules: [
+            {
+              name: "AWSManagedRulesKnownBadInputsRuleSet",
+              priority: 1,
+              overrideAction: { none: {} },
+              statement: {
+                managedRuleGroupStatement: {
+                  vendorName: "AWS",
+                  name: "AWSManagedRulesKnownBadInputsRuleSet",
+                },
+              },
+              visibilityConfig: {
+                cloudWatchMetricsEnabled: true,
+                metricName: "WebKnownBadInputs",
+                sampledRequestsEnabled: true,
+              },
+            },
+            {
+              name: "AWSManagedRulesAmazonIpReputationList",
+              priority: 2,
+              overrideAction: { none: {} },
+              statement: {
+                managedRuleGroupStatement: {
+                  vendorName: "AWS",
+                  name: "AWSManagedRulesAmazonIpReputationList",
+                },
+              },
+              visibilityConfig: {
+                cloudWatchMetricsEnabled: true,
+                metricName: "WebIpReputation",
+                sampledRequestsEnabled: true,
+              },
+            },
+          ],
+        })
+      : undefined;
+
     const distribution = new cloudfront.Distribution(this, "WebDistribution", {
       defaultBehavior: {
         origin: origins.S3BucketOrigin.withOriginAccessControl(bucket),
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+        responseHeadersPolicy: securityHeadersPolicy,
       },
       additionalBehaviors,
+      webAclId: cloudFrontWaf?.attrArn,
       domainNames: certificate ? [customDomain!] : undefined,
       certificate,
       defaultRootObject: "index.html",

@@ -1,17 +1,36 @@
 import dns from "dns";
-import { promisify } from "util";
 
-const dnsResolve = promisify(dns.resolve4);
-
-// Private/reserved IP ranges to block (SSRF protection)
-const BLOCKED_IP_RANGES = [
+// Private/reserved IPv4 ranges to block (SSRF protection)
+const BLOCKED_IPv4_RANGES = [
   /^127\./, /^10\./, /^172\.(1[6-9]|2[0-9]|3[01])\./,
   /^192\.168\./, /^169\.254\./, /^0\./,
 ];
 
+// Private/reserved IPv6 ranges to block (SSRF protection)
+const BLOCKED_IPv6_RANGES = [
+  /^::1$/i,     // loopback
+  /^fc/i,       // unique local (fc00::/7)
+  /^fd/i,       // unique local (fd00::/8)
+  /^fe[89ab]/i, // link-local (fe80::/10)
+  /^::ffff:/i,  // IPv4-mapped (::ffff:0:0/96)
+  /^64:ff9b:/i, // NAT64 (RFC 6052)
+  /^2002:/i,    // 6to4 (can tunnel private IPv4)
+  /^::$/,       // unspecified address
+];
+
+// Resolve all IPv4 and IPv6 addresses (matches cimd.ts SSRF protection)
+function dnsLookupAll(hostname: string): Promise<Array<{ address: string; family: number }>> {
+  return new Promise((resolve, reject) => {
+    dns.lookup(hostname, { all: true }, (err, addresses) => {
+      if (err) reject(err);
+      else resolve(addresses as Array<{ address: string; family: number }>);
+    });
+  });
+}
+
 /**
  * Validate a URL for safety before fetching (SSRF protection).
- * Rejects non-http/https schemes, localhost, and private IP ranges.
+ * Rejects non-http/https schemes, loopback hostnames, and private IP ranges (IPv4 + IPv6).
  */
 async function validateFetchUrl(urlString: string): Promise<void> {
   const parsed = new URL(urlString);
@@ -20,15 +39,18 @@ async function validateFetchUrl(urlString: string): Promise<void> {
     throw new Error("URL must use http or https");
   }
 
-  const isLocalhost =
-    parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1";
-  if (isLocalhost) {
+  // Block loopback hostnames explicitly before DNS resolution
+  const LOOPBACK_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1"]);
+  if (LOOPBACK_HOSTNAMES.has(parsed.hostname)) {
     throw new Error("URL resolves to a blocked address");
   }
 
-  const addresses = await dnsResolve(parsed.hostname);
-  for (const ip of addresses) {
-    if (BLOCKED_IP_RANGES.some((r) => r.test(ip))) {
+  const addresses = await dnsLookupAll(parsed.hostname);
+  for (const { address, family } of addresses) {
+    const blocked = family === 4
+      ? BLOCKED_IPv4_RANGES.some((r) => r.test(address))
+      : BLOCKED_IPv6_RANGES.some((r) => r.test(address));
+    if (blocked) {
       throw new Error("URL resolves to a blocked IP address");
     }
   }

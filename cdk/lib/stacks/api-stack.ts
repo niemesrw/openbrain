@@ -14,6 +14,7 @@ import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
 import * as cloudwatch from "aws-cdk-lib/aws-cloudwatch";
 import * as cwActions from "aws-cdk-lib/aws-cloudwatch-actions";
 import * as sns from "aws-cdk-lib/aws-sns";
+import * as wafv2 from "aws-cdk-lib/aws-wafv2";
 
 import { Construct } from "constructs";
 import * as path from "path";
@@ -253,10 +254,17 @@ export class ApiStack extends cdk.Stack {
     );
 
     // HTTP API
+    // Scope CORS to known web origins when available; fall back to * only before the
+    // web stack has been deployed (customDomain and webOrigin both undefined).
+    const corsOrigins: string[] = [];
+    if (customDomain) corsOrigins.push(`https://${customDomain}`);
+    if (webOrigin) corsOrigins.push(webOrigin); // already includes scheme (e.g. https://brain.example.com)
+    corsOrigins.push("http://localhost:5173"); // local dev
+
     this.api = new apigwv2.HttpApi(this, "BrainApi", {
       apiName: "open-brain-mcp",
       corsPreflight: {
-        allowOrigins: ["*"],
+        allowOrigins: corsOrigins.length > 1 ? corsOrigins : ["*"],
         allowMethods: [apigwv2.CorsHttpMethod.POST, apigwv2.CorsHttpMethod.GET, apigwv2.CorsHttpMethod.DELETE, apigwv2.CorsHttpMethod.OPTIONS],
         allowHeaders: ["Content-Type", "Authorization", "x-api-key"],
       },
@@ -1151,6 +1159,138 @@ export class ApiStack extends cdk.Stack {
       methods: [apigwv2.HttpMethod.POST],
       integration: googleRestIntegration,
     });
+
+    // -------------------------------------------------------------------------
+    // WAF — OWASP core rules + known-bad-inputs + IP reputation blocking
+    // -------------------------------------------------------------------------
+
+    const webAcl = new wafv2.CfnWebACL(this, "ApiWaf", {
+      name: "openbrain-api-waf",
+      scope: "REGIONAL",
+      defaultAction: { allow: {} },
+      visibilityConfig: {
+        cloudWatchMetricsEnabled: true,
+        metricName: "OpenBrainApiWaf",
+        sampledRequestsEnabled: true,
+      },
+      rules: [
+        {
+          name: "AWSManagedRulesCommonRuleSet",
+          priority: 1,
+          overrideAction: { none: {} },
+          statement: {
+            managedRuleGroupStatement: {
+              vendorName: "AWS",
+              name: "AWSManagedRulesCommonRuleSet",
+            },
+          },
+          visibilityConfig: {
+            cloudWatchMetricsEnabled: true,
+            metricName: "CommonRuleSet",
+            sampledRequestsEnabled: true,
+          },
+        },
+        {
+          name: "AWSManagedRulesKnownBadInputsRuleSet",
+          priority: 2,
+          overrideAction: { none: {} },
+          statement: {
+            managedRuleGroupStatement: {
+              vendorName: "AWS",
+              name: "AWSManagedRulesKnownBadInputsRuleSet",
+            },
+          },
+          visibilityConfig: {
+            cloudWatchMetricsEnabled: true,
+            metricName: "KnownBadInputs",
+            sampledRequestsEnabled: true,
+          },
+        },
+        {
+          name: "AWSManagedRulesAmazonIpReputationList",
+          priority: 3,
+          overrideAction: { none: {} },
+          statement: {
+            managedRuleGroupStatement: {
+              vendorName: "AWS",
+              name: "AWSManagedRulesAmazonIpReputationList",
+            },
+          },
+          visibilityConfig: {
+            cloudWatchMetricsEnabled: true,
+            metricName: "IpReputationList",
+            sampledRequestsEnabled: true,
+          },
+        },
+        // Rate-limit unauthenticated paths that are useful for reconnaissance/abuse:
+        // /register (DCR), /auth/* (config), /.well-known/* (discovery), /health.
+        // 300 requests per 5-minute window per IP ≈ 60 req/min — generous for humans,
+        // tight enough to stop automated scanners and DCR flooding.
+        {
+          name: "RateLimitUnauthenticatedPaths",
+          priority: 4,
+          action: { block: {} },
+          statement: {
+            rateBasedStatement: {
+              limit: 300,
+              evaluationWindowSec: 300,
+              aggregateKeyType: "IP",
+              scopeDownStatement: {
+                orStatement: {
+                  statements: [
+                    {
+                      byteMatchStatement: {
+                        fieldToMatch: { uriPath: {} },
+                        positionalConstraint: "EXACTLY",
+                        searchString: "/register",
+                        textTransformations: [{ priority: 0, type: "NONE" }],
+                      },
+                    },
+                    {
+                      byteMatchStatement: {
+                        fieldToMatch: { uriPath: {} },
+                        positionalConstraint: "STARTS_WITH",
+                        searchString: "/auth/",
+                        textTransformations: [{ priority: 0, type: "NONE" }],
+                      },
+                    },
+                    {
+                      byteMatchStatement: {
+                        fieldToMatch: { uriPath: {} },
+                        positionalConstraint: "STARTS_WITH",
+                        searchString: "/.well-known/",
+                        textTransformations: [{ priority: 0, type: "NONE" }],
+                      },
+                    },
+                    {
+                      byteMatchStatement: {
+                        fieldToMatch: { uriPath: {} },
+                        positionalConstraint: "EXACTLY",
+                        searchString: "/health",
+                        textTransformations: [{ priority: 0, type: "NONE" }],
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+          },
+          visibilityConfig: {
+            cloudWatchMetricsEnabled: true,
+            metricName: "RateLimitUnauthenticated",
+            sampledRequestsEnabled: true,
+          },
+        },
+      ],
+    });
+
+    // Associate WAF with the HTTP API default stage
+    const wafAssociation = new wafv2.CfnWebACLAssociation(this, "ApiWafAssociation", {
+      resourceArn: `arn:aws:apigateway:${this.region}::/apis/${this.api.apiId}/stages/${this.api.defaultStage!.stageName}`,
+      webAclArn: webAcl.attrArn,
+    });
+    // Ensure the stage exists before associating
+    wafAssociation.node.addDependency(this.api.defaultStage!);
 
     // Outputs
     new cdk.CfnOutput(this, "ApiUrl", {
