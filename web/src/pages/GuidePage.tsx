@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { getApiUrl } from "../lib/auth";
 
 type AiClient = "claude-code" | "claude-desktop" | "chatgpt" | "gemini";
 
@@ -43,7 +44,7 @@ function FeatureCard({ icon, title, description }: { icon: string; title: string
 }
 
 function AgentSetupPrompts() {
-  const origin = window.location.origin;
+  const mcpBase = getApiUrl();
   return (
     <div className="bg-brain-high rounded-xl p-4 space-y-3 mt-4">
       <p className="text-white font-medium text-sm">Shortcut — let a coding agent set it up</p>
@@ -51,11 +52,11 @@ function AgentSetupPrompts() {
         Coding agents (Claude Code, Cursor, Windsurf) can discover and configure Open Brain
         automatically. Just paste this prompt:
       </p>
-      <CodeBlock>{`Set up my Open Brain MCP server at ${origin}/mcp, then add it to my MCP client config as "open-brain". OAuth authentication will happen automatically the first time you use a brain tool.`}</CodeBlock>
+      <CodeBlock>{`Set up my Open Brain MCP server at ${mcpBase}/mcp, then add it to my MCP client config as "open-brain". OAuth authentication will happen automatically the first time you use a brain tool.`}</CodeBlock>
       <p className="text-xs text-brain-muted">
         Or for a regular AI agent that doesn't manage config files:
       </p>
-      <CodeBlock>{`Connect to my personal knowledge base at ${origin}/mcp and authenticate via OAuth. Once connected, use the brain tools to search, capture, and browse my thoughts.`}</CodeBlock>
+      <CodeBlock>{`Connect to my personal knowledge base at ${mcpBase}/mcp and authenticate via OAuth. Once connected, use the brain tools to search, capture, and browse my thoughts.`}</CodeBlock>
     </div>
   );
 }
@@ -349,9 +350,9 @@ export function GuidePage() {
         <h2 className="text-2xl font-bold font-headline text-white">Your data</h2>
         <div className="bg-brain-surface rounded-xl p-6 space-y-3 text-sm text-brain-muted">
           <p>
-            Your thoughts are stored in Open Brain's hosted infrastructure and isolated to your
-            account — other users cannot access your data. You can delete individual thoughts from
-            the dashboard at any time.
+            Your thoughts are stored in your Open Brain deployment and isolated to your account —
+            other users cannot access your data. You can delete individual thoughts from the
+            dashboard at any time.
           </p>
           <p>
             To permanently delete your account and all associated data (thoughts, embeddings, agent

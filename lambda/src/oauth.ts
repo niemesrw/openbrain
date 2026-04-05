@@ -630,7 +630,6 @@ Open Brain is an MCP server that stores thoughts, decisions, notes, and memories
 
 - [MCP Endpoint](${baseUrl}/mcp): Streamable HTTP transport, OAuth 2.1 auth
 - [Server Card](${baseUrl}/.well-known/mcp.json): MCP server card (transport, auth, tools)
-- [Discovery](${baseUrl}/.well-known/mcp-discovery.json): Simplified discovery document
 - [OAuth Discovery](${baseUrl}/.well-known/oauth-protected-resource): OAuth protected resource metadata
 - [GitHub Repository](https://github.com/BLANXLAIT/openbrain): Source code and setup guide
 

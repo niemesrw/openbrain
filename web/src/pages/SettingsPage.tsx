@@ -15,7 +15,7 @@ import {
   type GoogleConnection,
   deleteAccount,
 } from "../lib/api";
-import { signOut } from "../lib/auth";
+import { signOut, getApiUrl } from "../lib/auth";
 
 const GITHUB_APP_SLUG = import.meta.env.VITE_GITHUB_APP_SLUG as string | undefined;
 const installUrl = GITHUB_APP_SLUG
@@ -245,7 +245,7 @@ export function SettingsPage() {
   const [deleteError, setDeleteError] = useState("");
   const [mcpUrlCopied, setMcpUrlCopied] = useState(false);
 
-  const mcpUrl = `${window.location.origin}/mcp`;
+  const mcpUrl = `${getApiUrl()}/mcp`;
 
   useEffect(() => {
     getGitHubInstallations()
