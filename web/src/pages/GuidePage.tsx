@@ -46,7 +46,7 @@ function AiClientSetup({ client }: { client: AiClient }) {
   if (client === "claude-code") {
     return (
       <div className="space-y-4">
-        <p>Add Open Brain as an MCP server in your Claude Code settings. Find your API URL in <strong className="text-white">Settings → MCP Connection</strong> after signing in.</p>
+        <p>Add Open Brain as an MCP server in your Claude Code settings. Find your MCP URL in <strong className="text-white">Settings → MCP Connection</strong> after signing in.</p>
         <p>Add this to <code className="text-brain-primary">~/.claude/settings.json</code>:</p>
         <CodeBlock>{`{
   "mcpServers": {
@@ -69,7 +69,7 @@ function AiClientSetup({ client }: { client: AiClient }) {
   if (client === "claude-desktop") {
     return (
       <div className="space-y-4">
-        <p>Open Claude Desktop and go to <strong className="text-white">Settings → MCP Connectors → Add connector</strong>. Use your API URL from <strong className="text-white">Settings → MCP Connection</strong> after signing in.</p>
+        <p>Open Claude Desktop and go to <strong className="text-white">Settings → MCP Connectors → Add connector</strong>. Find your MCP URL in <strong className="text-white">Settings → MCP Connection</strong> after signing in.</p>
         <CodeBlock>{`Name:   Open Brain
 URL:    https://YOUR_API_URL/mcp
 Auth:   OAuth (automatic)`}</CodeBlock>
@@ -89,7 +89,7 @@ Auth:   OAuth (automatic)`}</CodeBlock>
         <p>ChatGPT requires a paid plan with MCP support enabled.</p>
         <ol className="list-decimal list-inside space-y-2 text-sm">
           <li>Go to <strong className="text-white">Settings → Apps &amp; Connectors → Advanced settings</strong> and enable Developer Mode</li>
-          <li>Add a new MCP connector with your API URL from <strong className="text-white">Settings → MCP Connection</strong></li>
+          <li>Add a new MCP connector with your MCP URL from <strong className="text-white">Settings → MCP Connection</strong></li>
           <li>Go to <strong className="text-white">Settings → Personalization → Custom Instructions</strong> and paste the contents of <code className="text-brain-primary">skills/chatgpt-instructions.md</code></li>
         </ol>
         <p className="text-sm text-yellow-400 bg-yellow-400/10 border border-yellow-400/20 rounded-xl px-4 py-3">
@@ -102,7 +102,7 @@ Auth:   OAuth (automatic)`}</CodeBlock>
   if (client === "gemini") {
     return (
       <div className="space-y-4">
-        <p><strong className="text-white">Gemini CLI</strong> — connect via the MCP add command. Find your API key in <strong className="text-white">Settings → API Key</strong> after signing in.</p>
+        <p><strong className="text-white">Gemini CLI</strong> — connect via the MCP add command. Create an agent API key using <code className="text-brain-primary">create_agent</code> from any connected AI client, then use it here. Find your MCP URL in <strong className="text-white">Settings → MCP Connection</strong>.</p>
         <CodeBlock>{`gemini mcp add -t http open-brain \\
   https://YOUR_API_URL/mcp \\
   -H "X-Api-Key: YOUR_API_KEY"`}</CodeBlock>
@@ -323,6 +323,23 @@ export function GuidePage() {
           Currently available via Claude Code. Web UI coming soon.
         </p>
         <CodeBlock>{"schedule_task(\n  title: \"Daily AI digest\",\n  schedule: \"every 24 hours\",\n  action: \"Fetch top stories from news.ycombinator.com and summarize the AI-related ones.\"\n)"}</CodeBlock>
+      </div>
+
+      {/* Account & Data */}
+      <div className="space-y-4">
+        <h2 className="text-2xl font-bold font-headline text-white">Your data</h2>
+        <div className="bg-brain-surface rounded-xl p-6 space-y-3 text-sm text-brain-muted">
+          <p>
+            All thoughts are stored in your own AWS account — Open Brain never has access to another
+            user's data. You can delete individual thoughts from the dashboard at any time.
+          </p>
+          <p>
+            To permanently delete your account and all associated data (thoughts, embeddings, agent
+            keys, and integration connections), go to{" "}
+            <strong className="text-white">Settings → Account → Delete account</strong>. This
+            removes everything immediately and cannot be undone.
+          </p>
+        </div>
       </div>
 
       {/* CTA footer */}

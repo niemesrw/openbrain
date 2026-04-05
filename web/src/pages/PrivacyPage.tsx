@@ -2,14 +2,21 @@ export function PrivacyPage() {
   return (
     <div className="max-w-2xl mx-auto py-8 space-y-6 text-white/80">
       <h1 className="text-3xl font-bold font-headline text-white">Privacy Policy</h1>
-      <p className="text-sm text-brain-muted/60 font-label">Last updated: March 2026</p>
+      <p className="text-sm text-brain-muted/60 font-label">Last updated: April 2026</p>
 
       <section className="space-y-2">
         <h2 className="text-lg font-semibold font-headline text-white">What we collect</h2>
         <p>
-          Open Brain stores the thoughts, notes, and memories you explicitly capture. We also store
-          your email address (from Google or Apple sign-in) to identify your account.
+          Open Brain stores the thoughts, notes, and memories you explicitly capture, along with
+          your email address (from Google or Apple sign-in) to identify your account. If you connect
+          integrations, we also store:
         </p>
+        <ul className="list-disc list-inside space-y-1 text-sm mt-2">
+          <li><strong className="text-white">GitHub</strong> — installation ID and repository event metadata (commits, PRs, pushes)</li>
+          <li><strong className="text-white">Slack</strong> — workspace installation tokens and team ID</li>
+          <li><strong className="text-white">Gmail</strong> — OAuth tokens and email metadata (sender, subject, date, thread ID — never email body content)</li>
+          <li><strong className="text-white">Agent keys</strong> — API keys you create for automated agents</li>
+        </ul>
       </section>
 
       <section className="space-y-2">
@@ -40,12 +47,11 @@ export function PrivacyPage() {
       <section className="space-y-2">
         <h2 className="text-lg font-semibold font-headline text-white">Deleting your data</h2>
         <p>
-          You can delete individual thoughts from the dashboard. To delete your account and all
-          associated data, contact us at{" "}
-          <a href="mailto:hello@example.com" className="text-brain-primary hover:text-brain-primary/80">
-            hello@example.com
-          </a>
-          .
+          You can delete individual thoughts from the dashboard at any time. To permanently delete
+          your account and all associated data — including thoughts, embeddings, agent keys, and
+          integration connections — go to{" "}
+          <strong className="text-white">Settings → Account → Delete account</strong>. Deletion is
+          immediate and cannot be undone.
         </p>
       </section>
 

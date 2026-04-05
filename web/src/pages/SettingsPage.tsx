@@ -15,7 +15,7 @@ import {
   type GoogleConnection,
   deleteAccount,
 } from "../lib/api";
-import { signOut } from "../lib/auth";
+import { signOut, getApiUrl } from "../lib/auth";
 
 const GITHUB_APP_SLUG = import.meta.env.VITE_GITHUB_APP_SLUG as string | undefined;
 const installUrl = GITHUB_APP_SLUG
@@ -243,6 +243,9 @@ export function SettingsPage() {
 
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
+  const [mcpUrlCopied, setMcpUrlCopied] = useState(false);
+
+  const mcpUrl = `${getApiUrl()}/mcp`;
 
   useEffect(() => {
     getGitHubInstallations()
@@ -454,6 +457,40 @@ export function SettingsPage() {
             ))}
           </div>
         )}
+      </section>
+
+      {/* MCP Connection section */}
+      <section>
+        <div className="mb-4">
+          <h2 className="text-lg font-semibold font-headline text-white">MCP Connection</h2>
+          <p className="text-brain-muted text-sm mt-1">
+            Connect any MCP-compatible AI client to your brain using this URL. OAuth authentication
+            is handled automatically — no API key needed for Claude Code, Claude Desktop, or Cursor.
+          </p>
+        </div>
+        <div className="bg-brain-surface rounded-xl px-4 py-3">
+          <div className="flex items-center justify-between py-1 gap-4">
+            <div className="min-w-0 flex-1">
+              <p className="text-white font-medium text-sm">MCP URL</p>
+              <p className="text-brain-muted/60 text-xs font-label mt-0.5 truncate">{mcpUrl}</p>
+            </div>
+            <button
+              onClick={async () => {
+                try {
+                  if (!navigator.clipboard?.writeText) throw new Error("unavailable");
+                  await navigator.clipboard.writeText(mcpUrl);
+                  setMcpUrlCopied(true);
+                  setTimeout(() => setMcpUrlCopied(false), 2000);
+                } catch {
+                  window.prompt("Copy this MCP URL:", mcpUrl);
+                }
+              }}
+              className="shrink-0 text-brain-muted hover:text-white text-sm font-label transition-colors"
+            >
+              {mcpUrlCopied ? "Copied!" : "Copy"}
+            </button>
+          </div>
+        </div>
       </section>
 
       {/* Account section */}

@@ -15,6 +15,9 @@ interface WebStackProps extends cdk.StackProps {
   apiEndpointHostname?: string;
   /** Hostname of the streaming chat Lambda Function URL (no protocol), used in CSP */
   chatFunctionUrlHostname?: string;
+  /** Full API base URL (e.g. "https://abc.execute-api.us-east-1.amazonaws.com"), used
+   *  to populate /.well-known/mcp.json for agent auto-discovery. */
+  apiUrl?: string;
 }
 
 export class WebStack extends cdk.Stack {
@@ -23,7 +26,7 @@ export class WebStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: WebStackProps = {}) {
     super(scope, id, props);
 
-    const { customDomain, apiEndpointHostname, chatFunctionUrlHostname } = props;
+    const { customDomain, apiEndpointHostname, chatFunctionUrlHostname, apiUrl } = props;
 
     // Fail fast: apiEndpointHostname is required when customDomain is set
     if (customDomain && !apiEndpointHostname) {
@@ -57,6 +60,10 @@ export class WebStack extends cdk.Stack {
           })
         : undefined;
 
+    // S3 bucket origin — extracted so it can be reused in additionalBehaviors
+    // (sharing the same origin instance avoids duplicate OAC resources).
+    const s3Origin = origins.S3BucketOrigin.withOriginAccessControl(bucket);
+
     // API Gateway origin for /mcp and /chat path behaviors
     const apiOrigin =
       customDomain && apiEndpointHostname
@@ -69,8 +76,19 @@ export class WebStack extends cdk.Stack {
     // Use managed CachingDisabled + AllViewerExceptHostHeader to forward all headers
     // (including Authorization and x-api-key) with no caching.
     // Custom CachePolicy with headerBehavior is invalid when TTL=0.
-    const additionalBehaviors: Record<string, cloudfront.BehaviorOptions> =
-      apiOrigin
+    //
+    // /.well-known/mcp.json is always served from S3 (agent auto-discovery).
+    // When apiOrigin is also configured, /.well-known/* routes to API Gateway for OAuth
+    // discovery endpoints — CloudFront picks the more specific pattern so mcp.json still
+    // hits S3.
+    const additionalBehaviors: Record<string, cloudfront.BehaviorOptions> = {
+      "/.well-known/mcp.json": {
+        origin: s3Origin,
+        allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD,
+        cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
+        viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+      },
+      ...(apiOrigin
         ? {
             "/mcp*": {
               origin: apiOrigin,
@@ -149,7 +167,8 @@ export class WebStack extends cdk.Stack {
               viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
             },
           }
-        : {};
+        : {}),
+    };
 
     // -------------------------------------------------------------------------
     // Security headers — applied to the SPA default behavior only.
@@ -396,7 +415,7 @@ export class WebStack extends cdk.Stack {
 
     const distribution = new cloudfront.Distribution(this, "WebDistribution", {
       defaultBehavior: {
-        origin: origins.S3BucketOrigin.withOriginAccessControl(bucket),
+        origin: s3Origin,
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
         responseHeadersPolicy: securityHeadersPolicy,
       },
@@ -422,6 +441,16 @@ export class WebStack extends cdk.Stack {
     new s3deploy.BucketDeployment(this, "DeployWeb", {
       sources: [
         s3deploy.Source.asset(path.join(__dirname, "..", "..", "..", "web", "dist")),
+        // /.well-known/mcp.json — agent auto-discovery endpoint.
+        // Always written so requests never fall through to the SPA's /index.html
+        // error response. When apiUrl is absent (web-only deploy) the file
+        // signals that MCP discovery is not configured.
+        s3deploy.Source.jsonData(
+          ".well-known/mcp.json",
+          apiUrl
+            ? { mcp_url: `${apiUrl}/mcp`, name: "Open Brain" }
+            : { mcp_url: null, name: "Open Brain", error: "MCP discovery is not configured for this deployment." }
+        ),
       ],
       destinationBucket: bucket,
       distribution,
