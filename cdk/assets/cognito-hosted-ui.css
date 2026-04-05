@@ -1,0 +1,124 @@
+/*
+ * Cognito Hosted UI theme — Synaptic Interface design system
+ * Applied via CfnUserPoolUICustomizationAttachment in AuthStack.
+ * Note: Cognito's hosted UI sandbox blocks external font loads (@import),
+ * so Space Grotesk / Inter fall back to system sans-serif.
+ */
+
+body {
+  background-color: #0e0e0e;
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", sans-serif;
+}
+
+.background-customizable {
+  background-color: #0e0e0e;
+  background-image:
+    radial-gradient(ellipse at 20% 50%, rgba(154,168,255,0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(0,227,253,0.06) 0%, transparent 50%);
+}
+
+.banner-customizable {
+  background-color: transparent;
+  padding: 0;
+}
+
+.modal-content {
+  background-color: #141428;
+  border-radius: 16px;
+  border: 1px solid rgba(154,168,255,0.15);
+  box-shadow: 0 0 40px rgba(154,168,255,0.1), 0 20px 60px rgba(0,0,0,0.5);
+  padding: 36px;
+}
+
+p.title-customizable {
+  color: #e8eaff;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.textDescription-customizable {
+  color: #8080a8;
+  font-size: 14px;
+}
+
+.label-customizable {
+  color: #8080a8;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.inputField-customizable {
+  background-color: rgba(255,255,255,0.05);
+  border: 1px solid rgba(154,168,255,0.2);
+  border-radius: 8px;
+  color: #e8eaff;
+  font-size: 15px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.inputField-customizable:focus {
+  background-color: rgba(154,168,255,0.07);
+  border-color: #9aa8ff;
+  box-shadow: 0 0 0 3px rgba(154,168,255,0.15);
+  outline: none;
+}
+
+.idpButton-customizable {
+  background-color: rgba(154,168,255,0.1);
+  border: 1px solid rgba(154,168,255,0.3);
+  border-radius: 10px;
+  color: #e8eaff;
+  font-weight: 500;
+  transition: background-color 0.15s, box-shadow 0.15s;
+}
+
+.idpButton-customizable:hover {
+  background-color: rgba(154,168,255,0.2);
+  border-color: rgba(154,168,255,0.5);
+  box-shadow: 0 0 20px rgba(154,168,255,0.2);
+}
+
+.submitButton-customizable {
+  background: linear-gradient(135deg, #9aa8ff 0%, #7b8bff 100%);
+  border: none;
+  border-radius: 10px;
+  color: #0e0e0e;
+  font-weight: 700;
+  font-size: 15px;
+  box-shadow: 0 4px 20px rgba(154,168,255,0.3);
+  transition: box-shadow 0.15s;
+}
+
+.submitButton-customizable:hover {
+  background: linear-gradient(135deg, #b0bcff 0%, #9aa8ff 100%);
+  box-shadow: 0 6px 28px rgba(154,168,255,0.45);
+}
+
+.errorMessage-customizable {
+  background-color: rgba(255,80,80,0.1);
+  border: 1px solid rgba(255,80,80,0.3);
+  border-radius: 8px;
+  color: #ff8080;
+  padding: 12px;
+}
+
+.redirect-customizable {
+  color: #8080a8;
+}
+
+.redirect-customizable a {
+  color: #9aa8ff;
+}
+
+.legalText-customizable {
+  color: #505070;
+  font-size: 12px;
+}
+
+.logoDiv-customizable {
+  min-height: 0;
+  padding-bottom: 8px;
+}

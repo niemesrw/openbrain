@@ -3,6 +3,7 @@ import * as cognito from "aws-cdk-lib/aws-cognito";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as lambdaNode from "aws-cdk-lib/aws-lambda-nodejs";
+import * as fs from "fs";
 import * as path from "path";
 import { Construct } from "constructs";
 
@@ -210,6 +211,21 @@ export class AuthStack extends cdk.Stack {
     );
 
     this.userPool.addTrigger(cognito.UserPoolOperation.PRE_SIGN_UP, preSignUpFn);
+
+    // Hosted UI theme — Synaptic Interface design system.
+    // CSS lives in cdk/assets/cognito-hosted-ui.css for easy iteration.
+    // Applied to ALL clients; depends on the domain resource so CloudFormation
+    // orders the attachment after the hosted UI domain is ready.
+    const hostedUiCss = fs.readFileSync(
+      path.join(__dirname, "../../assets/cognito-hosted-ui.css"),
+      "utf-8"
+    );
+    const uiCustomization = new cognito.CfnUserPoolUICustomizationAttachment(this, "HostedUiTheme", {
+      userPoolId: this.userPool.userPoolId,
+      clientId: "ALL",
+      css: hostedUiCss,
+    });
+    uiCustomization.node.addDependency(this.userPoolDomain);
 
     new cdk.CfnOutput(this, "UserPoolId", {
       value: this.userPool.userPoolId,

@@ -335,7 +335,7 @@ export class WebStack extends cdk.Stack {
                               // request body contains redirect_uri arrays.
                               byteMatchStatement: {
                                 fieldToMatch: { uriPath: {} },
-                                positionalConstraint: "STARTS_WITH",
+                                positionalConstraint: "EXACTLY",
                                 searchString: "/register",
                                 textTransformations: [{ priority: 0, type: "NONE" }],
                               },
