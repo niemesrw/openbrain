@@ -157,16 +157,17 @@ export class WebStack extends cdk.Stack {
     // CSP notes:
     //   - style-src needs 'unsafe-inline' because React renders inline style={} attrs
     //   - connect-src: when a custom domain is configured all API/chat paths are proxied
-    //     through this CloudFront distribution, so 'self' covers them and only Cognito
-    //     needs an explicit allowlist entry. Without a custom domain the SPA calls the
-    //     API Gateway and Lambda Function URLs directly — scope to the specific region.
+    //     through this CloudFront distribution, so 'self' covers them. Cognito requires
+    //     two explicit entries: *.amazoncognito.com (hosted UI / token endpoint) AND
+    //     cognito-idp.<region>.amazonaws.com (IDP API used by Amplify for token refresh).
+    //     Without a custom domain the SPA calls API Gateway and Lambda URLs directly.
     //   - img-src allows https: + data: for og:image enrichment and any base64 thumbs
     // -------------------------------------------------------------------------
     const connectSrc = apiOrigin
       // API paths are proxied by this distribution → 'self' covers all API/chat calls
-      ? `connect-src 'self' https://*.amazoncognito.com`
+      ? `connect-src 'self' https://*.amazoncognito.com https://cognito-idp.${this.region}.amazonaws.com`
       // No proxy configured: SPA calls API Gateway and Lambda URLs directly
-      : `connect-src 'self' https://*.amazoncognito.com https://*.execute-api.${this.region}.amazonaws.com https://*.lambda-url.${this.region}.on.aws`;
+      : `connect-src 'self' https://*.amazoncognito.com https://cognito-idp.${this.region}.amazonaws.com https://*.execute-api.${this.region}.amazonaws.com https://*.lambda-url.${this.region}.on.aws`;
 
     const cspValue = [
       "default-src 'self'",
