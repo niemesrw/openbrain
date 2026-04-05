@@ -33,6 +33,7 @@ export class ApiStack extends cdk.Stack {
   public readonly api: apigwv2.HttpApi;
   public readonly handler: lambdaNode.NodejsFunction;
   public readonly apiEndpointHostname: string;
+  public readonly chatFunctionUrlHostname: string;
 
   constructor(scope: Construct, id: string, props: ApiStackProps) {
     super(scope, id, props);
@@ -1176,5 +1177,6 @@ export class ApiStack extends cdk.Stack {
     });
 
     this.apiEndpointHostname = cdk.Fn.select(2, cdk.Fn.split("/", this.api.apiEndpoint));
+    this.chatFunctionUrlHostname = cdk.Fn.select(2, cdk.Fn.split("/", chatFunctionUrl.url));
   }
 }

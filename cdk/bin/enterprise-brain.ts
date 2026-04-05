@@ -86,6 +86,7 @@ data.addDependency(api);
 const web = new WebStack(app, "EnterpriseBrainWeb", {
   env,
   customDomain,
-  apiEndpointHostname: customDomain ? api.apiEndpointHostname : undefined,
+  apiEndpointHostname: api.apiEndpointHostname,
+  chatFunctionUrlHostname: api.chatFunctionUrlHostname,
 });
 web.addDependency(api);

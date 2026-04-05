@@ -13,6 +13,8 @@ interface WebStackProps extends cdk.StackProps {
   customDomain?: string;
   /** Hostname of the API Gateway endpoint (no protocol), used to proxy /mcp and /chat */
   apiEndpointHostname?: string;
+  /** Hostname of the streaming chat Lambda Function URL (no protocol), used in CSP */
+  chatFunctionUrlHostname?: string;
 }
 
 export class WebStack extends cdk.Stack {
@@ -21,7 +23,7 @@ export class WebStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: WebStackProps = {}) {
     super(scope, id, props);
 
-    const { customDomain, apiEndpointHostname } = props;
+    const { customDomain, apiEndpointHostname, chatFunctionUrlHostname } = props;
 
     // Fail fast: apiEndpointHostname is required when customDomain is set
     if (customDomain && !apiEndpointHostname) {
@@ -156,18 +158,22 @@ export class WebStack extends cdk.Stack {
     //
     // CSP notes:
     //   - style-src needs 'unsafe-inline' because React renders inline style={} attrs
-    //   - connect-src: when a custom domain is configured all API/chat paths are proxied
-    //     through this CloudFront distribution, so 'self' covers them. Cognito requires
-    //     two explicit entries: *.amazoncognito.com (hosted UI / token endpoint) AND
-    //     cognito-idp.<region>.amazonaws.com (IDP API used by Amplify for token refresh).
-    //     Without a custom domain the SPA calls API Gateway and Lambda URLs directly.
+    //   - connect-src: VITE_API_URL is always the raw API Gateway URL (BrainApiUrl output)
+    //     so execute-api must be in the allowlist regardless of custom domain config.
+    //     Use specific hostnames when available (tighter defense-in-depth); fall back to
+    //     region wildcards if the hostnames aren't passed in.
+    //     Cognito needs two entries: *.amazoncognito.com (hosted UI / token endpoint)
+    //     and cognito-idp.<region>.amazonaws.com (Amplify IDP calls / token refresh).
     //   - img-src allows https: + data: for og:image enrichment and any base64 thumbs
     // -------------------------------------------------------------------------
-    const connectSrc = apiOrigin
-      // API paths are proxied by this distribution → 'self' covers all API/chat calls
-      ? `connect-src 'self' https://*.amazoncognito.com https://cognito-idp.${this.region}.amazonaws.com`
-      // No proxy configured: SPA calls API Gateway and Lambda URLs directly
-      : `connect-src 'self' https://*.amazoncognito.com https://cognito-idp.${this.region}.amazonaws.com https://*.execute-api.${this.region}.amazonaws.com https://*.lambda-url.${this.region}.on.aws`;
+    const cognitoSrc = `https://*.amazoncognito.com https://cognito-idp.${this.region}.amazonaws.com`;
+    const apiSrc = apiEndpointHostname
+      ? `https://${apiEndpointHostname}`
+      : `https://*.execute-api.${this.region}.amazonaws.com`;
+    const chatSrc = chatFunctionUrlHostname
+      ? `https://${chatFunctionUrlHostname}`
+      : `https://*.lambda-url.${this.region}.on.aws`;
+    const connectSrc = `connect-src 'self' ${cognitoSrc} ${apiSrc} ${chatSrc}`;
 
     const cspValue = [
       "default-src 'self'",
