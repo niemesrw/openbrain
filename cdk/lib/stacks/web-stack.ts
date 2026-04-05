@@ -82,7 +82,9 @@ export class WebStack extends cdk.Stack {
     // discovery endpoints — CloudFront picks the more specific pattern so mcp.json still
     // hits S3.
     const additionalBehaviors: Record<string, cloudfront.BehaviorOptions> = {
-      "/.well-known/mcp.json": {
+      // Simplified discovery doc at a non-standard path so it doesn't
+      // conflict with the API's /.well-known/mcp.json MCP server card.
+      "/.well-known/mcp-discovery.json": {
         origin: s3Origin,
         allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD,
         cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
@@ -445,8 +447,11 @@ export class WebStack extends cdk.Stack {
         // Always written so requests never fall through to the SPA's /index.html
         // error response. When apiUrl is absent (web-only deploy) the file
         // signals that MCP discovery is not configured.
+        // mcp-discovery.json — simplified discovery doc at a non-standard path.
+        // Uses a different filename than /.well-known/mcp.json to avoid
+        // overwriting the API's canonical MCP server card (different schema).
         s3deploy.Source.jsonData(
-          ".well-known/mcp.json",
+          ".well-known/mcp-discovery.json",
           apiUrl
             ? { mcp_url: `${apiUrl}/mcp`, name: "Open Brain" }
             : { mcp_url: null, name: "Open Brain", error: "MCP discovery is not configured for this deployment." }

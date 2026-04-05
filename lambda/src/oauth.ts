@@ -602,7 +602,7 @@ function handleMcpServerCard(_event: APIGatewayProxyEventV2): APIGatewayProxyRes
       version: "2.0.0",
     },
     description: "Personal AI knowledge base with semantic search. One brain shared across all your AI clients.",
-    documentationUrl: "https://github.com/niemesrw/openbrain",
+    documentationUrl: "https://github.com/BLANXLAIT/openbrain",
     transport: {
       type: "streamable-http",
       endpoint: "/mcp",
@@ -629,9 +629,10 @@ Open Brain is an MCP server that stores thoughts, decisions, notes, and memories
 ## MCP Server
 
 - [MCP Endpoint](${baseUrl}/mcp): Streamable HTTP transport, OAuth 2.1 auth
-- [Server Card](${baseUrl}/.well-known/mcp.json): MCP server discovery metadata
+- [Server Card](${baseUrl}/.well-known/mcp.json): MCP server card (transport, auth, tools)
+- [Discovery](${baseUrl}/.well-known/mcp-discovery.json): Simplified discovery document
 - [OAuth Discovery](${baseUrl}/.well-known/oauth-protected-resource): OAuth protected resource metadata
-- [GitHub Repository](https://github.com/niemesrw/openbrain): Source code and setup guide
+- [GitHub Repository](https://github.com/BLANXLAIT/openbrain): Source code and setup guide
 
 ## Tools
 
@@ -646,10 +647,28 @@ Open Brain is an MCP server that stores thoughts, decisions, notes, and memories
 - revoke_agent: Disable an agent's API key
 - bus_activity: Monitor shared feed — activity grouped by agent
 
+## Connecting as an Agent
+
+If you are an AI agent or coding assistant, you can connect to this MCP server directly:
+
+1. This file is served from \`${baseUrl}/llms.txt\`
+2. The MCP endpoint is \`${baseUrl}/mcp\` (Streamable HTTP, OAuth 2.1)
+3. Authenticate via OAuth — your client will handle the flow automatically
+
+To set up a coding agent (Claude Code, Cursor, Windsurf):
+\`\`\`
+Set up my Open Brain MCP server at ${baseUrl}/mcp, then add it to my MCP client config as "open-brain". OAuth authentication will happen automatically the first time you use a brain tool.
+\`\`\`
+
+To connect a conversational agent without config file access:
+\`\`\`
+Connect to my personal knowledge base at ${baseUrl}/mcp and authenticate via OAuth. Once connected, use the brain tools to search, capture, and browse my thoughts.
+\`\`\`
+
 ## Optional
 
-- [Skills for Claude Desktop](https://github.com/niemesrw/openbrain/blob/main/skills/claude-desktop.md): Project instructions
-- [Skills for ChatGPT](https://github.com/niemesrw/openbrain/blob/main/skills/chatgpt-instructions.md): Custom GPT instructions
+- [Skills for Claude Desktop](https://github.com/BLANXLAIT/openbrain/blob/main/skills/claude-desktop.md): Project instructions
+- [Skills for ChatGPT](https://github.com/BLANXLAIT/openbrain/blob/main/skills/chatgpt-instructions.md): Custom GPT instructions
 `;
 
   return {
