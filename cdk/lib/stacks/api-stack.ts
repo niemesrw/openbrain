@@ -256,10 +256,11 @@ export class ApiStack extends cdk.Stack {
     // HTTP API
     // Scope CORS to known web origins when available; fall back to * only before the
     // web stack has been deployed (customDomain and webOrigin both undefined).
-    const corsOrigins: string[] = [];
-    if (customDomain) corsOrigins.push(`https://${customDomain}`);
-    if (webOrigin) corsOrigins.push(webOrigin); // already includes scheme (e.g. https://brain.example.com)
+    const corsOriginsSet = new Set<string>();
+    if (customDomain) corsOriginsSet.add(`https://${customDomain}`);
+    if (webOrigin) corsOriginsSet.add(webOrigin); // already includes scheme (e.g. https://brain.example.com)
     // localhost intentionally excluded from production — falls back to * when no origin is configured
+    const corsOrigins = [...corsOriginsSet];
 
     this.api = new apigwv2.HttpApi(this, "BrainApi", {
       apiName: "open-brain-mcp",
