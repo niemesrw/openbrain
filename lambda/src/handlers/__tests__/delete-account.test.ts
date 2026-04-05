@@ -137,6 +137,22 @@ describe("handleDeleteAccount", () => {
     await expect(handleDeleteAccount(USER)).resolves.toBeUndefined();
   });
 
+  it("queries google-connections by primary key (no GSI)", async () => {
+    mockS3VectorsSend.mockResolvedValue({});
+    mockCognitoSend.mockResolvedValue({});
+    mockDdbSend.mockResolvedValue({ Items: [] });
+
+    await handleDeleteAccount(USER);
+
+    const googleQuery = mockDdbSend.mock.calls.find(
+      ([cmd]) => cmd._tag === "QueryCommand" && cmd.input.TableName === "openbrain-google-connections"
+    );
+    expect(googleQuery).toBeDefined();
+    // Must NOT use an index — userId is the table partition key
+    expect(googleQuery![0].input.IndexName).toBeUndefined();
+    expect(googleQuery![0].input.KeyConditionExpression).toContain(":v");
+  });
+
   it("re-throws unexpected S3 Vectors errors", async () => {
     const unexpectedErr = Object.assign(new Error("access denied"), { name: "AccessDeniedException" });
     mockS3VectorsSend.mockRejectedValue(unexpectedErr);

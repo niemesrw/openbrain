@@ -33,7 +33,7 @@ export async function handleDeleteAccount(user: UserContext): Promise<void> {
     deletePrivateVectorIndex(userId),
     deleteByPkSk(env("AGENT_KEYS_TABLE"), "pk", `USER#${userId}`, "sk"),
     deleteByPk(env("AGENT_TASKS_TABLE"), "userId", userId, "taskId"),
-    deleteByGsi(env("GOOGLE_CONNECTIONS_TABLE"), "userId", userId, "userId", "email"),
+    deleteByPk(env("GOOGLE_CONNECTIONS_TABLE"), "userId", userId, "email"),
     deleteByGsi(
       env("GITHUB_INSTALLATIONS_TABLE"),
       "user-id-index",
