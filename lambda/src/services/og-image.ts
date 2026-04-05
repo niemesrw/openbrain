@@ -9,8 +9,7 @@ const BLOCKED_IPv4_RANGES = [
 // Private/reserved IPv6 ranges to block (SSRF protection)
 const BLOCKED_IPv6_RANGES = [
   /^::1$/i,     // loopback
-  /^fc/i,       // unique local (fc00::/7)
-  /^fd/i,       // unique local (fd00::/8)
+  /^f[cd]/i,    // unique local (fc00::/7 — covers fc::/8 and fd::/8)
   /^fe[89ab]/i, // link-local (fe80::/10)
   /^::ffff:/i,  // IPv4-mapped (::ffff:0:0/96)
   /^64:ff9b:/i, // NAT64 (RFC 6052)
@@ -28,10 +27,14 @@ function dnsLookupAll(hostname: string): Promise<Array<{ address: string; family
   });
 }
 
+// Loopback hostnames blocked before DNS resolution (constant — not per-call)
+const LOOPBACK_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1"]);
+
 /**
  * Validate a URL for safety before fetching (SSRF protection).
  * Rejects non-http/https schemes, loopback hostnames, and private IP ranges (IPv4 + IPv6).
  */
+
 async function validateFetchUrl(urlString: string): Promise<void> {
   const parsed = new URL(urlString);
 
@@ -39,8 +42,6 @@ async function validateFetchUrl(urlString: string): Promise<void> {
     throw new Error("URL must use http or https");
   }
 
-  // Block loopback hostnames explicitly before DNS resolution
-  const LOOPBACK_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1"]);
   if (LOOPBACK_HOSTNAMES.has(parsed.hostname)) {
     throw new Error("URL resolves to a blocked address");
   }

@@ -40,8 +40,7 @@ const BLOCKED_IPv4_RANGES = [
 // Private/reserved IPv6 ranges to block (SSRF protection)
 const BLOCKED_IPv6_RANGES = [
   /^::1$/i,        // loopback
-  /^fc/i,          // unique local (fc00::/7)
-  /^fd/i,          // unique local (fd00::/8)
+  /^f[cd]/i,       // unique local (fc00::/7 — covers fc::/8 and fd::/8)
   /^fe[89ab]/i,    // link-local (fe80::/10)
   /^::ffff:/i,     // IPv4-mapped (::ffff:0:0/96)
   /^64:ff9b:/i,    // NAT64 (RFC 6052)

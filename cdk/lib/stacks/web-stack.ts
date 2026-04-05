@@ -156,16 +156,24 @@ export class WebStack extends cdk.Stack {
     //
     // CSP notes:
     //   - style-src needs 'unsafe-inline' because React renders inline style={} attrs
-    //   - connect-src uses AWS-scoped wildcards to cover API Gateway, Lambda Function
-    //     URLs, and Cognito across deployment configurations (custom domain or not)
+    //   - connect-src: when a custom domain is configured all API/chat paths are proxied
+    //     through this CloudFront distribution, so 'self' covers them and only Cognito
+    //     needs an explicit allowlist entry. Without a custom domain the SPA calls the
+    //     API Gateway and Lambda Function URLs directly — scope to the specific region.
     //   - img-src allows https: + data: for og:image enrichment and any base64 thumbs
     // -------------------------------------------------------------------------
+    const connectSrc = apiOrigin
+      // API paths are proxied by this distribution → 'self' covers all API/chat calls
+      ? `connect-src 'self' https://*.amazoncognito.com`
+      // No proxy configured: SPA calls API Gateway and Lambda URLs directly
+      : `connect-src 'self' https://*.amazoncognito.com https://*.execute-api.${this.region}.amazonaws.com https://*.lambda-url.${this.region}.on.aws`;
+
     const cspValue = [
       "default-src 'self'",
       "script-src 'self'",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com",
-      `connect-src 'self' https://*.amazoncognito.com https://*.execute-api.${this.region}.amazonaws.com https://*.lambda-url.${this.region}.on.aws`,
+      connectSrc,
       "img-src 'self' https: data:",
       "frame-ancestors 'none'",
       "base-uri 'self'",
@@ -206,7 +214,7 @@ export class WebStack extends cdk.Stack {
     // -------------------------------------------------------------------------
     const cloudFrontWaf = this.region === "us-east-1"
       ? new wafv2.CfnWebACL(this, "WebWaf", {
-          name: "openbrain-web-waf",
+          name: `${this.stackName}-${this.account}-web-waf`,
           scope: "CLOUDFRONT",
           defaultAction: { allow: {} },
           visibilityConfig: {

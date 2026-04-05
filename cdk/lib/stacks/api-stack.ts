@@ -259,12 +259,12 @@ export class ApiStack extends cdk.Stack {
     const corsOrigins: string[] = [];
     if (customDomain) corsOrigins.push(`https://${customDomain}`);
     if (webOrigin) corsOrigins.push(webOrigin); // already includes scheme (e.g. https://brain.example.com)
-    corsOrigins.push("http://localhost:5173"); // local dev
+    // localhost intentionally excluded from production — falls back to * when no origin is configured
 
     this.api = new apigwv2.HttpApi(this, "BrainApi", {
       apiName: "open-brain-mcp",
       corsPreflight: {
-        allowOrigins: corsOrigins.length > 1 ? corsOrigins : ["*"],
+        allowOrigins: corsOrigins.length > 0 ? corsOrigins : ["*"],
         allowMethods: [apigwv2.CorsHttpMethod.POST, apigwv2.CorsHttpMethod.GET, apigwv2.CorsHttpMethod.DELETE, apigwv2.CorsHttpMethod.OPTIONS],
         allowHeaders: ["Content-Type", "Authorization", "x-api-key"],
       },
@@ -1165,7 +1165,7 @@ export class ApiStack extends cdk.Stack {
     // -------------------------------------------------------------------------
 
     const webAcl = new wafv2.CfnWebACL(this, "ApiWaf", {
-      name: "openbrain-api-waf",
+      name: `${this.stackName}-api-waf`,
       scope: "REGIONAL",
       defaultAction: { allow: {} },
       visibilityConfig: {
