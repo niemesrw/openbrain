@@ -62,16 +62,18 @@ function AgentSetupPrompts() {
 }
 
 function AiClientSetup({ client }: { client: AiClient }) {
+  const mcpUrl = `${getApiUrl()}/mcp`;
+
   if (client === "claude-code") {
     return (
       <div className="space-y-4">
-        <p>Add Open Brain as an MCP server in your Claude Code settings. Find your MCP URL in <strong className="text-white">Settings → MCP Connection</strong> after signing in.</p>
+        <p>Add Open Brain as an MCP server in your Claude Code settings:</p>
         <p>Add this to <code className="text-brain-primary">~/.claude/settings.json</code>:</p>
         <CodeBlock>{`{
   "mcpServers": {
     "open-brain": {
       "type": "http",
-      "url": "https://YOUR_API_URL/mcp"
+      "url": "${mcpUrl}"
     }
   }
 }`}</CodeBlock>
@@ -90,7 +92,7 @@ function AiClientSetup({ client }: { client: AiClient }) {
       <div className="space-y-4">
         <p>Open Claude Desktop and go to <strong className="text-white">Settings → MCP Connectors → Add connector</strong>. Find your MCP URL in <strong className="text-white">Settings → MCP Connection</strong> after signing in.</p>
         <CodeBlock>{`Name:   Open Brain
-URL:    https://YOUR_API_URL/mcp
+URL:    ${mcpUrl}
 Auth:   OAuth (automatic)`}</CodeBlock>
         <p>Then add the skill instructions so Claude knows when to use the brain. Copy the contents of <code className="text-brain-primary">skills/claude-desktop.md</code> from the repo into <strong className="text-white">Settings → Project Instructions</strong>.</p>
         <p>After connecting, try:</p>
@@ -123,7 +125,7 @@ Auth:   OAuth (automatic)`}</CodeBlock>
       <div className="space-y-4">
         <p><strong className="text-white">Gemini CLI</strong> — connect via the MCP add command. Create an agent API key using <code className="text-brain-primary">create_agent</code> from any connected AI client, then use it here. Find your MCP URL in <strong className="text-white">Settings → MCP Connection</strong>.</p>
         <CodeBlock>{`gemini mcp add -t http open-brain \\
-  https://YOUR_API_URL/mcp \\
+  ${mcpUrl} \\
   -H "X-Api-Key: YOUR_API_KEY"`}</CodeBlock>
         <p>Then add the skill to <code className="text-brain-primary">~/.gemini/GEMINI.md</code> — copy the CLI section from <code className="text-brain-primary">skills/gemini-gem.md</code>.</p>
         <div className="border-t border-brain-outline/20 pt-4">
@@ -151,19 +153,13 @@ export function GuidePage() {
         <p className="text-brain-muted text-lg max-w-xl mx-auto">
           Open Brain stores your thoughts, decisions, and knowledge as searchable memories — accessible from any AI assistant you already use.
         </p>
-        <div className="flex items-center justify-center gap-3 pt-2">
+        <div className="pt-2">
           <Link
             to="/login"
             className="bg-brain-primary text-brain-primary-on px-6 py-2.5 rounded-xl hover:bg-brain-primary-dim font-medium font-label"
           >
             Get started
           </Link>
-          <a
-            href="#how-it-works"
-            className="text-brain-muted hover:text-white px-6 py-2.5 font-label"
-          >
-            See how it works
-          </a>
         </div>
       </div>
 

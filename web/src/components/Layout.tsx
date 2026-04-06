@@ -93,7 +93,7 @@ export function Layout() {
       </header>
 
       {/* Main content — narrow on mobile, wide on desktop */}
-      <main className={`mx-auto px-4 pt-20 md:px-8 ${isAuth ? "max-w-lg md:max-w-4xl pb-24 md:pb-10" : "max-w-lg pb-12"}`}>
+      <main className={`mx-auto px-4 pt-20 md:px-8 max-w-lg md:max-w-4xl ${isAuth ? "pb-24 md:pb-10" : "pb-12"}`}>
         <Outlet />
       </main>
 
