@@ -6,7 +6,8 @@
  *
  * Allowed selectors: only *-customizable classes (plus :focus/:hover pseudo-classes on those).
  * Cognito rejects any other selector with a 400 error — body, .modal-content,
- * p.title-customizable, and .modal-title have all been confirmed invalid.
+ * p.title-customizable, .modal-title, and .logoDiv-customizable have all been
+ * confirmed invalid. It validates in file order and stops at the first unknown.
  */
 
 .background-customizable {
@@ -97,9 +98,4 @@
 .legalText-customizable {
   color: #505070;
   font-size: 12px;
-}
-
-.logoDiv-customizable {
-  min-height: 0;
-  padding-bottom: 8px;
 }
