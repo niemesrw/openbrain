@@ -5,13 +5,9 @@
  * so Space Grotesk / Inter fall back to system sans-serif.
  */
 
-body {
-  background-color: #0e0e0e;
-  font-family: -apple-system, BlinkMacSystemFont, "Inter", sans-serif;
-}
-
 .background-customizable {
   background-color: #0e0e0e;
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", sans-serif;
   background-image:
     radial-gradient(ellipse at 20% 50%, rgba(154,168,255,0.08) 0%, transparent 50%),
     radial-gradient(ellipse at 80% 20%, rgba(0,227,253,0.06) 0%, transparent 50%);
