@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { getApiUrl } from "../lib/auth";
 
 type AiClient = "claude-code" | "claude-desktop" | "chatgpt" | "gemini";
 
@@ -44,7 +43,7 @@ function FeatureCard({ icon, title, description }: { icon: string; title: string
 }
 
 function AgentSetupPrompts() {
-  const mcpBase = getApiUrl();
+  const mcpUrl = import.meta.env.VITE_MCP_URL;
   return (
     <div className="bg-brain-high rounded-xl p-4 space-y-3 mt-4">
       <p className="text-white font-medium text-sm">Shortcut — let a coding agent set it up</p>
@@ -52,17 +51,17 @@ function AgentSetupPrompts() {
         Coding agents (Claude Code, Cursor, Windsurf) can discover and configure Open Brain
         automatically. Just paste this prompt:
       </p>
-      <CodeBlock>{`Set up my Open Brain MCP server at ${mcpBase}/mcp, then add it to my MCP client config as "open-brain". OAuth authentication will happen automatically the first time you use a brain tool.`}</CodeBlock>
+      <CodeBlock>{`Set up my Open Brain MCP server at ${mcpUrl}, then add it to my MCP client config as "open-brain". OAuth authentication will happen automatically the first time you use a brain tool.`}</CodeBlock>
       <p className="text-xs text-brain-muted">
         Or for a regular AI agent that doesn't manage config files:
       </p>
-      <CodeBlock>{`Connect to my personal knowledge base at ${mcpBase}/mcp and authenticate via OAuth. Once connected, use the brain tools to search, capture, and browse my thoughts.`}</CodeBlock>
+      <CodeBlock>{`Connect to my personal knowledge base at ${mcpUrl} and authenticate via OAuth. Once connected, use the brain tools to search, capture, and browse my thoughts.`}</CodeBlock>
     </div>
   );
 }
 
 function AiClientSetup({ client }: { client: AiClient }) {
-  const mcpUrl = `${getApiUrl()}/mcp`;
+  const mcpUrl = import.meta.env.VITE_MCP_URL;
 
   if (client === "claude-code") {
     return (

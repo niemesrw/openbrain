@@ -168,7 +168,16 @@ jobs:
             --stack-name EnterpriseBrainApi \
             --query "Stacks[0].Outputs[?OutputKey=='ChatStreamUrl'].OutputValue" \
             --output text)
+          # VITE_MCP_URL: use the branded custom domain when set (CloudFront proxies /mcp),
+          # otherwise fall back to the raw API Gateway URL. Kept separate from VITE_API_URL
+          # so other API routes (/slack/*, /google/*, /user, etc.) continue hitting API GW directly.
+          if [ -n "${{ secrets.CUSTOM_DOMAIN }}" ]; then
+            MCP_URL="https://${{ secrets.CUSTOM_DOMAIN }}/mcp"
+          else
+            MCP_URL="${API_URL}/mcp"
+          fi
           echo "api_url=$API_URL" >> "$GITHUB_OUTPUT"
+          echo "mcp_url=$MCP_URL" >> "$GITHUB_OUTPUT"
           echo "user_pool_id=$USER_POOL_ID" >> "$GITHUB_OUTPUT"
           echo "web_client_id=$WEB_CLIENT_ID" >> "$GITHUB_OUTPUT"
           echo "cognito_domain=$COGNITO_DOMAIN" >> "$GITHUB_OUTPUT"
@@ -181,6 +190,7 @@ jobs:
         run: npm run build
         env:
           VITE_API_URL: ${{ steps.outputs.outputs.api_url }}
+          VITE_MCP_URL: ${{ steps.outputs.outputs.mcp_url }}
           VITE_USER_POOL_ID: ${{ steps.outputs.outputs.user_pool_id }}
           VITE_WEB_CLIENT_ID: ${{ steps.outputs.outputs.web_client_id }}
           VITE_COGNITO_DOMAIN: ${{ steps.outputs.outputs.cognito_domain }}
