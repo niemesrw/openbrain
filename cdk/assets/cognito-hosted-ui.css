@@ -3,6 +3,9 @@
  * Applied via CfnUserPoolUICustomizationAttachment in AuthStack.
  * Note: Cognito's hosted UI sandbox blocks external font loads (@import),
  * so Space Grotesk / Inter fall back to system sans-serif.
+ *
+ * Allowed selectors: only *-customizable classes and .modal-title.
+ * Cognito rejects any other selector with a 400 error.
  */
 
 .background-customizable {
@@ -18,7 +21,7 @@
   padding: 0;
 }
 
-p.title-customizable {
+.modal-title {
   color: #e8eaff;
   font-size: 22px;
   font-weight: 700;
@@ -95,10 +98,6 @@ p.title-customizable {
 
 .redirect-customizable {
   color: #8080a8;
-}
-
-.redirect-customizable a {
-  color: #9aa8ff;
 }
 
 .legalText-customizable {
