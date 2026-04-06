@@ -18,14 +18,6 @@
   padding: 0;
 }
 
-.modal-content {
-  background-color: #141428;
-  border-radius: 16px;
-  border: 1px solid rgba(154,168,255,0.15);
-  box-shadow: 0 0 40px rgba(154,168,255,0.1), 0 20px 60px rgba(0,0,0,0.5);
-  padding: 36px;
-}
-
 p.title-customizable {
   color: #e8eaff;
   font-size: 22px;
