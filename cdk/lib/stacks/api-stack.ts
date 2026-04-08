@@ -295,7 +295,7 @@ export class ApiStack extends cdk.Stack {
       apiName: "open-brain-mcp",
       corsPreflight: {
         allowOrigins: corsOrigins.length > 0 ? corsOrigins : ["*"],
-        allowMethods: [apigwv2.CorsHttpMethod.POST, apigwv2.CorsHttpMethod.GET, apigwv2.CorsHttpMethod.DELETE, apigwv2.CorsHttpMethod.OPTIONS],
+        allowMethods: [apigwv2.CorsHttpMethod.POST, apigwv2.CorsHttpMethod.GET, apigwv2.CorsHttpMethod.PUT, apigwv2.CorsHttpMethod.DELETE, apigwv2.CorsHttpMethod.OPTIONS],
         allowHeaders: ["Content-Type", "Authorization", "x-api-key"],
       },
     });
