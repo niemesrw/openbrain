@@ -318,6 +318,21 @@ export async function createAgentRepo(args: AgentWizardArgs): Promise<AgentWizar
   return res.json() as Promise<AgentWizardResult>;
 }
 
+export async function updateAgent(args: AgentWizardArgs): Promise<{ ok: boolean }> {
+  const token = await getIdToken();
+  const apiUrl = getApiUrl();
+  const res = await fetch(`${apiUrl}/github/agent-wizard`, {
+    method: "PUT",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify(args),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => null) as { error?: string } | null;
+    throw new Error(body?.error ?? `Agent update error: ${res.status}`);
+  }
+  return res.json() as Promise<{ ok: boolean }>;
+}
+
 // ---------------------------------------------------------------------------
 // Tasks
 // ---------------------------------------------------------------------------

@@ -789,7 +789,7 @@ export class ApiStack extends cdk.Stack {
     });
     this.api.addRoutes({
       path: "/github/agent-wizard",
-      methods: [apigwv2.HttpMethod.POST],
+      methods: [apigwv2.HttpMethod.POST, apigwv2.HttpMethod.PUT],
       integration: githubRestIntegration,
     });
 

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { listAgents, getBusActivity, createAgent, revokeAgent } from "../lib/brain-api";
-import { createAgentRepo, getGitHubInstallations } from "../lib/api";
+import { createAgentRepo, updateAgent, getGitHubInstallations } from "../lib/api";
 import type { Agent, BusActivity } from "../lib/brain-types";
 
 const STATUS_COLOR: Record<string, string> = {
@@ -72,6 +72,14 @@ export function AgentsPage() {
   const [wizardError, setWizardError] = useState<string | null>(null);
   const [wizardResult, setWizardResult] = useState<{ repoUrl: string; workflowUrl: string } | null>(null);
   const [hasGitHub, setHasGitHub] = useState<boolean | null>(null);
+
+  // Edit flow
+  const [editAgent, setEditAgent] = useState<string | null>(null);
+  const [editPrompt, setEditPrompt] = useState("");
+  const [editModel, setEditModel] = useState("");
+  const [editSchedule, setEditSchedule] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
   // Revoke flow
   const [confirmRevoke, setConfirmRevoke] = useState<string | null>(null);
@@ -178,6 +186,33 @@ export function AgentsPage() {
       setWizardError(e instanceof Error ? e.message : String(e));
     } finally {
       setWizardDeploying(false);
+    }
+  };
+
+  const openEdit = (agentName: string) => {
+    setEditAgent(agentName);
+    setEditPrompt("");
+    setEditModel("");
+    setEditSchedule("");
+    setEditError(null);
+  };
+
+  const handleEditSave = async () => {
+    if (!editAgent) return;
+    setEditSaving(true);
+    setEditError(null);
+    try {
+      await updateAgent({
+        name: editAgent,
+        systemPrompt: editPrompt || undefined,
+        model: editModel || undefined,
+        schedule: editSchedule || undefined,
+      });
+      setEditAgent(null);
+    } catch (e: unknown) {
+      setEditError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setEditSaving(false);
     }
   };
 
@@ -563,18 +598,104 @@ export function AgentsPage() {
                         </button>
                       </div>
                     ) : (
-                      <button
-                        onClick={() => setConfirmRevoke(agent.name)}
-                        className="text-[10px] text-brain-muted/50 hover:text-brain-error font-label transition-colors"
-                      >
-                        Revoke
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => openEdit(agent.name)}
+                          className="text-[10px] text-brain-muted/50 hover:text-brain-primary font-label transition-colors"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => setConfirmRevoke(agent.name)}
+                          className="text-[10px] text-brain-muted/50 hover:text-brain-error font-label transition-colors"
+                        >
+                          Revoke
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Edit agent modal */}
+      {editAgent && (
+        <div className="glass-card rounded-2xl p-6 border border-brain-primary/20 space-y-5">
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] font-label font-bold text-brain-primary uppercase tracking-widest">
+              Edit Agent — {editAgent}
+            </p>
+            <button
+              onClick={() => setEditAgent(null)}
+              className="text-brain-muted/60 hover:text-white text-sm font-label transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+          <div>
+            <label className="text-[10px] font-label font-bold text-brain-muted uppercase tracking-widest block mb-2">
+              System Prompt
+            </label>
+            <textarea
+              value={editPrompt}
+              onChange={(e) => setEditPrompt(e.target.value)}
+              rows={4}
+              className="w-full bg-brain-surface rounded-xl px-4 py-3 text-sm text-white placeholder:text-brain-muted/50 outline-none border border-brain-outline/10 focus:border-brain-primary/40 transition-colors resize-none"
+              placeholder="Update the agent's system prompt..."
+              autoFocus
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-[10px] font-label font-bold text-brain-muted uppercase tracking-widest block mb-2">
+                Schedule (cron)
+              </label>
+              <input
+                type="text"
+                value={editSchedule}
+                onChange={(e) => setEditSchedule(e.target.value)}
+                placeholder="Leave blank to keep current"
+                className="w-full bg-brain-surface rounded-xl px-4 py-2 text-sm text-white placeholder:text-brain-muted/50 font-mono outline-none border border-brain-outline/10 focus:border-brain-primary/40 transition-colors"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-label font-bold text-brain-muted uppercase tracking-widest block mb-2">
+                Model
+              </label>
+              <select
+                value={editModel}
+                onChange={(e) => setEditModel(e.target.value)}
+                className="w-full bg-brain-surface rounded-xl px-4 py-2 text-sm text-white outline-none border border-brain-outline/10 focus:border-brain-primary/40 transition-colors"
+              >
+                <option value="">Keep current</option>
+                <option value="openai/gpt-4.1">GPT-4.1</option>
+                <option value="openai/gpt-4.1-mini">GPT-4.1 Mini</option>
+                <option value="openai/gpt-4o">GPT-4o</option>
+              </select>
+            </div>
+          </div>
+          {editError && (
+            <p className="text-brain-error text-xs font-label">{editError}</p>
+          )}
+          <div className="flex gap-3 pt-2">
+            <button
+              onClick={() => setEditAgent(null)}
+              disabled={editSaving}
+              className="px-4 py-2 rounded-xl bg-brain-outline/10 text-brain-muted text-sm font-label hover:text-white transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleEditSave}
+              disabled={editSaving}
+              className="px-5 py-2 rounded-xl bg-brain-primary text-brain-primary-on text-sm font-label font-bold hover:bg-brain-primary-dim disabled:opacity-60 transition-colors"
+            >
+              {editSaving ? "Saving…" : "Save"}
+            </button>
+          </div>
         </div>
       )}
 

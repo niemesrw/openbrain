@@ -68,7 +68,175 @@ async function encryptSecret(value: string, publicKey: string): Promise<string> 
   return sodium.to_base64(encrypted, sodium.base64_variants.ORIGINAL);
 }
 
+// --- Repo variables helper ---------------------------------------------------
+
+interface AgentConfig {
+  systemPrompt?: string;
+  userPrompt?: string;
+  model?: string;
+  schedule?: string;
+}
+
+async function setRepoVariables(
+  repoFullName: string,
+  token: string,
+  config: AgentConfig
+) {
+  const vars: Record<string, string> = {};
+  if (config.systemPrompt) vars.AGENT_SYSTEM_PROMPT = config.systemPrompt;
+  if (config.userPrompt) vars.AGENT_USER_PROMPT = config.userPrompt;
+  if (config.model) vars.AGENT_MODEL = config.model;
+  if (config.schedule) vars.AGENT_SCHEDULE = config.schedule;
+
+  for (const [name, value] of Object.entries(vars)) {
+    // Try PATCH first (update existing), fall back to POST (create new)
+    const patchRes = await ghFetch(
+      `${GH_API}/repos/${repoFullName}/actions/variables/${name}`,
+      token,
+      { method: "PATCH", body: JSON.stringify({ name, value }) }
+    );
+    if (patchRes.ok) continue;
+
+    if (patchRes.status === 404) {
+      const postRes = await ghFetch(
+        `${GH_API}/repos/${repoFullName}/actions/variables`,
+        token,
+        { method: "POST", body: JSON.stringify({ name, value }) }
+      );
+      if (!postRes.ok) {
+        const postBody = await postRes.text();
+        throw new Error(`Failed to create variable ${name}: ${postRes.status} ${postBody}`);
+      }
+      continue;
+    }
+
+    const patchBody = await patchRes.text();
+    throw new Error(`Failed to update variable ${name}: ${patchRes.status} ${patchBody}`);
+  }
+
+  // Update workflow cron schedule if provided
+  if (config.schedule) {
+    await updateWorkflowSchedule(repoFullName, token, config.schedule);
+  }
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function updateWorkflowSchedule(
+  repoFullName: string,
+  token: string,
+  schedule: string
+) {
+  const workflowUrl = `${GH_API}/repos/${repoFullName}/contents/.github/workflows/agent.yml`;
+  const maxAttempts = 5;
+  let lastStatus: number | undefined;
+
+  let wfData: { content: string; sha: string } | undefined;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const wfRes = await ghFetch(workflowUrl, token);
+    if (wfRes.ok) {
+      wfData = (await wfRes.json()) as { content: string; sha: string };
+      break;
+    }
+    lastStatus = wfRes.status;
+    if (attempt < maxAttempts) {
+      await sleep(250 * 2 ** (attempt - 1));
+    }
+  }
+
+  if (!wfData) {
+    throw new Error(`Failed to read workflow file after ${maxAttempts} attempts: ${lastStatus ?? "unknown"}`);
+  }
+
+  let wfContent = Buffer.from(wfData.content, "base64").toString("utf-8");
+  const sanitized = schedule.replace(/"/g, "");
+  wfContent = wfContent.replace(/cron: ".*?"/, `cron: "${sanitized}"`);
+  const commitRes = await ghFetch(workflowUrl, token, {
+    method: "PUT",
+    body: JSON.stringify({
+      message: `Set schedule: ${sanitized}`,
+      content: Buffer.from(wfContent).toString("base64"),
+      sha: wfData.sha,
+    }),
+  });
+  if (!commitRes.ok) {
+    throw new Error(`Failed to update workflow schedule: ${commitRes.status}`);
+  }
+}
+
 // --- Handler -----------------------------------------------------------------
+
+export interface UpdateAgentArgs {
+  name: string;
+  systemPrompt?: string;
+  userPrompt?: string;
+  model?: string;
+  schedule?: string;
+}
+
+export async function handleUpdateAgent(
+  args: UpdateAgentArgs,
+  user: UserContext
+): Promise<{ ok: boolean }> {
+  if (user.agentName) {
+    throw new Error("Agents cannot update agents. Use a human session.");
+  }
+
+  const { name, schedule, systemPrompt, userPrompt, model } = args;
+  if (!name || !/^[a-zA-Z0-9_-]+$/.test(name)) {
+    throw new Error("Agent name must be alphanumeric (hyphens and underscores allowed).");
+  }
+  if (schedule && !/^[\d*\/,\-]+(\s+[\d*\/,\-]+){4}$/.test(schedule.trim())) {
+    throw new Error("Invalid cron schedule. Expected 5 fields (e.g. '30 11 * * *').");
+  }
+
+  // Look up the agent to find the repo
+  const agentResult = await ddb.send(
+    new QueryCommand({
+      TableName: AGENT_KEYS_TABLE,
+      KeyConditionExpression: "pk = :pk AND sk = :sk",
+      ExpressionAttributeValues: {
+        ":pk": `USER#${user.userId}`,
+        ":sk": `AGENT#${name}`,
+      },
+    })
+  );
+  const agent = agentResult.Items?.[0];
+  if (!agent) {
+    throw new Error(`Agent "${name}" not found.`);
+  }
+  const repoFullName = agent.repoFullName as string;
+  if (!repoFullName) {
+    throw new Error(`Agent "${name}" has no linked repo.`);
+  }
+
+  // Get installation token
+  const instResult = await ddb.send(
+    new QueryCommand({
+      TableName: GITHUB_INSTALLATIONS_TABLE,
+      IndexName: "user-id-index",
+      KeyConditionExpression: "userId = :uid",
+      ExpressionAttributeValues: { ":uid": user.userId },
+    })
+  );
+  const installations = instResult.Items ?? [];
+  if (installations.length === 0) {
+    throw new Error("No GitHub connection found.");
+  }
+  const installationId = installations[0].installationId as string;
+  const token = await getInstallationToken(installationId);
+
+  await setRepoVariables(repoFullName, token, {
+    systemPrompt,
+    userPrompt,
+    model,
+    schedule,
+  });
+
+  return { ok: true };
+}
 
 export async function handleAgentWizard(
   args: WizardArgs,
@@ -206,78 +374,14 @@ export async function handleAgentWizard(
     throw new Error(`Failed to set OPEN_BRAIN_KEY secret: ${keySecretRes.status} ${await keySecretRes.text()}`);
   }
 
-  // 6. Optionally patch agent.ts with custom prompt/schedule/model
-  if (systemPrompt || userPrompt || model || schedule) {
-    // Read current agent.ts
-    const fileRes = await ghFetch(
-      `${GH_API}/repos/${repo.full_name}/contents/src/agent.ts`,
-      token
-    );
-    if (fileRes.ok) {
-      const fileData = (await fileRes.json()) as { content: string; sha: string };
-      let content = Buffer.from(fileData.content, "base64").toString("utf-8");
-
-      if (model) {
-        content = content.replace(
-          /const MODEL = ".*?";/,
-          `const MODEL = ${JSON.stringify(model)};`
-        );
-      }
-      if (systemPrompt) {
-        content = content.replace(
-          /const SYSTEM_PROMPT = `[\s\S]*?`;/,
-          `const SYSTEM_PROMPT = ${JSON.stringify(systemPrompt)};`
-        );
-      }
-      if (userPrompt) {
-        content = content.replace(
-          /const USER_PROMPT = `[\s\S]*?`;/,
-          `const USER_PROMPT = ${JSON.stringify(userPrompt)};`
-        );
-      }
-
-      await ghFetch(
-        `${GH_API}/repos/${repo.full_name}/contents/src/agent.ts`,
-        token,
-        {
-          method: "PUT",
-          body: JSON.stringify({
-            message: `Configure agent: ${name}`,
-            content: Buffer.from(content).toString("base64"),
-            sha: fileData.sha,
-          }),
-        }
-      );
-    }
-
-    // Patch workflow cron if schedule provided
-    if (schedule) {
-      const wfRes = await ghFetch(
-        `${GH_API}/repos/${repo.full_name}/contents/.github/workflows/agent.yml`,
-        token
-      );
-      if (wfRes.ok) {
-        const wfData = (await wfRes.json()) as { content: string; sha: string };
-        let wfContent = Buffer.from(wfData.content, "base64").toString("utf-8");
-        wfContent = wfContent.replace(
-          /cron: ".*?"/,
-          `cron: "${schedule.replace(/"/g, "")}"`
-        );
-        await ghFetch(
-          `${GH_API}/repos/${repo.full_name}/contents/.github/workflows/agent.yml`,
-          token,
-          {
-            method: "PUT",
-            body: JSON.stringify({
-              message: `Set schedule: ${schedule}`,
-              content: Buffer.from(wfContent).toString("base64"),
-              sha: wfData.sha,
-            }),
-          }
-        );
-      }
-    }
-  }
+  // 6. Set repo variables for agent config (no file patching needed —
+  //    the template reads these from process.env at runtime)
+  await setRepoVariables(repo.full_name, token, {
+    systemPrompt,
+    userPrompt,
+    model,
+    schedule,
+  });
 
   return {
     ok: true,
