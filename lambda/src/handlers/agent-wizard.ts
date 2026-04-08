@@ -68,7 +68,16 @@ async function encryptSecret(value: string, publicKey: string): Promise<string> 
   return sodium.to_base64(encrypted, sodium.base64_variants.ORIGINAL);
 }
 
-// --- Repo variables helper ---------------------------------------------------
+// --- Prompt file helper ------------------------------------------------------
+
+const BRAIN_SYSTEM_PROMPT = `You are an autonomous agent with access to a personal knowledge base called Open Brain.
+
+On every run you MUST:
+1. Search the brain for relevant prior context (avoid duplicates, build on previous work)
+2. Do your assigned task
+3. Capture a concise summary of your results back to the brain
+
+Be concise and actionable. Always cite sources when capturing new information.`;
 
 interface AgentConfig {
   systemPrompt?: string;
@@ -77,44 +86,67 @@ interface AgentConfig {
   schedule?: string;
 }
 
-async function setRepoVariables(
+function buildPromptYaml(config: AgentConfig): string {
+  const model = config.model || "openai/gpt-4.1";
+  const userPrompt = config.userPrompt || config.systemPrompt || "";
+  // Indent multiline content for YAML block scalar
+  const indentedSystem = BRAIN_SYSTEM_PROMPT.split("\n").join("\n      ");
+  const indentedUser = userPrompt.split("\n").join("\n      ");
+  return [
+    `model: ${model}`,
+    `messages:`,
+    `  - role: system`,
+    `    content: |`,
+    `      ${indentedSystem}`,
+    `  - role: user`,
+    `    content: |`,
+    `      ${indentedUser}`,
+    ``,
+  ].join("\n");
+}
+
+async function writePromptFile(
   repoFullName: string,
   token: string,
   config: AgentConfig
 ) {
-  const vars: Record<string, string> = {};
-  // The wizard's single prompt field sets the user prompt (the task).
-  // The system prompt is fixed in the template to always include brain
-  // read/write behavior, so we don't override it from the wizard.
-  if (config.systemPrompt) vars.AGENT_USER_PROMPT = config.systemPrompt;
-  if (config.userPrompt) vars.AGENT_USER_PROMPT = config.userPrompt;
-  if (config.model) vars.AGENT_MODEL = config.model;
-  if (config.schedule) vars.AGENT_SCHEDULE = config.schedule;
+  const promptUrl = `${GH_API}/repos/${repoFullName}/contents/agent.prompt.yml`;
+  const content = buildPromptYaml(config);
+  const maxAttempts = 5;
+  let lastStatus: number | undefined;
 
-  for (const [name, value] of Object.entries(vars)) {
-    // Try PATCH first (update existing), fall back to POST (create new)
-    const patchRes = await ghFetch(
-      `${GH_API}/repos/${repoFullName}/actions/variables/${name}`,
-      token,
-      { method: "PATCH", body: JSON.stringify({ name, value }) }
-    );
-    if (patchRes.ok) continue;
-
-    if (patchRes.status === 404) {
-      const postRes = await ghFetch(
-        `${GH_API}/repos/${repoFullName}/actions/variables`,
-        token,
-        { method: "POST", body: JSON.stringify({ name, value }) }
-      );
-      if (!postRes.ok) {
-        const postBody = await postRes.text();
-        throw new Error(`Failed to create variable ${name}: ${postRes.status} ${postBody}`);
-      }
-      continue;
+  // Read existing file to get SHA (needed for updates)
+  let sha: string | undefined;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const res = await ghFetch(promptUrl, token);
+    if (res.ok) {
+      const data = (await res.json()) as { sha: string };
+      sha = data.sha;
+      break;
     }
+    if (res.status === 404) {
+      // File doesn't exist yet — will create
+      break;
+    }
+    lastStatus = res.status;
+    if (attempt < maxAttempts) {
+      await sleep(250 * 2 ** (attempt - 1));
+    }
+  }
 
-    const patchBody = await patchRes.text();
-    throw new Error(`Failed to update variable ${name}: ${patchRes.status} ${patchBody}`);
+  const body: Record<string, string> = {
+    message: "Update agent prompt",
+    content: Buffer.from(content).toString("base64"),
+  };
+  if (sha) body.sha = sha;
+
+  const commitRes = await ghFetch(promptUrl, token, {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
+  if (!commitRes.ok) {
+    const errText = await commitRes.text();
+    throw new Error(`Failed to write agent.prompt.yml: ${commitRes.status} ${errText}`);
   }
 
   // Update workflow cron schedule if provided
@@ -231,7 +263,7 @@ export async function handleUpdateAgent(
   const installationId = installations[0].installationId as string;
   const token = await getInstallationToken(installationId);
 
-  await setRepoVariables(repoFullName, token, {
+  await writePromptFile(repoFullName, token, {
     systemPrompt,
     userPrompt,
     model,
@@ -379,7 +411,7 @@ export async function handleAgentWizard(
 
   // 6. Set repo variables for agent config (no file patching needed —
   //    the template reads these from process.env at runtime)
-  await setRepoVariables(repo.full_name, token, {
+  await writePromptFile(repo.full_name, token, {
     systemPrompt,
     userPrompt,
     model,

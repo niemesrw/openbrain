@@ -112,7 +112,7 @@ describe("handleUpdateAgent", () => {
     ).rejects.toThrow("No GitHub connection found");
   });
 
-  it("sets repo variables on success", async () => {
+  it("writes agent.prompt.yml on success", async () => {
     mockSend
       // Agent lookup
       .mockResolvedValueOnce({
@@ -123,25 +123,35 @@ describe("handleUpdateAgent", () => {
         Items: [{ installationId: "inst-1", accountLogin: "org" }],
       });
 
-    // GitHub API calls: PATCH variable (success for each)
-    mockFetch.mockResolvedValue({ ok: true, status: 204 });
+    mockFetch
+      // GET agent.prompt.yml — exists, return SHA
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ sha: "abc123" }),
+      })
+      // PUT agent.prompt.yml — success
+      .mockResolvedValueOnce({ ok: true, status: 200 });
 
     const result = await handleUpdateAgent(
-      { name: "test", systemPrompt: "New prompt", model: "openai/gpt-4o" },
+      { name: "test", systemPrompt: "Research AI news", model: "openai/gpt-4o" },
       USER
     );
 
     expect(result).toEqual({ ok: true });
-    // systemPrompt maps to AGENT_USER_PROMPT (task prompt), plus AGENT_MODEL
-    const patchCalls = mockFetch.mock.calls.filter(
-      (c: any[]) => c[1]?.method === "PATCH"
+    const putCalls = mockFetch.mock.calls.filter(
+      (c: any[]) => c[1]?.method === "PUT"
     );
-    expect(patchCalls.length).toBe(2);
-    expect(patchCalls[0][0]).toContain("AGENT_USER_PROMPT");
-    expect(patchCalls[1][0]).toContain("AGENT_MODEL");
+    expect(putCalls.length).toBe(1);
+    expect(putCalls[0][0]).toContain("agent.prompt.yml");
+    // Verify the content includes the user prompt and model
+    const body = JSON.parse(putCalls[0][1].body);
+    const content = Buffer.from(body.content, "base64").toString("utf-8");
+    expect(content).toContain("Research AI news");
+    expect(content).toContain("openai/gpt-4o");
+    expect(body.sha).toBe("abc123");
   });
 
-  it("falls back to POST when PATCH returns 404", async () => {
+  it("creates agent.prompt.yml when file doesn't exist (404)", async () => {
     mockSend
       .mockResolvedValueOnce({
         Items: [{ pk: "USER#user-123", sk: "AGENT#test", repoFullName: "org/brain-agent-test" }],
@@ -151,9 +161,9 @@ describe("handleUpdateAgent", () => {
       });
 
     mockFetch
-      // PATCH AGENT_USER_PROMPT → 404
+      // GET agent.prompt.yml — 404, file doesn't exist
       .mockResolvedValueOnce({ ok: false, status: 404 })
-      // POST AGENT_USER_PROMPT → success
+      // PUT agent.prompt.yml — create, no SHA needed
       .mockResolvedValueOnce({ ok: true, status: 201 });
 
     const result = await handleUpdateAgent(
@@ -162,13 +172,15 @@ describe("handleUpdateAgent", () => {
     );
 
     expect(result).toEqual({ ok: true });
-    const postCalls = mockFetch.mock.calls.filter(
-      (c: any[]) => c[1]?.method === "POST"
+    const putCalls = mockFetch.mock.calls.filter(
+      (c: any[]) => c[1]?.method === "PUT"
     );
-    expect(postCalls.length).toBe(1);
+    expect(putCalls.length).toBe(1);
+    const body = JSON.parse(putCalls[0][1].body);
+    expect(body.sha).toBeUndefined();
   });
 
-  it("throws when GitHub variable API fails with non-404", async () => {
+  it("throws when prompt file write fails", async () => {
     mockSend
       .mockResolvedValueOnce({
         Items: [{ pk: "USER#user-123", sk: "AGENT#test", repoFullName: "org/brain-agent-test" }],
@@ -177,14 +189,21 @@ describe("handleUpdateAgent", () => {
         Items: [{ installationId: "inst-1", accountLogin: "org" }],
       });
 
-    mockFetch.mockResolvedValueOnce({
-      ok: false,
-      status: 403,
-      text: () => Promise.resolve("Forbidden"),
-    });
+    mockFetch
+      // GET agent.prompt.yml — exists
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ sha: "abc123" }),
+      })
+      // PUT — fails
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+        text: () => Promise.resolve("Forbidden"),
+      });
 
     await expect(
       handleUpdateAgent({ name: "test", systemPrompt: "New prompt" }, USER)
-    ).rejects.toThrow("Failed to update variable AGENT_USER_PROMPT: 403");
+    ).rejects.toThrow("Failed to write agent.prompt.yml: 403");
   });
 });
