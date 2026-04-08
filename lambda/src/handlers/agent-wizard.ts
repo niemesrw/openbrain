@@ -86,10 +86,25 @@ interface AgentConfig {
   schedule?: string;
 }
 
+const ALLOWED_MODELS = new Set([
+  "openai/gpt-4.1",
+  "openai/gpt-4.1-mini",
+  "openai/gpt-4o",
+]);
+
+function validateModel(model: string | undefined): string {
+  if (!model) return "openai/gpt-4.1";
+  if (!ALLOWED_MODELS.has(model)) {
+    throw new Error(`Invalid model: ${model}. Allowed: ${[...ALLOWED_MODELS].join(", ")}`);
+  }
+  return model;
+}
+
 function buildPromptYaml(config: AgentConfig): string {
-  const model = config.model || "openai/gpt-4.1";
+  const model = validateModel(config.model);
   const userPrompt = config.userPrompt || config.systemPrompt || "";
-  // Indent multiline content for YAML block scalar
+  // Indent multiline content for YAML block scalar — all lines at 6 spaces
+  // ensures content cannot escape the block scalar boundary
   const indentedSystem = BRAIN_SYSTEM_PROMPT.split("\n").join("\n      ");
   const indentedUser = userPrompt.split("\n").join("\n      ");
   return [
@@ -186,7 +201,11 @@ async function updateWorkflowSchedule(
   }
 
   let wfContent = Buffer.from(wfData.content, "base64").toString("utf-8");
-  const sanitized = schedule.replace(/"/g, "");
+  // Strip everything except valid cron characters to prevent YAML injection
+  const sanitized = schedule.replace(/[^\d\s*\/,\-]/g, "").trim();
+  if (!sanitized) {
+    throw new Error("Schedule is empty after sanitization.");
+  }
   wfContent = wfContent.replace(/cron: ".*?"/, `cron: "${sanitized}"`);
   const commitRes = await ghFetch(workflowUrl, token, {
     method: "PUT",
