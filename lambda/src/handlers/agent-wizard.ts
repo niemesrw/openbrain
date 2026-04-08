@@ -8,7 +8,6 @@ import {
 import { getInstallationToken } from "../services/github-app";
 import { hashApiKey } from "../services/api-key-hmac";
 import type { UserContext } from "../types";
-import sodium from "libsodium-wrappers";
 
 const AGENT_KEYS_TABLE = process.env.AGENT_KEYS_TABLE!;
 const GITHUB_INSTALLATIONS_TABLE = process.env.GITHUB_INSTALLATIONS_TABLE!;
@@ -59,6 +58,9 @@ function ghFetch(url: string, token: string, init?: RequestInit) {
 
 /** Encrypt a secret value for the GitHub Actions secrets API (libsodium sealed box). */
 async function encryptSecret(value: string, publicKey: string): Promise<string> {
+  // Dynamic import: libsodium-wrappers overwrites module.exports during WASM
+  // init, which clobbers esbuild's bundle exports when imported at top level.
+  const sodium = (await import("libsodium-wrappers")).default;
   await sodium.ready;
   const keyBytes = sodium.from_base64(publicKey, sodium.base64_variants.ORIGINAL);
   const messageBytes = sodium.from_string(value);

@@ -727,10 +727,6 @@ export class ApiStack extends cdk.Stack {
       },
       bundling: {
         externalModules: ["@aws-sdk/*"],
-        // libsodium-wrappers overwrites module.exports at init time, which
-        // clobbers esbuild's export when inlined.  Keep it external so CDK
-        // installs it into node_modules alongside the bundle.
-        nodeModules: ["libsodium-wrappers"],
         minify: true,
         sourceMap: true,
       },
