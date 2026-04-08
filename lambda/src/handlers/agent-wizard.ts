@@ -364,18 +364,33 @@ export async function handleAgentWizard(
   }
 
   // 5. Set repo secrets (OPEN_BRAIN_URL + OPEN_BRAIN_KEY)
-  // Get the repo's public key for secret encryption
-  const pkRes = await ghFetch(
-    `${GH_API}/repos/${repo.full_name}/actions/secrets/public-key`,
-    token
-  );
-  if (!pkRes.ok) {
-    throw new Error(`Failed to get repo public key: ${pkRes.status}`);
+  // Get the repo's public key for secret encryption (retry — repo may still be generating)
+  let publicKey: string;
+  let keyId: string;
+  {
+    const maxAttempts = 5;
+    let lastStatus: number | undefined;
+    let pkData: { key: string; key_id: string } | undefined;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const pkRes = await ghFetch(
+        `${GH_API}/repos/${repo.full_name}/actions/secrets/public-key`,
+        token
+      );
+      if (pkRes.ok) {
+        pkData = (await pkRes.json()) as { key: string; key_id: string };
+        break;
+      }
+      lastStatus = pkRes.status;
+      if (attempt < maxAttempts) {
+        await sleep(250 * 2 ** (attempt - 1));
+      }
+    }
+    if (!pkData) {
+      throw new Error(`Failed to get repo public key after ${maxAttempts} attempts: ${lastStatus}`);
+    }
+    publicKey = pkData.key;
+    keyId = pkData.key_id;
   }
-  const { key: publicKey, key_id: keyId } = (await pkRes.json()) as {
-    key: string;
-    key_id: string;
-  };
 
   // Set OPEN_BRAIN_URL
   const urlSecretRes = await ghFetch(
