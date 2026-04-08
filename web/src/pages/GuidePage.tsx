@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 
 type AiClient = "claude-code" | "claude-desktop" | "chatgpt" | "gemini";
+type AgentDeploy = "self-hosted" | "cloud";
 
 const AI_CLIENTS: { id: AiClient; label: string }[] = [
   { id: "claude-code", label: "Claude Code" },
@@ -139,6 +140,87 @@ Auth:   OAuth (automatic)`}</CodeBlock>
   }
 
   return null;
+}
+
+function AgentDeployTabs() {
+  const [tab, setTab] = useState<AgentDeploy>("self-hosted");
+  const mcpUrl = import.meta.env.VITE_MCP_URL;
+
+  return (
+    <div className="space-y-4">
+      <div role="tablist" className="flex gap-2">
+        {([["self-hosted", "Self-hosted (Mac Mini)"], ["cloud", "GitHub Actions (Cloud)"]] as const).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={tab === id}
+            onClick={() => setTab(id)}
+            className={`px-4 py-1.5 rounded-xl text-sm font-label font-medium transition-colors ${
+              tab === id
+                ? "bg-brain-primary text-brain-primary-on"
+                : "bg-brain-surface text-white/80 hover:text-white hover:bg-brain-high"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <div className="bg-brain-surface rounded-xl p-5 text-sm text-brain-muted space-y-4">
+        {tab === "self-hosted" && (
+          <>
+            <p>Run agents on a <strong className="text-white">self-hosted GitHub Actions runner</strong> — ideal if you have a Mac Mini or always-on machine. Agents get full tool access, can persist state to disk between runs, and can run as long-running launchd services.</p>
+            <CodeBlock>{`# .github/workflows/my-agent.yml
+on:
+  schedule:
+    - cron: "30 11 * * *"  # 6:30am EST daily
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: { node-version: "22" }
+      - run: npm ci
+      - run: npm run my-agent
+        env:
+          ANTHROPIC_API_KEY: \${{ secrets.ANTHROPIC_API_KEY }}
+          OPEN_BRAIN_URL: \${{ secrets.OPEN_BRAIN_URL }}
+          OPEN_BRAIN_KEY: \${{ secrets.OPEN_BRAIN_KEY }}`}</CodeBlock>
+            <p className="text-xs">Set <code className="text-brain-primary">OPEN_BRAIN_URL</code> to <code className="text-brain-primary">{mcpUrl?.replace("/mcp", "") ?? "https://brain.blanxlait.ai"}</code> and <code className="text-brain-primary">OPEN_BRAIN_KEY</code> to the key you just created — both as GitHub repo secrets.</p>
+          </>
+        )}
+        {tab === "cloud" && (
+          <>
+            <p>Run agents on <strong className="text-white">GitHub-hosted runners</strong> — no hardware required. Ideal for simple batch agents. Stateless: no local file persistence between runs. GitHub Copilot users get included Actions minutes.</p>
+            <CodeBlock>{`# .github/workflows/my-agent.yml
+on:
+  schedule:
+    - cron: "30 11 * * *"  # 6:30am EST daily
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: { node-version: "22" }
+      - run: npm ci
+      - run: npm run my-agent
+        env:
+          ANTHROPIC_API_KEY: \${{ secrets.ANTHROPIC_API_KEY }}
+          OPEN_BRAIN_URL: \${{ secrets.OPEN_BRAIN_URL }}
+          OPEN_BRAIN_KEY: \${{ secrets.OPEN_BRAIN_KEY }}`}</CodeBlock>
+            <p className="text-xs">Same secrets as self-hosted. The only difference is <code className="text-brain-primary">runs-on: ubuntu-latest</code> — GitHub provisions a fresh VM for each run.</p>
+          </>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export function GuidePage() {
@@ -327,6 +409,53 @@ export function GuidePage() {
               Uses Gmail metadata scope only — Open Brain never reads or stores email content.
             </p>
           </div>
+        </div>
+      </div>
+
+      {/* Agents */}
+      <div className="space-y-6">
+        <h2 className="text-2xl font-bold font-headline text-white">Agents</h2>
+        <p className="text-brain-muted">
+          Agents are headless, scheduled processes — not interactive AI clients. They run unattended on a cron schedule, search and capture thoughts programmatically, and don't go through OAuth. Each agent gets its own API key.
+        </p>
+
+        <div className="space-y-6">
+          <Step number={1} title="Create an agent key">
+            <p>Go to <Link to="/agents" className="text-brain-primary hover:underline">Agents</Link> in the dashboard, click <strong className="text-white">New agent</strong>, and give it a name (e.g. <code className="text-brain-primary">research-agent</code>). Copy the key — it won't be shown again.</p>
+            <p className="text-xs">Use a separate key per agent so you can revoke or rotate them independently.</p>
+          </Step>
+
+          <Step number={2} title="Wire it into your agent code">
+            <p>Pass the key as an MCP server header in your agent. Using the <a href="https://www.npmjs.com/package/@anthropic-ai/claude-agent-sdk" className="text-brain-primary hover:underline" target="_blank" rel="noreferrer">Claude Agent SDK</a>:</p>
+            <CodeBlock>{`import { query } from "@anthropic-ai/claude-agent-sdk";
+
+for await (const msg of query({
+  prompt: "Your task here...",
+  options: {
+    allowedTools: [
+      "WebSearch", "WebFetch", "Write",
+      "mcp__open-brain__search_thoughts",
+      "mcp__open-brain__capture_thought",
+    ],
+    mcpServers: {
+      "open-brain": {
+        type: "http",
+        url: process.env.OPEN_BRAIN_URL!,
+        headers: { "x-api-key": process.env.OPEN_BRAIN_KEY! },
+      },
+    },
+    permissionMode: "bypassPermissions",
+    maxTurns: 30,
+    maxBudgetUsd: 1.0,
+  },
+})) {
+  if ("result" in msg) console.log(msg.result);
+}`}</CodeBlock>
+          </Step>
+
+          <Step number={3} title="Deploy on a schedule">
+            <AgentDeployTabs />
+          </Step>
         </div>
       </div>
 

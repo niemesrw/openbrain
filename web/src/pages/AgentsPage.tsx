@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { listAgents, getBusActivity, createAgent, revokeAgent } from "../lib/brain-api";
+import { createAgentRepo, getGitHubInstallations } from "../lib/api";
 import type { Agent, BusActivity } from "../lib/brain-types";
 
 const STATUS_COLOR: Record<string, string> = {
@@ -59,6 +60,18 @@ export function AgentsPage() {
   const [newKey, setNewKey] = useState<NewKeyInfo | null>(null);
   const [copiedKey, setCopiedKey] = useState(false);
   const [copiedCli, setCopiedCli] = useState(false);
+
+  // Wizard flow
+  const [showWizard, setShowWizard] = useState(false);
+  const [wizardStep, setWizardStep] = useState(0);
+  const [wizardName, setWizardName] = useState("");
+  const [wizardPrompt, setWizardPrompt] = useState("");
+  const [wizardSchedule, setWizardSchedule] = useState("30 11 * * *");
+  const [wizardModel, setWizardModel] = useState("openai/gpt-4.1");
+  const [wizardDeploying, setWizardDeploying] = useState(false);
+  const [wizardError, setWizardError] = useState<string | null>(null);
+  const [wizardResult, setWizardResult] = useState<{ repoUrl: string; workflowUrl: string } | null>(null);
+  const [hasGitHub, setHasGitHub] = useState<boolean | null>(null);
 
   // Revoke flow
   const [confirmRevoke, setConfirmRevoke] = useState<string | null>(null);
@@ -130,6 +143,51 @@ export function AgentsPage() {
     }
   };
 
+  const openWizard = async () => {
+    setShowWizard(true);
+    setWizardStep(0);
+    setWizardError(null);
+    setWizardResult(null);
+    setWizardName("");
+    setWizardPrompt("");
+    setWizardSchedule("30 11 * * *");
+    setWizardModel("openai/gpt-4.1");
+    try {
+      const installations = await getGitHubInstallations();
+      setHasGitHub(installations.length > 0);
+    } catch {
+      setHasGitHub(false);
+    }
+  };
+
+  const handleWizardDeploy = async () => {
+    if (!wizardName.trim()) return;
+    setWizardDeploying(true);
+    setWizardError(null);
+    try {
+      const result = await createAgentRepo({
+        name: wizardName.trim(),
+        schedule: wizardSchedule,
+        systemPrompt: wizardPrompt || undefined,
+        model: wizardModel,
+      });
+      setWizardResult({ repoUrl: result.repoUrl, workflowUrl: result.workflowUrl });
+      setWizardStep(3);
+      await load();
+    } catch (e: unknown) {
+      setWizardError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setWizardDeploying(false);
+    }
+  };
+
+  const TEMPLATES = [
+    { id: "research", label: "Daily Researcher", prompt: "You are a daily AI news researcher. Search the brain for yesterday's briefing to avoid duplicates, then research today's top AI practitioner stories and capture a concise summary to the brain." },
+    { id: "reflection", label: "Weekly Reflector", prompt: "You are a reflective agent. Browse recent thoughts, identify themes or unresolved decisions, and capture a weekly reflection summary to the brain." },
+    { id: "learning", label: "Learning Tracker", prompt: "You are a learning journal agent. Search for recent project activity and capture a summary of skills practiced and progress made." },
+    { id: "custom", label: "Custom Agent", prompt: "" },
+  ];
+
   const copyToClipboard = (text: string, which: "key" | "cli") => {
     const set = which === "key" ? setCopiedKey : setCopiedCli;
     navigator.clipboard.writeText(text).then(() => {
@@ -152,10 +210,16 @@ export function AgentsPage() {
         </div>
         <div className="flex items-center gap-3 mt-1">
           <button
+            onClick={openWizard}
+            className="text-sm px-4 py-1.5 rounded-xl bg-brain-primary/20 text-brain-primary hover:bg-brain-primary/30 font-label font-bold transition-colors"
+          >
+            Deploy Agent
+          </button>
+          <button
             onClick={() => { setShowCreate((v) => !v); setCreateError(null); setNewName(""); }}
             className="text-sm text-brain-primary hover:text-white font-label transition-colors"
           >
-            {showCreate ? "Cancel" : "+ New Agent"}
+            {showCreate ? "Cancel" : "+ API Key Only"}
           </button>
           <button
             onClick={load}
@@ -196,6 +260,199 @@ export function AgentsPage() {
           </div>
           {createError && (
             <p className="text-brain-error text-xs font-label">{createError}</p>
+          )}
+        </div>
+      )}
+
+      {/* Agent wizard */}
+      {showWizard && (
+        <div className="glass-card rounded-2xl p-6 border border-brain-primary/20 space-y-5">
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] font-label font-bold text-brain-primary uppercase tracking-widest">
+              {wizardStep < 3
+                ? `Deploy Agent — Step ${wizardStep + 1} of 3`
+                : "Deploy Agent — Success"}
+            </p>
+            <button
+              onClick={() => setShowWizard(false)}
+              className="text-brain-muted/60 hover:text-white text-sm font-label transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+
+          {hasGitHub === false && (
+            <div className="bg-brain-error/10 border border-brain-error/20 rounded-xl p-4 text-sm text-brain-error">
+              Connect GitHub first in <a href="/settings" className="underline">Settings</a> to deploy agents.
+            </div>
+          )}
+
+          {hasGitHub !== false && wizardStep === 0 && (
+            <div className="space-y-4">
+              <p className="text-sm text-brain-muted">Pick a template to start with:</p>
+              <div className="grid grid-cols-2 gap-3">
+                {TEMPLATES.map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => { setWizardPrompt(t.prompt); setWizardStep(1); }}
+                    className="text-left bg-brain-surface hover:bg-brain-high rounded-xl p-4 border border-brain-outline/10 hover:border-brain-primary/30 transition-colors"
+                  >
+                    <p className="text-sm font-label font-bold text-white">{t.label}</p>
+                    <p className="text-xs text-brain-muted mt-1 line-clamp-2">
+                      {t.prompt || "Write your own agent prompt from scratch."}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {hasGitHub !== false && wizardStep === 1 && (
+            <div className="space-y-4">
+              <div>
+                <label className="text-[10px] font-label font-bold text-brain-muted uppercase tracking-widest block mb-2">
+                  Agent Name
+                </label>
+                <input
+                  type="text"
+                  value={wizardName}
+                  onChange={(e) => setWizardName(e.target.value)}
+                  placeholder="my-research-agent"
+                  className={`w-full bg-brain-surface rounded-xl px-4 py-2 text-sm text-white placeholder:text-brain-muted/50 outline-none border transition-colors ${
+                    wizardName && !/^[a-zA-Z0-9_-]+$/.test(wizardName)
+                      ? "border-brain-error/40 focus:border-brain-error/60"
+                      : "border-brain-outline/10 focus:border-brain-primary/40"
+                  }`}
+                  autoFocus
+                />
+                {wizardName && !/^[a-zA-Z0-9_-]+$/.test(wizardName) && (
+                  <p className="text-brain-error text-xs font-label mt-1">Only letters, numbers, hyphens, and underscores</p>
+                )}
+              </div>
+              <div>
+                <label className="text-[10px] font-label font-bold text-brain-muted uppercase tracking-widest block mb-2">
+                  System Prompt
+                </label>
+                <textarea
+                  value={wizardPrompt}
+                  onChange={(e) => setWizardPrompt(e.target.value)}
+                  rows={4}
+                  className="w-full bg-brain-surface rounded-xl px-4 py-3 text-sm text-white placeholder:text-brain-muted/50 outline-none border border-brain-outline/10 focus:border-brain-primary/40 transition-colors resize-none"
+                  placeholder="Describe what your agent should do..."
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] font-label font-bold text-brain-muted uppercase tracking-widest block mb-2">
+                    Schedule (cron)
+                  </label>
+                  <input
+                    type="text"
+                    value={wizardSchedule}
+                    onChange={(e) => setWizardSchedule(e.target.value)}
+                    className="w-full bg-brain-surface rounded-xl px-4 py-2 text-sm text-white font-mono outline-none border border-brain-outline/10 focus:border-brain-primary/40 transition-colors"
+                  />
+                  <p className="text-[10px] text-brain-muted/60 mt-1 font-label">Default: 6:30am EST daily</p>
+                </div>
+                <div>
+                  <label className="text-[10px] font-label font-bold text-brain-muted uppercase tracking-widest block mb-2">
+                    Model
+                  </label>
+                  <select
+                    value={wizardModel}
+                    onChange={(e) => setWizardModel(e.target.value)}
+                    className="w-full bg-brain-surface rounded-xl px-4 py-2 text-sm text-white outline-none border border-brain-outline/10 focus:border-brain-primary/40 transition-colors"
+                  >
+                    <option value="openai/gpt-4.1">GPT-4.1</option>
+                    <option value="openai/gpt-4.1-mini">GPT-4.1 Mini</option>
+                    <option value="openai/gpt-4o">GPT-4o</option>
+                  </select>
+                  <p className="text-[10px] text-brain-muted/60 mt-1 font-label">Via GitHub Models (free)</p>
+                </div>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => setWizardStep(0)}
+                  className="px-4 py-2 rounded-xl bg-brain-outline/10 text-brain-muted text-sm font-label hover:text-white transition-colors"
+                >
+                  Back
+                </button>
+                <button
+                  onClick={() => wizardName.trim() && /^[a-zA-Z0-9_-]+$/.test(wizardName.trim()) && setWizardStep(2)}
+                  disabled={!wizardName.trim() || !/^[a-zA-Z0-9_-]+$/.test(wizardName.trim())}
+                  className="px-5 py-2 rounded-xl bg-brain-primary/20 text-brain-primary text-sm font-label font-bold hover:bg-brain-primary/30 disabled:opacity-40 transition-colors"
+                >
+                  Review
+                </button>
+              </div>
+            </div>
+          )}
+
+          {hasGitHub !== false && wizardStep === 2 && (
+            <div className="space-y-4">
+              <p className="text-sm text-brain-muted">This will:</p>
+              <ul className="text-sm text-white/80 space-y-2">
+                <li className="flex gap-2"><span className="text-brain-secondary">1.</span> Create a private GitHub repo <code className="text-brain-primary text-xs">brain-agent-{wizardName}</code></li>
+                <li className="flex gap-2"><span className="text-brain-secondary">2.</span> Generate an Open Brain API key for the agent</li>
+                <li className="flex gap-2"><span className="text-brain-secondary">3.</span> Set secrets and enable the scheduled workflow</li>
+              </ul>
+              <div className="bg-brain-surface rounded-xl p-4 space-y-2 text-xs">
+                <div className="flex justify-between"><span className="text-brain-muted">Agent</span><span className="text-white">{wizardName}</span></div>
+                <div className="flex justify-between"><span className="text-brain-muted">Model</span><span className="text-white">{wizardModel}</span></div>
+                <div className="flex justify-between"><span className="text-brain-muted">Schedule</span><span className="text-white font-mono">{wizardSchedule}</span></div>
+              </div>
+              {wizardError && (
+                <p className="text-brain-error text-xs font-label">{wizardError}</p>
+              )}
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => setWizardStep(1)}
+                  disabled={wizardDeploying}
+                  className="px-4 py-2 rounded-xl bg-brain-outline/10 text-brain-muted text-sm font-label hover:text-white transition-colors"
+                >
+                  Back
+                </button>
+                <button
+                  onClick={handleWizardDeploy}
+                  disabled={wizardDeploying}
+                  className="px-5 py-2 rounded-xl bg-brain-primary text-brain-primary-on text-sm font-label font-bold hover:bg-brain-primary-dim disabled:opacity-60 transition-colors"
+                >
+                  {wizardDeploying ? "Deploying…" : "Deploy"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {wizardStep === 3 && wizardResult && (
+            <div className="space-y-4">
+              <div className="bg-brain-secondary/10 border border-brain-secondary/20 rounded-xl p-4 text-sm text-brain-secondary">
+                Your agent is live! It will run automatically on schedule.
+              </div>
+              <div className="space-y-3">
+                <a
+                  href={wizardResult.repoUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block bg-brain-surface hover:bg-brain-high rounded-xl p-4 text-sm text-white transition-colors"
+                >
+                  <span className="text-brain-primary">Repository</span> — view and customize your agent code
+                </a>
+                <a
+                  href={wizardResult.workflowUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block bg-brain-surface hover:bg-brain-high rounded-xl p-4 text-sm text-white transition-colors"
+                >
+                  <span className="text-brain-primary">Actions</span> — monitor runs and trigger manually
+                </a>
+              </div>
+              <button
+                onClick={() => setShowWizard(false)}
+                className="px-5 py-2 rounded-xl bg-brain-primary/20 text-brain-primary text-sm font-label font-bold hover:bg-brain-primary/30 transition-colors"
+              >
+                Done
+              </button>
+            </div>
           )}
         </div>
       )}

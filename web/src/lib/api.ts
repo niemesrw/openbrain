@@ -285,6 +285,40 @@ export async function deleteAccount(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Agent wizard
+// ---------------------------------------------------------------------------
+
+export interface AgentWizardArgs {
+  name: string;
+  schedule?: string;
+  systemPrompt?: string;
+  userPrompt?: string;
+  model?: string;
+}
+
+export interface AgentWizardResult {
+  ok: boolean;
+  repoUrl: string;
+  agentName: string;
+  workflowUrl: string;
+}
+
+export async function createAgentRepo(args: AgentWizardArgs): Promise<AgentWizardResult> {
+  const token = await getIdToken();
+  const apiUrl = getApiUrl();
+  const res = await fetch(`${apiUrl}/github/agent-wizard`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify(args),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => null) as { error?: string } | null;
+    throw new Error(body?.error ?? `Agent wizard error: ${res.status}`);
+  }
+  return res.json() as Promise<AgentWizardResult>;
+}
+
+// ---------------------------------------------------------------------------
 // Tasks
 // ---------------------------------------------------------------------------
 

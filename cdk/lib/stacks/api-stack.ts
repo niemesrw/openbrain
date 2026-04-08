@@ -715,7 +715,7 @@ export class ApiStack extends cdk.Stack {
       entry: path.join(__dirname, "..", "..", "..", "lambda", "src", "github.ts"),
       handler: "handler",
       memorySize: 256,
-      timeout: cdk.Duration.seconds(15),
+      timeout: cdk.Duration.seconds(30),
       environment: {
         USER_POOL_ID: userPool.userPoolId,
         AGENT_KEYS_TABLE: agentKeysTableName,
@@ -723,6 +723,7 @@ export class ApiStack extends cdk.Stack {
         GITHUB_APP_ID: process.env.GITHUB_APP_ID ?? "",
         GITHUB_APP_PRIVATE_KEY_SECRET_NAME: githubAppPrivateKeySecretName,
         HMAC_SECRET_ARN: hmacSecretArn,
+        API_URL: `https://${this.api.apiId}.execute-api.${this.region}.amazonaws.com`,
       },
       bundling: {
         externalModules: ["@aws-sdk/*"],
@@ -731,7 +732,7 @@ export class ApiStack extends cdk.Stack {
       },
     });
     githubRestHandler.addToRolePolicy(new iam.PolicyStatement({
-      actions: ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:Scan", "dynamodb:BatchGetItem", "dynamodb:UpdateItem"],
+      actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Query", "dynamodb:Scan", "dynamodb:BatchGetItem", "dynamodb:UpdateItem"],
       resources: [agentKeysTableArn, `${agentKeysTableArn}/index/*`],
     }));
     githubRestHandler.addToRolePolicy(new iam.PolicyStatement({
@@ -780,6 +781,11 @@ export class ApiStack extends cdk.Stack {
     this.api.addRoutes({
       path: "/github/installations/{installationId}",
       methods: [apigwv2.HttpMethod.DELETE],
+      integration: githubRestIntegration,
+    });
+    this.api.addRoutes({
+      path: "/github/agent-wizard",
+      methods: [apigwv2.HttpMethod.POST],
       integration: githubRestIntegration,
     });
 

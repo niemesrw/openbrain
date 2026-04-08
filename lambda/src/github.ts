@@ -5,6 +5,7 @@ import {
   handleGitHubDisconnect,
   handleGitHubInstallations,
 } from "./handlers/github-connect";
+import { handleAgentWizard } from "./handlers/agent-wizard";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
@@ -161,6 +162,57 @@ export async function handler(
         statusCode: 500,
         headers: JSON_HEADERS,
         body: JSON.stringify({ error: "Internal error" }),
+      };
+    }
+  }
+
+  // POST /github/agent-wizard — create a fully configured agent repo from template
+  if (method === "POST" && path === "/github/agent-wizard") {
+    let user;
+    try {
+      user = await verifyAuth(event.headers ?? {});
+    } catch {
+      return unauthorized();
+    }
+
+    let body: Record<string, unknown>;
+    try {
+      body = JSON.parse(event.body ?? "{}") as typeof body;
+    } catch {
+      return {
+        statusCode: 400,
+        headers: JSON_HEADERS,
+        body: JSON.stringify({ error: "Invalid JSON" }),
+      };
+    }
+
+    try {
+      const result = await handleAgentWizard(
+        {
+          name: body.name as string,
+          schedule: body.schedule as string | undefined,
+          systemPrompt: body.systemPrompt as string | undefined,
+          userPrompt: body.userPrompt as string | undefined,
+          model: body.model as string | undefined,
+        },
+        user
+      );
+      return {
+        statusCode: 200,
+        headers: JSON_HEADERS,
+        body: JSON.stringify(result),
+      };
+    } catch (e) {
+      console.error(
+        "Agent wizard error:",
+        e instanceof Error ? e.message : String(e)
+      );
+      return {
+        statusCode: 400,
+        headers: JSON_HEADERS,
+        body: JSON.stringify({
+          error: e instanceof Error ? e.message : "Agent wizard failed",
+        }),
       };
     }
   }
