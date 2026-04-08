@@ -133,9 +133,9 @@ jobs:
           # Required — deploy will produce broken Lambdas without these
           [ -z "$GOOGLE_CLIENT_ID" ]           && missing+=("GOOGLE_CLIENT_ID")
           [ -z "$GOOGLE_CLIENT_SECRET_ARN" ]   && missing+=("GOOGLE_CLIENT_SECRET_ARN")
-          [ -z "$GH_APP_ID" ]                  && missing+=("GH_APP_ID")
           [ -z "$GH_APP_WEBHOOK_SECRET" ]      && missing+=("GH_APP_WEBHOOK_SECRET")
           [ -z "$GH_APP_PRIVATE_KEY" ]         && missing+=("GH_APP_PRIVATE_KEY")
+          # GH_APP_ID is now in AWS Secrets Manager (openbrain/github-app-id)
           # Optional but recommended
           [ -z "$GH_APP_SLUG" ]                && warn+=("GH_APP_SLUG (web GitHub install link won't work)")
           [ -z "$CUSTOM_DOMAIN" ]              && warn+=("CUSTOM_DOMAIN (will use raw API Gateway URL)")
@@ -148,7 +148,6 @@ jobs:
         env:
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET_ARN: ${{ secrets.GOOGLE_CLIENT_SECRET_ARN }}
-          GH_APP_ID: ${{ secrets.GH_APP_ID }}
           GH_APP_WEBHOOK_SECRET: ${{ secrets.GH_APP_WEBHOOK_SECRET }}
           GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
           GH_APP_SLUG: ${{ secrets.GH_APP_SLUG }}
@@ -172,7 +171,7 @@ jobs:
           GOOGLE_CLIENT_SECRET_ARN: ${{ secrets.GOOGLE_CLIENT_SECRET_ARN }}
           ALARM_EMAIL: ${{ secrets.ALARM_EMAIL }}
           CUSTOM_DOMAIN: ${{ secrets.CUSTOM_DOMAIN }}
-          GITHUB_APP_ID: ${{ secrets.GH_APP_ID }}
+          # GITHUB_APP_ID now lives in Secrets Manager (openbrain/github-app-id)
           # Repo variable is AGENTCORE_RUNTIME_ARN; mapped here to GITHUB_AGENT_RUNTIME_ARN
           # for CDK/Lambda compatibility (GitHub Actions blocks vars starting with GITHUB_).
           GITHUB_AGENT_RUNTIME_ARN: ${{ vars.AGENTCORE_RUNTIME_ARN }}

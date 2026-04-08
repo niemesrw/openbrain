@@ -8,6 +8,7 @@ const sm = new SecretsManagerClient({});
 
 // Cached for the lifetime of the Lambda container
 let cachedPrivateKey: string | undefined;
+let cachedAppId: string | undefined;
 
 // Per-installation token cache — avoids minting a new token for every SQS record
 const tokenCache = new Map<string, { token: string; expiresAt: number }>();
@@ -21,6 +22,22 @@ async function getPrivateKey(): Promise<string> {
   );
   cachedPrivateKey = SecretString ?? "";
   return cachedPrivateKey;
+}
+
+async function getAppId(): Promise<string> {
+  if (cachedAppId !== undefined) return cachedAppId;
+  // Prefer Secrets Manager; fall back to env var for backwards compatibility
+  const secretName = process.env.GITHUB_APP_ID_SECRET_NAME;
+  if (secretName) {
+    const { SecretString } = await sm.send(
+      new GetSecretValueCommand({ SecretId: secretName })
+    );
+    cachedAppId = SecretString ?? "";
+  } else {
+    cachedAppId = process.env.GITHUB_APP_ID ?? "";
+  }
+  if (!cachedAppId) throw new Error("GITHUB_APP_ID is not configured");
+  return cachedAppId;
 }
 
 function base64url(data: Buffer | string): string {
@@ -53,7 +70,7 @@ export interface InstallationDetails {
 export async function getInstallationDetails(
   installationId: string
 ): Promise<InstallationDetails> {
-  const appId = process.env.GITHUB_APP_ID!;
+  const appId = await getAppId();
   const privateKey = await getPrivateKey();
   const jwt = mintAppJwt(privateKey, appId);
 
@@ -93,7 +110,7 @@ export async function getInstallationToken(
     return cached.token;
   }
 
-  const appId = process.env.GITHUB_APP_ID!;
+  const appId = await getAppId();
   const privateKey = await getPrivateKey();
   const jwt = mintAppJwt(privateKey, appId);
 
