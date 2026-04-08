@@ -76,54 +76,59 @@ function createMcpServer(user: UserContext): McpServer {
     content: [{ type: "text" as const, text: await executeTool("capture_thought", args, user) }],
   }));
 
-  server.registerTool("update_thought", {
-    description: "Update an existing thought by ID. Re-embeds the new text and refreshes metadata. The thought ID is returned by browse_recent and search_thoughts.",
-    inputSchema: {
-      id: z.string().describe("The vector key (ID) of the thought to update"),
-      text: z.string().describe("The new text content for the thought"),
-      scope: SCOPE_ENUM,
-      media_url: z.string().url().refine(v => /^https?:/.test(v), { message: "media_url must use http or https" }).optional().describe("Optional URL to associated media (image, video, audio, etc.)"),
-    },
-  }, async (args) => ({
-    content: [{ type: "text" as const, text: await executeTool("update_thought", args, user) }],
-  }));
+  // --- Tools restricted to human sessions (JWT auth) only ---
+  // Agents get search, browse, capture, stats, heartbeat, and bus_activity.
+  // Destructive/admin tools are withheld to limit prompt injection blast radius.
+  if (!user.agentName) {
+    server.registerTool("update_thought", {
+      description: "Update an existing thought by ID. Re-embeds the new text and refreshes metadata. The thought ID is returned by browse_recent and search_thoughts.",
+      inputSchema: {
+        id: z.string().describe("The vector key (ID) of the thought to update"),
+        text: z.string().describe("The new text content for the thought"),
+        scope: SCOPE_ENUM,
+        media_url: z.string().url().refine(v => /^https?:/.test(v), { message: "media_url must use http or https" }).optional().describe("Optional URL to associated media (image, video, audio, etc.)"),
+      },
+    }, async (args) => ({
+      content: [{ type: "text" as const, text: await executeTool("update_thought", args, user) }],
+    }));
 
-  server.registerTool("delete_thought", {
-    description: "Delete a thought by ID. The thought ID is returned by browse_recent and search_thoughts.",
-    inputSchema: {
-      id: z.string().describe("The vector key (ID) of the thought to delete"),
-      scope: SCOPE_ENUM,
-    },
-  }, async (args) => ({
-    content: [{ type: "text" as const, text: await executeTool("delete_thought", args, user) }],
-  }));
+    server.registerTool("delete_thought", {
+      description: "Delete a thought by ID. The thought ID is returned by browse_recent and search_thoughts.",
+      inputSchema: {
+        id: z.string().describe("The vector key (ID) of the thought to delete"),
+        scope: SCOPE_ENUM,
+      },
+    }, async (args) => ({
+      content: [{ type: "text" as const, text: await executeTool("delete_thought", args, user) }],
+    }));
 
-  server.registerTool("create_agent", {
-    description: "Create an API key for an AI agent. Returns the key and MCP config snippets for Claude Code, Claude Desktop, etc.",
-    inputSchema: {
-      name: z.string().describe("Agent name (alphanumeric, hyphens, underscores). e.g. 'claude-code', 'chatgpt'"),
-    },
-  }, async (args) => ({
-    content: [{ type: "text" as const, text: await executeTool("create_agent", args, user) }],
-  }));
+    server.registerTool("create_agent", {
+      description: "Create an API key for an AI agent. Returns the key and MCP config snippets for Claude Code, Claude Desktop, etc.",
+      inputSchema: {
+        name: z.string().describe("Agent name (alphanumeric, hyphens, underscores). e.g. 'claude-code', 'chatgpt'"),
+      },
+    }, async (args) => ({
+      content: [{ type: "text" as const, text: await executeTool("create_agent", args, user) }],
+    }));
 
-  server.registerTool("list_agents", {
-    description: "List all your registered AI agents and their creation dates.",
-    inputSchema: {
-      _format: FORMAT_ENUM,
-    },
-  }, async (args) => ({
-    content: [{ type: "text" as const, text: await executeTool("list_agents", args, user) }],
-  }));
+    server.registerTool("list_agents", {
+      description: "List all your registered AI agents and their creation dates.",
+      inputSchema: {
+        _format: FORMAT_ENUM,
+      },
+    }, async (args) => ({
+      content: [{ type: "text" as const, text: await executeTool("list_agents", args, user) }],
+    }));
 
-  server.registerTool("revoke_agent", {
-    description: "Revoke an agent's API key. The key will immediately stop working.",
-    inputSchema: {
-      name: z.string().describe("The agent name to revoke"),
-    },
-  }, async (args) => ({
-    content: [{ type: "text" as const, text: await executeTool("revoke_agent", args, user) }],
-  }));
+    server.registerTool("revoke_agent", {
+      description: "Revoke an agent's API key. The key will immediately stop working.",
+      inputSchema: {
+        name: z.string().describe("The agent name to revoke"),
+      },
+    }, async (args) => ({
+      content: [{ type: "text" as const, text: await executeTool("revoke_agent", args, user) }],
+    }));
+  }
 
   server.registerTool("agent_heartbeat", {
     description: "Report this agent's current status. Call periodically (e.g. every minute) so the dashboard can show real-time agent health.",
