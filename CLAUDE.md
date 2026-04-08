@@ -272,13 +272,18 @@ Create a GitHub App in your organization for Open Brain:
 
 Users connect via **Settings → Connect GitHub** in the web dashboard. The install redirects to `/github/callback`, which calls `POST /github/connect` to register the installation (DynamoDB `openbrain-users` table: `installationId → userId`). GitHub events then flow through SQS → `githubAgentHandler` → S3 Vectors brain capture.
 
-Required GitHub Actions secrets for deploy:
+GitHub App runtime secrets are stored in AWS Secrets Manager (not GitHub Actions secrets). Lambdas read these at runtime:
+
+| Secrets Manager key | Description |
+|---------------------|-------------|
+| `openbrain/github-app-id` | GitHub App numeric ID |
+| `openbrain/github-app-private-key` | GitHub App PEM private key |
+| `openbrain/github-webhook-secret` | GitHub webhook HMAC secret |
+
+Required GitHub Actions secrets for deploy (build-time only):
 
 | Secret | Description |
 |--------|-------------|
-| `GH_APP_ID` | GitHub App ID (numeric) |
-| `GH_APP_PRIVATE_KEY` | GitHub App private key (PEM) — stored in Secrets Manager as `openbrain/github-app-private-key` |
-| `GH_APP_WEBHOOK_SECRET` | Webhook secret — stored in Secrets Manager as `openbrain/github-webhook-secret` |
 | `GITHUB_APP_SLUG` | Your app slug — injected as `VITE_GITHUB_APP_SLUG` at web build time |
 
 Required GitHub Actions repository variables:

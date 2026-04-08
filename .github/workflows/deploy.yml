@@ -76,34 +76,6 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
           role-chaining: true
 
-      # --- Store GitHub App secrets in Secrets Manager ---
-      # CDK references secrets by name rather than embedding values in the CF template.
-      - name: Upsert GitHub webhook secret in Secrets Manager
-        run: |
-          aws secretsmanager describe-secret \
-            --secret-id openbrain/github-webhook-secret > /dev/null 2>&1 \
-          && aws secretsmanager put-secret-value \
-            --secret-id openbrain/github-webhook-secret \
-            --secret-string "$GH_APP_WEBHOOK_SECRET" \
-          || aws secretsmanager create-secret \
-            --name openbrain/github-webhook-secret \
-            --secret-string "$GH_APP_WEBHOOK_SECRET"
-        env:
-          GH_APP_WEBHOOK_SECRET: ${{ secrets.GH_APP_WEBHOOK_SECRET }}
-
-      - name: Upsert GitHub App private key in Secrets Manager
-        run: |
-          aws secretsmanager describe-secret \
-            --secret-id openbrain/github-app-private-key > /dev/null 2>&1 \
-          && aws secretsmanager put-secret-value \
-            --secret-id openbrain/github-app-private-key \
-            --secret-string "$GH_APP_PRIVATE_KEY" \
-          || aws secretsmanager create-secret \
-            --name openbrain/github-app-private-key \
-            --secret-string "$GH_APP_PRIVATE_KEY"
-        env:
-          GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
-
       # --- Build Lambda ---
 
       - name: Install Lambda dependencies
@@ -133,9 +105,8 @@ jobs:
           # Required — deploy will produce broken Lambdas without these
           [ -z "$GOOGLE_CLIENT_ID" ]           && missing+=("GOOGLE_CLIENT_ID")
           [ -z "$GOOGLE_CLIENT_SECRET_ARN" ]   && missing+=("GOOGLE_CLIENT_SECRET_ARN")
-          [ -z "$GH_APP_WEBHOOK_SECRET" ]      && missing+=("GH_APP_WEBHOOK_SECRET")
-          [ -z "$GH_APP_PRIVATE_KEY" ]         && missing+=("GH_APP_PRIVATE_KEY")
-          # GH_APP_ID is now in AWS Secrets Manager (openbrain/github-app-id)
+          # GitHub App secrets (GH_APP_ID, GH_APP_PRIVATE_KEY, GH_APP_WEBHOOK_SECRET)
+          # now live in AWS Secrets Manager — no longer needed as GitHub secrets.
           # Optional but recommended
           [ -z "$GH_APP_SLUG" ]                && warn+=("GH_APP_SLUG (web GitHub install link won't work)")
           [ -z "$CUSTOM_DOMAIN" ]              && warn+=("CUSTOM_DOMAIN (will use raw API Gateway URL)")
@@ -148,8 +119,6 @@ jobs:
         env:
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET_ARN: ${{ secrets.GOOGLE_CLIENT_SECRET_ARN }}
-          GH_APP_WEBHOOK_SECRET: ${{ secrets.GH_APP_WEBHOOK_SECRET }}
-          GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
           GH_APP_SLUG: ${{ secrets.GH_APP_SLUG }}
           CUSTOM_DOMAIN: ${{ secrets.CUSTOM_DOMAIN }}
 
