@@ -1,7 +1,8 @@
 import { CognitoJwtVerifier } from "aws-jwt-verify";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, QueryCommand } from "@aws-sdk/lib-dynamodb";
+import { DynamoDBDocumentClient, QueryCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import type { UserContext } from "../types";
+import { hashApiKey } from "../services/api-key-hmac";
 
 const USER_POOL_ID = process.env.USER_POOL_ID!;
 const AGENT_KEYS_TABLE = process.env.AGENT_KEYS_TABLE!;
@@ -76,7 +77,30 @@ export async function verifyAuth(headers: Record<string, string | undefined>): P
   // Try API key
   const apiKey = headers["x-api-key"] || headers["X-Api-Key"];
   if (apiKey?.startsWith("ob_")) {
-    const result = await ddb.send(
+    const keyHash = await hashApiKey(apiKey);
+
+    // Hash lookup (fast path — all new keys)
+    const hashResult = await ddb.send(
+      new QueryCommand({
+        TableName: AGENT_KEYS_TABLE,
+        IndexName: "key-hash-index",
+        KeyConditionExpression: "keyHash = :h",
+        ExpressionAttributeValues: { ":h": keyHash },
+        Limit: 1,
+      })
+    );
+
+    const hashedItem = hashResult.Items?.[0];
+    if (hashedItem) {
+      return {
+        userId: hashedItem.userId,
+        agentName: hashedItem.agentName,
+        displayName: hashedItem.displayName,
+      };
+    }
+
+    // Plaintext fallback (old keys pre-migration)
+    const plaintextResult = await ddb.send(
       new QueryCommand({
         TableName: AGENT_KEYS_TABLE,
         IndexName: "api-key-index",
@@ -86,8 +110,16 @@ export async function verifyAuth(headers: Record<string, string | undefined>): P
       })
     );
 
-    const item = result.Items?.[0];
+    const item = plaintextResult.Items?.[0];
     if (item) {
+      // Lazy migration: write hash, remove plaintext — fire-and-forget
+      ddb.send(new UpdateCommand({
+        TableName: AGENT_KEYS_TABLE,
+        Key: { pk: item.pk, sk: item.sk },
+        UpdateExpression: "SET keyHash = :h REMOVE apiKey",
+        ExpressionAttributeValues: { ":h": keyHash },
+      })).catch(() => { /* non-fatal — migration retries on next request */ });
+
       return {
         userId: item.userId,
         agentName: item.agentName,

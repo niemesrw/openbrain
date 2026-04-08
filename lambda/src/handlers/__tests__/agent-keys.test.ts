@@ -1,6 +1,10 @@
 import { handleListAgents, handleCreateAgent, handleRevokeAgent } from "../agent-keys";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 
+jest.mock("../../services/api-key-hmac", () => ({
+  hashApiKey: jest.fn().mockResolvedValue("test-hash-abc123"),
+}));
+
 jest.mock("@aws-sdk/client-dynamodb", () => {
   const send = jest.fn();
   const Client = jest.fn(() => ({ send }));
@@ -49,6 +53,18 @@ describe("handleCreateAgent — agent caller restriction", () => {
     const result = await handleCreateAgent({ name: "new-agent" }, USER);
     expect(result).toContain("Agent \"new-agent\" created.");
     expect(result).toContain("API Key:");
+  });
+
+  it("stores keyHash instead of plaintext apiKey", async () => {
+    const { hashApiKey } = jest.requireMock("../../services/api-key-hmac");
+    mockSend.mockResolvedValue({});
+    await handleCreateAgent({ name: "secure-agent" }, USER);
+
+    const putCall = mockSend.mock.calls[0][0];
+    const item = putCall.input.Item;
+    expect(item.keyHash).toBe("test-hash-abc123");
+    expect(item.apiKey).toBeUndefined();
+    expect(hashApiKey).toHaveBeenCalledWith(expect.stringMatching(/^ob_/));
   });
 });
 

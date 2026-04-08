@@ -30,6 +30,12 @@ export class DataStack extends cdk.Stack {
       projectionType: dynamodb.ProjectionType.ALL,
     });
 
+    this.agentKeysTable.addGlobalSecondaryIndex({
+      indexName: "key-hash-index",
+      partitionKey: { name: "keyHash", type: dynamodb.AttributeType.STRING },
+      projectionType: dynamodb.ProjectionType.ALL,
+    });
+
     // Agent Tasks table — stores scheduled tasks per user
     // PK: userId  SK: taskId
     this.agentTasksTable = new dynamodb.Table(this, "AgentTasksTable", {

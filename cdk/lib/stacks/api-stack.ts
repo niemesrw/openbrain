@@ -50,6 +50,17 @@ export class ApiStack extends cdk.Stack {
       webOrigin,
     } = props;
 
+    // HMAC secret for hashing agent API keys — generated once, cached in Lambda memory
+    const apiKeyHmacSecret = new secretsmanager.Secret(this, "ApiKeyHmacSecret", {
+      secretName: "openbrain/api-key-hmac-secret",
+      description: "HMAC-SHA256 key for hashing agent API keys before storing in DynamoDB",
+      generateSecretString: {
+        passwordLength: 64,
+        excludePunctuation: true,
+      },
+    });
+    const hmacSecretArn = apiKeyHmacSecret.secretArn;
+
     // Data stack tables — referenced by hardcoded name to avoid cross-stack
     // CloudFormation imports that would block Data from removing old exports.
     const agentKeysTableName = "openbrain-agent-keys";
@@ -77,6 +88,7 @@ export class ApiStack extends cdk.Stack {
         COGNITO_DOMAIN: userPoolDomain.baseUrl(),
         COGNITO_CLI_CLIENT_ID: cliClient.userPoolClientId,
         COGNITO_MOBILE_CLIENT_ID: mobileClient.userPoolClientId,
+        HMAC_SECRET_ARN: hmacSecretArn,
         ...(customDomain && { CUSTOM_DOMAIN: customDomain }),
       },
       bundling: {
@@ -85,6 +97,11 @@ export class ApiStack extends cdk.Stack {
         sourceMap: true,
       },
     });
+
+    this.handler.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["secretsmanager:GetSecretValue"],
+      resources: [hmacSecretArn],
+    }));
 
     // S3 Vectors permissions
     this.handler.addToRolePolicy(
@@ -144,6 +161,7 @@ export class ApiStack extends cdk.Stack {
         AGENT_KEYS_TABLE: agentKeysTableName,
         AGENT_TASKS_TABLE: agentTasksTableName,
         USER_POOL_ID: userPool.userPoolId,
+        HMAC_SECRET_ARN: hmacSecretArn,
       },
       bundling: {
         externalModules: ["@aws-sdk/*"],
@@ -151,6 +169,11 @@ export class ApiStack extends cdk.Stack {
         sourceMap: true,
       },
     });
+
+    chatHandler.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["secretsmanager:GetSecretValue"],
+      resources: [hmacSecretArn],
+    }));
 
     // Chat handler needs same permissions as MCP handler
     chatHandler.addToRolePolicy(
@@ -224,6 +247,7 @@ export class ApiStack extends cdk.Stack {
         USER_POOL_ID: userPool.userPoolId,
         REGION: this.region,
         AGENT_KEYS_TABLE: agentKeysTableName,
+        HMAC_SECRET_ARN: hmacSecretArn,
         // Kept to preserve cross-stack CloudFormation references from auth stack.
         // The verifier no longer checks these — it accepts any client in the pool.
         CLI_CLIENT_ID: cliClient.userPoolClientId,
@@ -235,10 +259,14 @@ export class ApiStack extends cdk.Stack {
       },
     });
 
-    // Authorizer needs to read agent keys for API key validation
+    // Authorizer needs to read and migrate agent keys
     authorizerFn.addToRolePolicy(new iam.PolicyStatement({
-      actions: ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:Scan", "dynamodb:BatchGetItem"],
+      actions: ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:Scan", "dynamodb:BatchGetItem", "dynamodb:UpdateItem"],
       resources: [agentKeysTableArn, `${agentKeysTableArn}/index/*`],
+    }));
+    authorizerFn.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["secretsmanager:GetSecretValue"],
+      resources: [hmacSecretArn],
     }));
 
     const authorizer = new apigwv2Authorizers.HttpLambdaAuthorizer(
@@ -326,6 +354,7 @@ export class ApiStack extends cdk.Stack {
         AGENT_KEYS_TABLE: agentKeysTableName,
         AGENT_TASKS_TABLE: agentTasksTableName,
         USER_POOL_ID: userPool.userPoolId,
+        HMAC_SECRET_ARN: hmacSecretArn,
       },
       bundling: {
         externalModules: ["@aws-sdk/*"],
@@ -333,6 +362,10 @@ export class ApiStack extends cdk.Stack {
         sourceMap: true,
       },
     });
+    brainChatHandler.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["secretsmanager:GetSecretValue"],
+      resources: [hmacSecretArn],
+    }));
     brainChatHandler.addToRolePolicy(new iam.PolicyStatement({
       actions: [
         "s3vectors:CreateIndex", "s3vectors:QueryVectors", "s3vectors:PutVectors",
@@ -689,6 +722,7 @@ export class ApiStack extends cdk.Stack {
         GITHUB_INSTALLATIONS_TABLE: githubInstallationsTableName,
         GITHUB_APP_ID: process.env.GITHUB_APP_ID ?? "",
         GITHUB_APP_PRIVATE_KEY_SECRET_NAME: githubAppPrivateKeySecretName,
+        HMAC_SECRET_ARN: hmacSecretArn,
       },
       bundling: {
         externalModules: ["@aws-sdk/*"],
@@ -697,8 +731,12 @@ export class ApiStack extends cdk.Stack {
       },
     });
     githubRestHandler.addToRolePolicy(new iam.PolicyStatement({
-      actions: ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:Scan", "dynamodb:BatchGetItem"],
+      actions: ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:Scan", "dynamodb:BatchGetItem", "dynamodb:UpdateItem"],
       resources: [agentKeysTableArn, `${agentKeysTableArn}/index/*`],
+    }));
+    githubRestHandler.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["secretsmanager:GetSecretValue"],
+      resources: [hmacSecretArn],
     }));
     githubRestHandler.addToRolePolicy(new iam.PolicyStatement({
       actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Query", "dynamodb:UpdateItem", "dynamodb:DeleteItem"],
@@ -768,6 +806,7 @@ export class ApiStack extends cdk.Stack {
         SLACK_INSTALLATIONS_TABLE: userHandlerSlackTableName,
         GOOGLE_CONNECTIONS_TABLE: userHandlerGoogleTableName,
         USER_POOL_ID: userPool.userPoolId,
+        HMAC_SECRET_ARN: hmacSecretArn,
       },
       bundling: {
         externalModules: ["@aws-sdk/*"],
@@ -777,6 +816,10 @@ export class ApiStack extends cdk.Stack {
     });
 
     userHandler.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["secretsmanager:GetSecretValue"],
+      resources: [hmacSecretArn],
+    }));
+    userHandler.addToRolePolicy(new iam.PolicyStatement({
       actions: ["s3vectors:DeleteIndex"],
       resources: [
         `arn:aws:s3vectors:${this.region}:${this.account}:bucket/${vectorBucketName}`,
@@ -784,7 +827,7 @@ export class ApiStack extends cdk.Stack {
       ],
     }));
     userHandler.addToRolePolicy(new iam.PolicyStatement({
-      actions: ["dynamodb:Query", "dynamodb:BatchWriteItem"],
+      actions: ["dynamodb:Query", "dynamodb:BatchWriteItem", "dynamodb:UpdateItem"],
       resources: [agentKeysTableArn, `${agentKeysTableArn}/index/*`],
     }));
     userHandler.addToRolePolicy(new iam.PolicyStatement({
@@ -833,6 +876,7 @@ export class ApiStack extends cdk.Stack {
         AGENT_KEYS_TABLE: agentKeysTableName,
         AGENT_TASKS_TABLE: agentTasksTableName,
         USER_POOL_ID: userPool.userPoolId,
+        HMAC_SECRET_ARN: hmacSecretArn,
       },
       bundling: {
         externalModules: ["@aws-sdk/*"],
@@ -846,8 +890,12 @@ export class ApiStack extends cdk.Stack {
       resources: [agentTasksTableArn, `${agentTasksTableArn}/index/*`],
     }));
     tasksHandler.addToRolePolicy(new iam.PolicyStatement({
-      actions: ["dynamodb:GetItem", "dynamodb:Query"],
+      actions: ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:UpdateItem"],
       resources: [agentKeysTableArn, `${agentKeysTableArn}/index/*`],
+    }));
+    tasksHandler.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["secretsmanager:GetSecretValue"],
+      resources: [hmacSecretArn],
     }));
 
     const tasksIntegration = new apigwv2Integrations.HttpLambdaIntegration(
@@ -1043,6 +1091,7 @@ export class ApiStack extends cdk.Stack {
         SLACK_INSTALLATIONS_TABLE: slackInstallationsTableName,
         SLACK_CLIENT_ID_SECRET_NAME: slackClientIdSecretName,
         SLACK_CLIENT_SECRET_SECRET_NAME: slackClientSecretSecretName,
+        HMAC_SECRET_ARN: hmacSecretArn,
         ...(( customDomain || webOrigin) && {
           SLACK_REDIRECT_URI: `https://${customDomain ?? webOrigin}/slack/callback`,
         }),
@@ -1055,7 +1104,7 @@ export class ApiStack extends cdk.Stack {
     });
 
     slackRestHandler.addToRolePolicy(new iam.PolicyStatement({
-      actions: ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:Scan", "dynamodb:BatchGetItem"],
+      actions: ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:Scan", "dynamodb:BatchGetItem", "dynamodb:UpdateItem"],
       resources: [agentKeysTableArn, `${agentKeysTableArn}/index/*`],
     }));
     slackRestHandler.addToRolePolicy(new iam.PolicyStatement({
@@ -1067,6 +1116,7 @@ export class ApiStack extends cdk.Stack {
       resources: [
         `arn:aws:secretsmanager:${this.region}:${this.account}:secret:${slackClientIdSecretName}*`,
         `arn:aws:secretsmanager:${this.region}:${this.account}:secret:${slackClientSecretSecretName}*`,
+        hmacSecretArn,
       ],
     }));
 
@@ -1125,6 +1175,7 @@ export class ApiStack extends cdk.Stack {
         VECTOR_BUCKET_NAME: vectorBucketName,
         EMBEDDING_MODEL_ID: "amazon.titan-embed-text-v2:0",
         METADATA_MODEL_ID: "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+        HMAC_SECRET_ARN: hmacSecretArn,
       },
       bundling: {
         externalModules: ["@aws-sdk/*"],
@@ -1134,7 +1185,7 @@ export class ApiStack extends cdk.Stack {
     });
 
     googleRestHandler.addToRolePolicy(new iam.PolicyStatement({
-      actions: ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:Scan", "dynamodb:BatchGetItem"],
+      actions: ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:Scan", "dynamodb:BatchGetItem", "dynamodb:UpdateItem"],
       resources: [agentKeysTableArn, `${agentKeysTableArn}/index/*`],
     }));
     googleRestHandler.addToRolePolicy(new iam.PolicyStatement({
@@ -1146,6 +1197,7 @@ export class ApiStack extends cdk.Stack {
       resources: [
         `arn:aws:secretsmanager:${this.region}:${this.account}:secret:${googleClientIdSecretName}*`,
         `arn:aws:secretsmanager:${this.region}:${this.account}:secret:${googleClientSecretSecretName}*`,
+        hmacSecretArn,
       ],
     }));
     googleRestHandler.addToRolePolicy(new iam.PolicyStatement({

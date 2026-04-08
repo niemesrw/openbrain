@@ -7,6 +7,7 @@ import {
   DeleteCommand,
 } from "@aws-sdk/lib-dynamodb";
 import type { CreateAgentArgs, ListAgentsArgs, RevokeAgentArgs, UserContext } from "../types";
+import { hashApiKey } from "../services/api-key-hmac";
 
 const AGENT_KEYS_TABLE = process.env.AGENT_KEYS_TABLE!;
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
@@ -25,6 +26,7 @@ export async function handleCreateAgent(
   }
 
   const apiKey = `ob_${randomBytes(32).toString("hex")}`;
+  const keyHash = await hashApiKey(apiKey);
   const now = new Date().toISOString();
 
   await ddb.send(
@@ -33,7 +35,7 @@ export async function handleCreateAgent(
       Item: {
         pk: `USER#${user.userId}`,
         sk: `AGENT#${name}`,
-        apiKey,
+        keyHash,
         userId: user.userId,
         agentName: name,
         displayName: user.displayName,
