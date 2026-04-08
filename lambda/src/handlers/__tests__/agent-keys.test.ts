@@ -1,4 +1,4 @@
-import { handleListAgents } from "../agent-keys";
+import { handleListAgents, handleCreateAgent, handleRevokeAgent } from "../agent-keys";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 
 jest.mock("@aws-sdk/client-dynamodb", () => {
@@ -33,6 +33,48 @@ const USER = { userId: "user-123" };
 beforeEach(() => {
   mockSend.mockReset();
   process.env.AGENT_KEYS_TABLE = "openbrain-agent-keys";
+});
+
+describe("handleCreateAgent — agent caller restriction", () => {
+  it("rejects when caller is an agent", async () => {
+    const agentUser = { userId: "user-123", agentName: "my-agent" };
+    const result = await handleCreateAgent({ name: "new-agent" }, agentUser);
+    expect(result).toContain("Error:");
+    expect(result).toContain("Agents cannot create new agent keys");
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("allows when caller is a JWT user (no agentName)", async () => {
+    mockSend.mockResolvedValue({});
+    const result = await handleCreateAgent({ name: "new-agent" }, USER);
+    expect(result).toContain("Agent \"new-agent\" created.");
+    expect(result).toContain("API Key:");
+  });
+});
+
+describe("handleRevokeAgent — agent caller restriction", () => {
+  it("rejects when agent tries to revoke a different agent", async () => {
+    const agentUser = { userId: "user-123", agentName: "agent-a" };
+    const result = await handleRevokeAgent({ name: "agent-b" }, agentUser);
+    expect(result).toContain("Error:");
+    expect(result).toContain("Agents can only revoke themselves");
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("allows agent to revoke itself", async () => {
+    mockSend.mockResolvedValue({});
+    const agentUser = { userId: "user-123", agentName: "agent-a" };
+    const result = await handleRevokeAgent({ name: "agent-a" }, agentUser);
+    expect(result).toContain("Agent \"agent-a\" revoked.");
+    expect(mockSend).toHaveBeenCalledTimes(1);
+  });
+
+  it("allows JWT user to revoke any agent", async () => {
+    mockSend.mockResolvedValue({});
+    const result = await handleRevokeAgent({ name: "any-agent" }, USER);
+    expect(result).toContain("Agent \"any-agent\" revoked.");
+    expect(mockSend).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("handleListAgents — heartbeat fields", () => {

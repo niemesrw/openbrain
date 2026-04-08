@@ -15,6 +15,10 @@ export async function handleCreateAgent(
   args: CreateAgentArgs,
   user: UserContext
 ): Promise<string> {
+  if (user.agentName) {
+    return "Error: Agents cannot create new agent keys. Use a human (JWT) session to call create_agent.";
+  }
+
   const { name } = args;
   if (!name || !/^[a-zA-Z0-9_-]+$/.test(name)) {
     return "Error: Agent name must be alphanumeric (hyphens and underscores allowed).";
@@ -113,6 +117,10 @@ export async function handleRevokeAgent(
   args: RevokeAgentArgs,
   user: UserContext
 ): Promise<string> {
+  if (user.agentName && user.agentName !== args.name) {
+    return `Error: Agents can only revoke themselves. To revoke "${args.name}", use a human (JWT) session.`;
+  }
+
   await ddb.send(
     new DeleteCommand({
       TableName: AGENT_KEYS_TABLE,
