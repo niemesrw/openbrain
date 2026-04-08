@@ -283,3 +283,61 @@ export async function deleteAccount(): Promise<void> {
     throw new Error(body?.error ?? `Delete account error: ${res.status}`);
   }
 }
+
+// ---------------------------------------------------------------------------
+// Tasks
+// ---------------------------------------------------------------------------
+
+export interface AgentTask {
+  taskId: string;
+  title: string;
+  schedule: string;
+  action: string;
+  status: string;
+  lastRunAt: number | null;
+  createdAt: number;
+}
+
+export async function listTasks(signal?: AbortSignal): Promise<AgentTask[]> {
+  const token = await getIdToken();
+  const apiUrl = getApiUrl();
+  const res = await fetch(`${apiUrl}/tasks`, {
+    headers: { Authorization: `Bearer ${token}` },
+    signal,
+  });
+  if (!res.ok) throw new Error(`Failed to list tasks: ${res.status}`);
+  const data = await res.json() as { tasks: AgentTask[] };
+  return data.tasks;
+}
+
+export async function createTask(
+  title: string,
+  schedule: string,
+  action: string,
+  signal?: AbortSignal
+): Promise<string> {
+  const token = await getIdToken();
+  const apiUrl = getApiUrl();
+  const res = await fetch(`${apiUrl}/tasks`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ title, schedule, action }),
+    signal,
+  });
+  const body = await res.json() as { ok?: boolean; message?: string; error?: string };
+  if (!res.ok) throw new Error(body.error ?? `Create task error: ${res.status}`);
+  return body.message ?? "Task scheduled.";
+}
+
+export async function cancelTask(taskId: string, signal?: AbortSignal): Promise<string> {
+  const token = await getIdToken();
+  const apiUrl = getApiUrl();
+  const res = await fetch(`${apiUrl}/tasks/${encodeURIComponent(taskId)}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+    signal,
+  });
+  const body = await res.json() as { ok?: boolean; message?: string; error?: string };
+  if (!res.ok) throw new Error(body.error ?? `Cancel task error: ${res.status}`);
+  return body.message ?? "Task cancelled.";
+}

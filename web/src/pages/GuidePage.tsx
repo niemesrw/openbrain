@@ -335,13 +335,14 @@ export function GuidePage() {
         <div className="flex items-center gap-3">
           <span className="text-2xl">⏰</span>
           <h3 className="text-white font-semibold text-lg">Scheduled tasks</h3>
+          <span className="text-xs bg-brain-primary/10 text-brain-primary px-2 py-0.5 rounded-xl font-label">Dashboard</span>
           <span className="text-xs bg-brain-primary/10 text-brain-primary px-2 py-0.5 rounded-xl font-label">Claude Code</span>
         </div>
         <p className="text-brain-muted text-sm">
           Set up recurring background tasks that run automatically — for example, "every morning, fetch the top AI news and save a summary to my brain." Tasks run on your schedule and capture results directly to Open Brain.
         </p>
         <p className="text-brain-muted text-sm">
-          Currently available via Claude Code. Web UI coming soon.
+          Create, view, and cancel tasks from <strong className="text-white">Tasks</strong> in the dashboard nav, or schedule them via Claude Code:
         </p>
         <CodeBlock>{"schedule_task(\n  title: \"Daily AI digest\",\n  schedule: \"every 24 hours\",\n  action: \"Fetch top stories from news.ycombinator.com and summarize the AI-related ones.\"\n)"}</CodeBlock>
       </div>

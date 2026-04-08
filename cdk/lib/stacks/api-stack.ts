@@ -820,6 +820,54 @@ export class ApiStack extends cdk.Stack {
     });
 
     // -------------------------------------------------------------------------
+    // Tasks — create, list, and cancel scheduled tasks
+    // -------------------------------------------------------------------------
+
+    const tasksHandler = new lambdaNode.NodejsFunction(this, "TasksHandler", {
+      runtime: lambda.Runtime.NODEJS_22_X,
+      entry: path.join(__dirname, "..", "..", "..", "lambda", "src", "tasks.ts"),
+      handler: "handler",
+      memorySize: 256,
+      timeout: cdk.Duration.seconds(15),
+      environment: {
+        AGENT_KEYS_TABLE: agentKeysTableName,
+        AGENT_TASKS_TABLE: agentTasksTableName,
+        USER_POOL_ID: userPool.userPoolId,
+      },
+      bundling: {
+        externalModules: ["@aws-sdk/*"],
+        minify: true,
+        sourceMap: true,
+      },
+    });
+
+    tasksHandler.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["dynamodb:Query", "dynamodb:PutItem", "dynamodb:DeleteItem"],
+      resources: [agentTasksTableArn, `${agentTasksTableArn}/index/*`],
+    }));
+    tasksHandler.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["dynamodb:GetItem", "dynamodb:Query"],
+      resources: [agentKeysTableArn, `${agentKeysTableArn}/index/*`],
+    }));
+
+    const tasksIntegration = new apigwv2Integrations.HttpLambdaIntegration(
+      "TasksIntegration",
+      tasksHandler
+    );
+
+    this.api.addRoutes({
+      path: "/tasks",
+      methods: [apigwv2.HttpMethod.GET, apigwv2.HttpMethod.POST],
+      integration: tasksIntegration,
+    });
+
+    this.api.addRoutes({
+      path: "/tasks/{taskId}",
+      methods: [apigwv2.HttpMethod.DELETE],
+      integration: tasksIntegration,
+    });
+
+    // -------------------------------------------------------------------------
     // Slack — webhook ingestion (signing secret verification, URL challenge)
     // -------------------------------------------------------------------------
 

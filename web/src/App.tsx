@@ -11,6 +11,7 @@ import { GitHubCallbackPage } from "./pages/GitHubCallbackPage";
 import { SlackCallbackPage } from "./pages/SlackCallbackPage";
 import { GoogleCallbackPage } from "./pages/GoogleCallbackPage";
 import { AgentsPage } from "./pages/AgentsPage";
+import { TasksPage } from "./pages/TasksPage";
 import { GuidePage } from "./pages/GuidePage";
 import { PrivacyPage } from "./pages/PrivacyPage";
 import { TermsPage } from "./pages/TermsPage";
@@ -33,6 +34,7 @@ export function App() {
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/feed" element={<FeedPage />} />
             <Route path="/agents" element={<AgentsPage />} />
+            <Route path="/tasks" element={<TasksPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/github/callback" element={<GitHubCallbackPage />} />
             <Route path="/slack/callback" element={<SlackCallbackPage />} />

@@ -5,6 +5,7 @@ const NAV_TABS = [
   { to: "/dashboard", label: "Brain", icon: "psychology" },
   { to: "/feed", label: "Feed", icon: "dynamic_feed" },
   { to: "/agents", label: "Agents", icon: "smart_toy" },
+  { to: "/tasks", label: "Tasks", icon: "schedule" },
   { to: "/settings", label: "Settings", icon: "manage_accounts" },
 ];
 
