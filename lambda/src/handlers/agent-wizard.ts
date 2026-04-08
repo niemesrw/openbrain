@@ -83,14 +83,11 @@ async function setRepoVariables(
   config: AgentConfig
 ) {
   const vars: Record<string, string> = {};
-  if (config.systemPrompt) vars.AGENT_SYSTEM_PROMPT = config.systemPrompt;
-  // Set user prompt from explicit value, or mirror system prompt so the
-  // agent's task instructions match the wizard's single-prompt UX
-  if (config.userPrompt) {
-    vars.AGENT_USER_PROMPT = config.userPrompt;
-  } else if (config.systemPrompt) {
-    vars.AGENT_USER_PROMPT = config.systemPrompt;
-  }
+  // The wizard's single prompt field sets the user prompt (the task).
+  // The system prompt is fixed in the template to always include brain
+  // read/write behavior, so we don't override it from the wizard.
+  if (config.systemPrompt) vars.AGENT_USER_PROMPT = config.systemPrompt;
+  if (config.userPrompt) vars.AGENT_USER_PROMPT = config.userPrompt;
   if (config.model) vars.AGENT_MODEL = config.model;
   if (config.schedule) vars.AGENT_SCHEDULE = config.schedule;
 

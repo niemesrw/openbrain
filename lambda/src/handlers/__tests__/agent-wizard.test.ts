@@ -132,14 +132,13 @@ describe("handleUpdateAgent", () => {
     );
 
     expect(result).toEqual({ ok: true });
-    // Should have called PATCH for AGENT_SYSTEM_PROMPT, AGENT_USER_PROMPT (mirrored), and AGENT_MODEL
+    // systemPrompt maps to AGENT_USER_PROMPT (task prompt), plus AGENT_MODEL
     const patchCalls = mockFetch.mock.calls.filter(
       (c: any[]) => c[1]?.method === "PATCH"
     );
-    expect(patchCalls.length).toBe(3);
-    expect(patchCalls[0][0]).toContain("AGENT_SYSTEM_PROMPT");
-    expect(patchCalls[1][0]).toContain("AGENT_USER_PROMPT");
-    expect(patchCalls[2][0]).toContain("AGENT_MODEL");
+    expect(patchCalls.length).toBe(2);
+    expect(patchCalls[0][0]).toContain("AGENT_USER_PROMPT");
+    expect(patchCalls[1][0]).toContain("AGENT_MODEL");
   });
 
   it("falls back to POST when PATCH returns 404", async () => {
@@ -152,12 +151,10 @@ describe("handleUpdateAgent", () => {
       });
 
     mockFetch
-      // PATCH AGENT_SYSTEM_PROMPT → 404
+      // PATCH AGENT_USER_PROMPT → 404
       .mockResolvedValueOnce({ ok: false, status: 404 })
-      // POST AGENT_SYSTEM_PROMPT → success
-      .mockResolvedValueOnce({ ok: true, status: 201 })
-      // PATCH AGENT_USER_PROMPT (mirrored) → success
-      .mockResolvedValueOnce({ ok: true, status: 204 });
+      // POST AGENT_USER_PROMPT → success
+      .mockResolvedValueOnce({ ok: true, status: 201 });
 
     const result = await handleUpdateAgent(
       { name: "test", systemPrompt: "New prompt" },
@@ -188,6 +185,6 @@ describe("handleUpdateAgent", () => {
 
     await expect(
       handleUpdateAgent({ name: "test", systemPrompt: "New prompt" }, USER)
-    ).rejects.toThrow("Failed to update variable AGENT_SYSTEM_PROMPT: 403");
+    ).rejects.toThrow("Failed to update variable AGENT_USER_PROMPT: 403");
   });
 });

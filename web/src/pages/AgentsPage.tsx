@@ -366,14 +366,14 @@ export function AgentsPage() {
               </div>
               <div>
                 <label className="text-[10px] font-label font-bold text-brain-muted uppercase tracking-widest block mb-2">
-                  System Prompt
+                  Agent Task
                 </label>
                 <textarea
                   value={wizardPrompt}
                   onChange={(e) => setWizardPrompt(e.target.value)}
                   rows={4}
                   className="w-full bg-brain-surface rounded-xl px-4 py-3 text-sm text-white placeholder:text-brain-muted/50 outline-none border border-brain-outline/10 focus:border-brain-primary/40 transition-colors resize-none"
-                  placeholder="Describe what your agent should do..."
+                  placeholder="Describe what your agent should do on each run..."
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -637,14 +637,14 @@ export function AgentsPage() {
           </div>
           <div>
             <label className="text-[10px] font-label font-bold text-brain-muted uppercase tracking-widest block mb-2">
-              System Prompt
+              Agent Task
             </label>
             <textarea
               value={editPrompt}
               onChange={(e) => setEditPrompt(e.target.value)}
               rows={4}
               className="w-full bg-brain-surface rounded-xl px-4 py-3 text-sm text-white placeholder:text-brain-muted/50 outline-none border border-brain-outline/10 focus:border-brain-primary/40 transition-colors resize-none"
-              placeholder="Update the agent's system prompt..."
+              placeholder="Describe what your agent should do on each run..."
               autoFocus
             />
           </div>
