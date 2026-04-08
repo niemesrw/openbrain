@@ -132,13 +132,14 @@ describe("handleUpdateAgent", () => {
     );
 
     expect(result).toEqual({ ok: true });
-    // Should have called PATCH for AGENT_SYSTEM_PROMPT and AGENT_MODEL
+    // Should have called PATCH for AGENT_SYSTEM_PROMPT, AGENT_USER_PROMPT (mirrored), and AGENT_MODEL
     const patchCalls = mockFetch.mock.calls.filter(
       (c: any[]) => c[1]?.method === "PATCH"
     );
-    expect(patchCalls.length).toBe(2);
+    expect(patchCalls.length).toBe(3);
     expect(patchCalls[0][0]).toContain("AGENT_SYSTEM_PROMPT");
-    expect(patchCalls[1][0]).toContain("AGENT_MODEL");
+    expect(patchCalls[1][0]).toContain("AGENT_USER_PROMPT");
+    expect(patchCalls[2][0]).toContain("AGENT_MODEL");
   });
 
   it("falls back to POST when PATCH returns 404", async () => {
@@ -151,10 +152,12 @@ describe("handleUpdateAgent", () => {
       });
 
     mockFetch
-      // PATCH → 404
+      // PATCH AGENT_SYSTEM_PROMPT → 404
       .mockResolvedValueOnce({ ok: false, status: 404 })
-      // POST → success
-      .mockResolvedValueOnce({ ok: true, status: 201 });
+      // POST AGENT_SYSTEM_PROMPT → success
+      .mockResolvedValueOnce({ ok: true, status: 201 })
+      // PATCH AGENT_USER_PROMPT (mirrored) → success
+      .mockResolvedValueOnce({ ok: true, status: 204 });
 
     const result = await handleUpdateAgent(
       { name: "test", systemPrompt: "New prompt" },

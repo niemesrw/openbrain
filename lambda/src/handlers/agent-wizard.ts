@@ -84,7 +84,13 @@ async function setRepoVariables(
 ) {
   const vars: Record<string, string> = {};
   if (config.systemPrompt) vars.AGENT_SYSTEM_PROMPT = config.systemPrompt;
-  if (config.userPrompt) vars.AGENT_USER_PROMPT = config.userPrompt;
+  // Set user prompt from explicit value, or mirror system prompt so the
+  // agent's task instructions match the wizard's single-prompt UX
+  if (config.userPrompt) {
+    vars.AGENT_USER_PROMPT = config.userPrompt;
+  } else if (config.systemPrompt) {
+    vars.AGENT_USER_PROMPT = config.systemPrompt;
+  }
   if (config.model) vars.AGENT_MODEL = config.model;
   if (config.schedule) vars.AGENT_SCHEDULE = config.schedule;
 
