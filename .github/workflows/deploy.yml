@@ -51,6 +51,16 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Validate required variables
+        run: |
+          missing=()
+          [ -z "$MANAGEMENT_ACCOUNT" ] && missing+=("MANAGEMENT_ACCOUNT")
+          [ -z "$AI_ACCOUNT" ]         && missing+=("AI_ACCOUNT")
+          if [ ${#missing[@]} -gt 0 ]; then
+            for m in "${missing[@]}"; do echo "::error::Required repo variable not set: $m"; done
+            exit 1
+          fi
+
       # --- AWS Auth (two-hop: OIDC → management → AI account) ---
 
       - name: Configure AWS credentials (Management)
@@ -115,6 +125,34 @@ jobs:
       - name: Install CDK dependencies
         working-directory: cdk
         run: npm ci
+
+      - name: Validate required secrets
+        run: |
+          missing=()
+          warn=()
+          # Required — deploy will produce broken Lambdas without these
+          [ -z "$GOOGLE_CLIENT_ID" ]           && missing+=("GOOGLE_CLIENT_ID")
+          [ -z "$GOOGLE_CLIENT_SECRET_ARN" ]   && missing+=("GOOGLE_CLIENT_SECRET_ARN")
+          [ -z "$GH_APP_ID" ]                  && missing+=("GH_APP_ID")
+          [ -z "$GH_APP_WEBHOOK_SECRET" ]      && missing+=("GH_APP_WEBHOOK_SECRET")
+          [ -z "$GH_APP_PRIVATE_KEY" ]         && missing+=("GH_APP_PRIVATE_KEY")
+          # Optional but recommended
+          [ -z "$GH_APP_SLUG" ]                && warn+=("GH_APP_SLUG (web GitHub install link won't work)")
+          [ -z "$CUSTOM_DOMAIN" ]              && warn+=("CUSTOM_DOMAIN (will use raw API Gateway URL)")
+
+          for w in "${warn[@]}"; do echo "::warning::Optional secret not set: $w"; done
+          if [ ${#missing[@]} -gt 0 ]; then
+            for m in "${missing[@]}"; do echo "::error::Required secret not set: $m"; done
+            exit 1
+          fi
+        env:
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET_ARN: ${{ secrets.GOOGLE_CLIENT_SECRET_ARN }}
+          GH_APP_ID: ${{ secrets.GH_APP_ID }}
+          GH_APP_WEBHOOK_SECRET: ${{ secrets.GH_APP_WEBHOOK_SECRET }}
+          GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          GH_APP_SLUG: ${{ secrets.GH_APP_SLUG }}
+          CUSTOM_DOMAIN: ${{ secrets.CUSTOM_DOMAIN }}
 
       - name: CDK Deploy (infra stacks)
         working-directory: cdk
