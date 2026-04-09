@@ -600,6 +600,10 @@ export class ApiStack extends cdk.Stack {
     const githubInstallationsTableName = "openbrain-github-installations";
     const githubInstallationsTableArn = `arn:aws:dynamodb:${this.region}:${this.account}:table/${githubInstallationsTableName}`;
 
+    // GitHub Deliveries table — deduplicates webhook deliveries to prevent replay attacks.
+    const githubDeliveriesTableName = "openbrain-github-deliveries";
+    const githubDeliveriesTableArn = `arn:aws:dynamodb:${this.region}:${this.account}:table/${githubDeliveriesTableName}`;
+
     // GitHub App private key — stored in Secrets Manager, referenced by name
     const githubAppIdSecretName = "openbrain/github-app-id";
     const githubAppPrivateKeySecretName = "openbrain/github-app-private-key";
@@ -615,6 +619,7 @@ export class ApiStack extends cdk.Stack {
         GITHUB_EVENTS_QUEUE_URL: githubEventsQueue.queueUrl,
         GITHUB_WEBHOOK_SECRET_NAME: "openbrain/github-webhook-secret",
         GITHUB_INSTALLATIONS_TABLE: githubInstallationsTableName,
+        GITHUB_DELIVERIES_TABLE: githubDeliveriesTableName,
         GITHUB_APP_ID_SECRET_NAME: githubAppIdSecretName,
         GITHUB_APP_PRIVATE_KEY_SECRET_NAME: githubAppPrivateKeySecretName,
         ...(process.env.OPENBRAIN_MCP_URL && { OPENBRAIN_MCP_URL: process.env.OPENBRAIN_MCP_URL }),
@@ -631,6 +636,10 @@ export class ApiStack extends cdk.Stack {
     githubWebhookHandler.addToRolePolicy(new iam.PolicyStatement({
       actions: ["dynamodb:DeleteItem"],
       resources: [githubInstallationsTableArn],
+    }));
+    githubWebhookHandler.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["dynamodb:GetItem", "dynamodb:PutItem"],
+      resources: [githubDeliveriesTableArn],
     }));
     githubWebhookHandler.addToRolePolicy(new iam.PolicyStatement({
       actions: ["secretsmanager:GetSecretValue"],

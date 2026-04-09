@@ -5,8 +5,8 @@ import {
   SecretsManagerClient,
   GetSecretValueCommand,
 } from "@aws-sdk/client-secrets-manager";
-import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, DeleteCommand } from "@aws-sdk/lib-dynamodb";
+import { ConditionalCheckFailedException, DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { DynamoDBDocumentClient, DeleteCommand, PutCommand } from "@aws-sdk/lib-dynamodb";
 import { extractClosedIssue, handleOrchestration } from "./handlers/orchestrator";
 
 const sqs = new SQSClient({});
@@ -68,6 +68,32 @@ export async function handler(
   if (!verifySignature(rawBody, signature, secret)) {
     console.warn("[github-webhook] Signature verification failed");
     return { statusCode: 401, body: JSON.stringify({ error: "Invalid signature" }) };
+  }
+
+  // Deduplicate by delivery ID to prevent replay attacks.
+  // X-GitHub-Delivery is a UUID GitHub assigns to each webhook delivery.
+  const deliveryId =
+    headers["x-github-delivery"] ?? headers["X-GitHub-Delivery"];
+  const deliveriesTable = process.env.GITHUB_DELIVERIES_TABLE;
+  if (deliveryId && deliveriesTable) {
+    const ttl = Math.floor(Date.now() / 1000) + 86400; // 24-hour TTL
+    try {
+      await ddb.send(
+        new PutCommand({
+          TableName: deliveriesTable,
+          Item: { deliveryId, ttl },
+          ConditionExpression: "attribute_not_exists(deliveryId)",
+        })
+      );
+    } catch (err) {
+      if (err instanceof ConditionalCheckFailedException) {
+        console.warn("[github-webhook] Duplicate delivery ignored", { deliveryId });
+        return { statusCode: 200, body: JSON.stringify({ status: "duplicate" }) };
+      }
+      throw err;
+    }
+  } else if (!deliveriesTable) {
+    console.warn("[github-webhook] GITHUB_DELIVERIES_TABLE not set — deduplication disabled");
   }
 
   if (!eventType || !RELEVANT_EVENTS.has(eventType)) {

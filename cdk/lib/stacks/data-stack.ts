@@ -7,6 +7,7 @@ export class DataStack extends cdk.Stack {
   public readonly agentTasksTable: dynamodb.Table;
   public readonly dcrClientsTable: dynamodb.Table;
   public readonly githubInstallationsTable: dynamodb.Table;
+  public readonly githubDeliveriesTable: dynamodb.Table;
   public readonly slackInstallationsTable: dynamodb.Table;
   public readonly googleConnectionsTable: dynamodb.Table;
 
@@ -77,6 +78,17 @@ export class DataStack extends cdk.Stack {
       indexName: "user-id-index",
       partitionKey: { name: "userId", type: dynamodb.AttributeType.STRING },
       projectionType: dynamodb.ProjectionType.ALL,
+    });
+
+    // GitHub Deliveries table — stores processed webhook delivery IDs for replay prevention
+    // PK: deliveryId (X-GitHub-Delivery UUID)
+    // TTL: ttl (Unix epoch seconds, auto-expires after 24 h)
+    this.githubDeliveriesTable = new dynamodb.Table(this, "GitHubDeliveriesTable", {
+      tableName: "openbrain-github-deliveries",
+      partitionKey: { name: "deliveryId", type: dynamodb.AttributeType.STRING },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      timeToLiveAttribute: "ttl",
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
 
     // Slack Installations table — maps Slack team installs to Open Brain users

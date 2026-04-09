@@ -24,7 +24,16 @@ jest.mock("@aws-sdk/client-secrets-manager", () => {
 });
 
 jest.mock("@aws-sdk/client-dynamodb", () => {
-  return { DynamoDBClient: jest.fn(() => ({})) };
+  class ConditionalCheckFailedException extends Error {
+    name = "ConditionalCheckFailedException";
+    constructor() {
+      super("The conditional request failed");
+    }
+  }
+  return {
+    DynamoDBClient: jest.fn(() => ({})),
+    ConditionalCheckFailedException,
+  };
 });
 
 jest.mock("@aws-sdk/lib-dynamodb", () => {
@@ -34,6 +43,7 @@ jest.mock("@aws-sdk/lib-dynamodb", () => {
   return {
     DynamoDBDocumentClient: { from },
     DeleteCommand: jest.fn((input: unknown) => ({ input })),
+    PutCommand: jest.fn((input: unknown) => ({ input })),
   };
 });
 
@@ -51,6 +61,7 @@ function sign(body: string, secret = WEBHOOK_SECRET): string {
 }
 
 const INSTALLATIONS_TABLE = "openbrain-github-installations";
+const DELIVERIES_TABLE = "openbrain-github-deliveries";
 
 beforeEach(() => {
   mockSqsSend.mockReset();
@@ -62,6 +73,7 @@ beforeEach(() => {
   process.env.GITHUB_WEBHOOK_SECRET_NAME = "openbrain/github-webhook-secret";
   process.env.GITHUB_EVENTS_QUEUE_URL = QUEUE_URL;
   process.env.GITHUB_INSTALLATIONS_TABLE = INSTALLATIONS_TABLE;
+  process.env.GITHUB_DELIVERIES_TABLE = DELIVERIES_TABLE;
 });
 
 describe("verifySignature", () => {
@@ -87,12 +99,26 @@ describe("verifySignature", () => {
 describe("handler", () => {
   type Result = { statusCode: number; body: string };
 
-  function makeEvent(body: string, eventType: string, sig?: string, headerCase: "lower" | "upper" = "lower") {
+  function makeEvent(
+    body: string,
+    eventType: string,
+    sig?: string,
+    headerCase: "lower" | "upper" = "lower",
+    deliveryId = "test-delivery-uuid"
+  ) {
     return {
       requestContext: { http: { method: "POST" } },
       headers: headerCase === "lower"
-        ? { "x-github-event": eventType, "x-hub-signature-256": sig ?? sign(body) }
-        : { "X-GitHub-Event": eventType, "X-Hub-Signature-256": sig ?? sign(body) },
+        ? {
+            "x-github-event": eventType,
+            "x-hub-signature-256": sig ?? sign(body),
+            "x-github-delivery": deliveryId,
+          }
+        : {
+            "X-GitHub-Event": eventType,
+            "X-Hub-Signature-256": sig ?? sign(body),
+            "X-GitHub-Delivery": deliveryId,
+          },
       body,
       isBase64Encoded: false,
     };
@@ -175,19 +201,59 @@ describe("handler", () => {
     const result = await handler(makeEvent(body, "installation") as any) as Result;
     expect(result.statusCode).toBe(200);
     expect(JSON.parse(result.body).status).toBe("ok");
-    expect(mockDdbSend).toHaveBeenCalledTimes(1);
-    const deleteInput = mockDdbSend.mock.calls[0][0].input;
+    // 2 DDB calls: PutCommand for dedup, then DeleteCommand for installation removal
+    expect(mockDdbSend).toHaveBeenCalledTimes(2);
+    const deleteInput = mockDdbSend.mock.calls[1][0].input;
     expect(deleteInput.TableName).toBe(INSTALLATIONS_TABLE);
     expect(deleteInput.Key).toEqual({ installationId: "99" });
     expect(mockSqsSend).not.toHaveBeenCalled();
   });
 
-  it("installation created: ignores and returns 200 without touching DynamoDB or SQS", async () => {
+  it("installation created: ignores and returns 200 without touching SQS (dedup PutCommand fires)", async () => {
     const body = JSON.stringify({ action: "created", installation: { id: 55 } });
     const result = await handler(makeEvent(body, "installation") as any) as Result;
     expect(result.statusCode).toBe(200);
     expect(JSON.parse(result.body).status).toBe("ok");
-    expect(mockDdbSend).not.toHaveBeenCalled();
+    // 1 DDB call: PutCommand for dedup only
+    expect(mockDdbSend).toHaveBeenCalledTimes(1);
     expect(mockSqsSend).not.toHaveBeenCalled();
+  });
+
+  it("deduplication: returns 200 with status=duplicate when delivery ID already seen", async () => {
+    const { ConditionalCheckFailedException } = jest.requireMock("@aws-sdk/client-dynamodb");
+    mockDdbSend.mockRejectedValueOnce(new ConditionalCheckFailedException());
+    const body = JSON.stringify({ installation: { id: 1 } });
+    const result = await handler(makeEvent(body, "push") as any) as Result;
+    expect(result.statusCode).toBe(200);
+    expect(JSON.parse(result.body).status).toBe("duplicate");
+    expect(mockSqsSend).not.toHaveBeenCalled();
+  });
+
+  it("deduplication: writes delivery ID to DynamoDB before queuing on first delivery", async () => {
+    const body = JSON.stringify({ installation: { id: 1 } });
+    const result = await handler(makeEvent(body, "push", undefined, "lower", "unique-delivery-id") as any) as Result;
+    expect(result.statusCode).toBe(200);
+    const putCall = mockDdbSend.mock.calls.find((call: any[]) =>
+      call[0].input?.TableName === DELIVERIES_TABLE
+    );
+    expect(putCall).toBeDefined();
+    expect(putCall![0].input.Item.deliveryId).toBe("unique-delivery-id");
+    expect(putCall![0].input.ConditionExpression).toBe("attribute_not_exists(deliveryId)");
+    expect(mockSqsSend).toHaveBeenCalledTimes(1);
+  });
+
+  it("deduplication: proceeds without dedup when GITHUB_DELIVERIES_TABLE is unset", async () => {
+    delete process.env.GITHUB_DELIVERIES_TABLE;
+    const body = JSON.stringify({ installation: { id: 1 } });
+    const result = await handler(makeEvent(body, "push") as any) as Result;
+    expect(result.statusCode).toBe(200);
+    expect(mockSqsSend).toHaveBeenCalledTimes(1);
+  });
+
+  it("deduplication: proceeds without dedup when X-GitHub-Delivery header is absent", async () => {
+    const body = JSON.stringify({ installation: { id: 1 } });
+    const result = await handler(makeEvent(body, "push", undefined, "lower", "") as any) as Result;
+    expect(result.statusCode).toBe(200);
+    expect(mockSqsSend).toHaveBeenCalledTimes(1);
   });
 });
