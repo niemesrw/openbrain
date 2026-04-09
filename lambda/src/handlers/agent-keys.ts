@@ -5,8 +5,9 @@ import {
   PutCommand,
   QueryCommand,
   DeleteCommand,
+  UpdateCommand,
 } from "@aws-sdk/lib-dynamodb";
-import type { CreateAgentArgs, ListAgentsArgs, RevokeAgentArgs, UserContext } from "../types";
+import type { CreateAgentArgs, ListAgentsArgs, RevokeAgentArgs, RotateAgentKeyArgs, UserContext } from "../types";
 import { hashApiKey } from "../services/api-key-hmac";
 
 const AGENT_KEYS_TABLE = process.env.AGENT_KEYS_TABLE!;
@@ -137,4 +138,66 @@ export async function handleRevokeAgent(
   );
 
   return `Agent "${args.name}" revoked. Its API key will stop working shortly.`;
+}
+
+export async function handleRotateAgentKey(
+  args: RotateAgentKeyArgs,
+  user: UserContext
+): Promise<string> {
+  const { name } = args;
+  if (!name) {
+    return "Error: Agent name is required.";
+  }
+  if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
+    return "Error: Agent name must be alphanumeric (letters, numbers, hyphens, underscores).";
+  }
+
+  const newApiKey = `ob_${randomBytes(32).toString("hex")}`;
+
+  try {
+    await ddb.send(
+      new UpdateCommand({
+        TableName: AGENT_KEYS_TABLE,
+        Key: {
+          pk: `USER#${user.userId}`,
+          sk: `AGENT#${name}`,
+        },
+        UpdateExpression: "SET apiKey = :key",
+        ConditionExpression: "attribute_exists(pk)",
+        ExpressionAttributeValues: { ":key": newApiKey },
+      })
+    );
+  } catch (err: unknown) {
+    if (err instanceof Error && err.name === "ConditionalCheckFailedException") {
+      return `Error: Agent "${name}" not found.`;
+    }
+    throw err;
+  }
+
+  const customDomain = process.env.CUSTOM_DOMAIN;
+  const apiUrl = customDomain
+    ? `https://${customDomain}`
+    : (process.env.API_URL || "<your-api-url>");
+
+  return [
+    `API key rotated for agent "${name}". Use the new key immediately; the old key may continue to work briefly while the change propagates.`,
+    "",
+    `API Key: ${newApiKey}`,
+    "",
+    "MCP config for Claude Code:",
+    `  claude mcp add --transport http open-brain ${apiUrl}/mcp --header "x-api-key: ${newApiKey}"`,
+    "",
+    "MCP config for Claude Desktop / other clients:",
+    JSON.stringify(
+      {
+        "open-brain": {
+          transport: "http",
+          url: `${apiUrl}/mcp`,
+          headers: { "x-api-key": newApiKey },
+        },
+      },
+      null,
+      2
+    ),
+  ].join("\n");
 }

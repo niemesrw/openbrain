@@ -68,6 +68,10 @@ export async function revokeAgent(name: string): Promise<string> {
   return callTool("revoke_agent", { name });
 }
 
+export async function rotateAgentKey(name: string): Promise<string> {
+  return callTool("rotate_agent_key", { name });
+}
+
 function extractUrl(text: string): string | undefined {
   try {
     const match = text.match(/https?:\/\/[^\s]+/);

@@ -128,6 +128,15 @@ function createMcpServer(user: UserContext): McpServer {
     }, async (args) => ({
       content: [{ type: "text" as const, text: await executeTool("revoke_agent", args, user) }],
     }));
+
+    server.registerTool("rotate_agent_key", {
+      description: "Rotate an agent's API key. Generates a new key; the old key may briefly continue to work while the change propagates.",
+      inputSchema: {
+        name: z.string().describe("The agent name whose key to rotate"),
+      },
+    }, async (args) => ({
+      content: [{ type: "text" as const, text: await executeTool("rotate_agent_key", args, user) }],
+    }));
   }
 
   server.registerTool("agent_heartbeat", {

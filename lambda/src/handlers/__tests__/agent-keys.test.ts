@@ -1,4 +1,4 @@
-import { handleListAgents, handleCreateAgent, handleRevokeAgent } from "../agent-keys";
+import { handleListAgents, handleCreateAgent, handleRevokeAgent, handleRotateAgentKey } from "../agent-keys";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 
 jest.mock("../../services/api-key-hmac", () => ({
@@ -26,6 +26,7 @@ jest.mock("@aws-sdk/lib-dynamodb", () => {
     PutCommand: jest.fn((input: unknown) => ({ input })),
     QueryCommand: jest.fn((input: unknown) => ({ input })),
     DeleteCommand: jest.fn((input: unknown) => ({ input })),
+    UpdateCommand: jest.fn((input: unknown) => ({ input })),
   };
 });
 
@@ -208,5 +209,71 @@ describe("handleListAgents — heartbeat fields", () => {
     const result = await handleListAgents({}, USER);
 
     expect(result).toBe("No agents registered. Use create_agent to create one.");
+  });
+});
+
+describe("handleRotateAgentKey", () => {
+  beforeEach(() => {
+    process.env.API_URL = "https://api.example.com";
+  });
+
+  it("returns new API key on successful rotation", async () => {
+    mockSend.mockResolvedValue({});
+
+    const result = await handleRotateAgentKey({ name: "claude-code" }, USER);
+
+    expect(result).toContain('API key rotated for agent "claude-code"');
+    expect(result).toContain("API Key: ob_");
+    expect(result).toContain("claude mcp add");
+    expect(result).toContain("https://api.example.com");
+  });
+
+  it("returns error when agent does not exist", async () => {
+    const err = new Error("ConditionalCheckFailedException");
+    err.name = "ConditionalCheckFailedException";
+    mockSend.mockRejectedValue(err);
+
+    const result = await handleRotateAgentKey({ name: "nonexistent" }, USER);
+
+    expect(result).toBe('Error: Agent "nonexistent" not found.');
+  });
+
+  it("returns error when name is empty", async () => {
+    const result = await handleRotateAgentKey({ name: "" }, USER);
+
+    expect(result).toBe("Error: Agent name is required.");
+  });
+
+  it("returns error when name contains invalid characters", async () => {
+    const result = await handleRotateAgentKey({ name: "bad agent!" }, USER);
+
+    expect(result).toContain("Error: Agent name must be alphanumeric");
+  });
+
+  it("uses CUSTOM_DOMAIN when set", async () => {
+    process.env.CUSTOM_DOMAIN = "brain.example.ai";
+    mockSend.mockResolvedValue({});
+
+    const result = await handleRotateAgentKey({ name: "claude-code" }, USER);
+
+    expect(result).toContain("https://brain.example.ai/mcp");
+    expect(result).not.toContain("<your-api-url>");
+    delete process.env.CUSTOM_DOMAIN;
+  });
+
+  it("mentions propagation delay in response", async () => {
+    mockSend.mockResolvedValue({});
+
+    const result = await handleRotateAgentKey({ name: "claude-code" }, USER);
+
+    expect(result).toContain("may continue to work briefly");
+  });
+
+  it("re-throws non-conditional-check errors", async () => {
+    mockSend.mockRejectedValue(new Error("InternalServerError"));
+
+    await expect(
+      handleRotateAgentKey({ name: "test-agent" }, USER)
+    ).rejects.toThrow("InternalServerError");
   });
 });

@@ -88,6 +88,10 @@ export interface RevokeAgentArgs {
   name: string;
 }
 
+export interface RotateAgentKeyArgs {
+  name: string;
+}
+
 export interface AgentKeyItem {
   pk: string;
   sk: string;

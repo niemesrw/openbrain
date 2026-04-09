@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { listAgents, getBusActivity, createAgent, revokeAgent } from "../lib/brain-api";
+import { listAgents, getBusActivity, createAgent, revokeAgent, rotateAgentKey } from "../lib/brain-api";
 import { createAgentRepo, updateAgent, getGitHubInstallations } from "../lib/api";
 import type { Agent, BusActivity } from "../lib/brain-types";
 
@@ -43,6 +43,7 @@ interface NewKeyInfo {
   agentName: string;
   apiKey: string;
   cliSnippet: string;
+  action: "created" | "rotated";
 }
 
 export function AgentsPage() {
@@ -84,6 +85,10 @@ export function AgentsPage() {
   // Revoke flow
   const [confirmRevoke, setConfirmRevoke] = useState<string | null>(null);
   const [revoking, setRevoking] = useState(false);
+
+  // Rotate flow
+  const [confirmRotate, setConfirmRotate] = useState<string | null>(null);
+  const [rotating, setRotating] = useState(false);
 
   const load = useCallback(async () => {
     if (isLoadingRef.current) return;
@@ -127,7 +132,7 @@ export function AgentsPage() {
         setCreateError(response.startsWith("Error:") ? response : "Unexpected response from server.");
         return;
       }
-      setNewKey({ agentName: name, ...parsed });
+      setNewKey({ agentName: name, ...parsed, action: "created" });
       setNewName("");
       setShowCreate(false);
       await load();
@@ -222,6 +227,25 @@ export function AgentsPage() {
     { id: "learning", label: "Learning Tracker", prompt: "You are a learning journal agent. Search for recent project activity and capture a summary of skills practiced and progress made." },
     { id: "custom", label: "Custom Agent", prompt: "" },
   ];
+
+  const handleRotate = async (name: string) => {
+    setRotating(true);
+    try {
+      const response = await rotateAgentKey(name);
+      const parsed = parseCreateResponse(response);
+      if (!parsed) {
+        setError(response.startsWith("Error:") ? response : "Unexpected response from server.");
+        return;
+      }
+      setNewKey({ agentName: name, ...parsed, action: "rotated" });
+      setConfirmRotate(null);
+      await load();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setRotating(false);
+    }
+  };
 
   const copyToClipboard = (text: string, which: "key" | "cli") => {
     const set = which === "key" ? setCopiedKey : setCopiedCli;
@@ -497,7 +521,7 @@ export function AgentsPage() {
         <div className="glass-card rounded-2xl p-5 border border-brain-secondary/30 space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-[10px] font-label font-bold text-brain-secondary uppercase tracking-widest">
-              Agent "{newKey.agentName}" Created
+              Agent "{newKey.agentName}" {newKey.action === "rotated" ? "Key Rotated" : "Created"}
             </p>
             <button
               onClick={() => setNewKey(null)}
@@ -597,6 +621,24 @@ export function AgentsPage() {
                           Cancel
                         </button>
                       </div>
+                    ) : confirmRotate === agent.name ? (
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-label text-brain-primary">Rotate key?</span>
+                        <button
+                          onClick={() => handleRotate(agent.name)}
+                          disabled={rotating}
+                          className="text-[10px] px-3 py-1 rounded-lg bg-brain-primary/20 text-brain-primary font-label hover:bg-brain-primary/30 disabled:opacity-40 transition-colors"
+                        >
+                          {rotating ? "…" : "Yes"}
+                        </button>
+                        <button
+                          onClick={() => setConfirmRotate(null)}
+                          disabled={rotating}
+                          className="text-[10px] px-3 py-1 rounded-lg bg-brain-outline/10 text-brain-muted font-label hover:text-white transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </div>
                     ) : (
                       <div className="flex items-center gap-2">
                         <button
@@ -606,7 +648,13 @@ export function AgentsPage() {
                           Edit
                         </button>
                         <button
-                          onClick={() => setConfirmRevoke(agent.name)}
+                          onClick={() => { setConfirmRotate(agent.name); setConfirmRevoke(null); }}
+                          className="text-[10px] text-brain-muted/50 hover:text-brain-primary font-label transition-colors"
+                        >
+                          Rotate
+                        </button>
+                        <button
+                          onClick={() => { setConfirmRevoke(agent.name); setConfirmRotate(null); }}
                           className="text-[10px] text-brain-muted/50 hover:text-brain-error font-label transition-colors"
                         >
                           Revoke
