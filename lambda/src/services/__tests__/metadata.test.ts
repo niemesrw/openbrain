@@ -99,8 +99,8 @@ describe("extractMetadata", () => {
     expect(result.type).toBe("observation");
   });
 
-  it("accepts all five valid type values without resetting", async () => {
-    for (const type of ["observation", "task", "idea", "reference", "person_note"]) {
+  it("accepts all six valid type values without resetting", async () => {
+    for (const type of ["observation", "task", "idea", "reference", "person_note", "workflow"]) {
       mockSend.mockResolvedValue(
         makeResponse(JSON.stringify({ type, topics: ["t"], people: [], action_items: [], dates_mentioned: [] }))
       );

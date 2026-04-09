@@ -70,6 +70,7 @@ const BRAIN_TOOLS = [
       properties: {
         text: { type: "string" },
         scope: { type: "string", enum: ["private", "shared"] },
+        type: { type: "string", enum: ["observation", "task", "idea", "reference", "person_note", "workflow"] },
       },
       required: ["text"],
     },

@@ -308,8 +308,8 @@ export function GuidePage() {
           />
           <FeatureCard
             icon="🏷️"
-            title="5 thought types"
-            description="Thoughts are automatically classified as observation, task, idea, reference, or person_note. Browse and filter by type to find exactly what you need."
+            title="6 thought types"
+            description="Thoughts are automatically classified as observation, task, idea, reference, person_note, or workflow. Browse and filter by type to find exactly what you need."
           />
           <FeatureCard
             icon="🔒"

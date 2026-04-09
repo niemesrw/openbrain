@@ -45,6 +45,9 @@ Behavior:
 - Default scope is "private" unless the user says to share.
 - Be concise. Don't over-explain what you're doing.
 
+Workflows:
+When a user describes an automation rule — like "when a PR is merged, summarize it and capture a thought" or "when an issue is labeled urgent, post a comment" — capture it as a workflow thought (type: "workflow"). Workflow thoughts define trigger-action pairs that background agents will execute. Use capture_thought with type override "workflow" so it's correctly classified.
+
 GitHub tools:
 You have tools to interact with GitHub on the user's behalf — labeling issues, posting comments, and closing issues. These work through the user's connected GitHub App installation. If the user hasn't connected GitHub, the tools will tell you.
 
@@ -71,11 +74,9 @@ function buildTools(user: UserContext) {
         query: z.string().describe("What to search for"),
         limit: z.number().optional().describe("Max results (default 10)"),
         type: z
-          .string()
+          .enum(["observation", "task", "idea", "reference", "person_note", "workflow"])
           .optional()
-          .describe(
-            "Filter by type: observation, task, idea, reference, person_note",
-          ),
+          .describe("Filter by thought type"),
         topic: z.string().optional().describe("Filter by topic"),
       }),
       execute: async (args) => executeTool("search_thoughts", args, user),
@@ -88,7 +89,10 @@ function buildTools(user: UserContext) {
           .number()
           .optional()
           .describe("Number of recent thoughts (default 10)"),
-        type: z.string().optional().describe("Filter by type"),
+        type: z
+          .enum(["observation", "task", "idea", "reference", "person_note", "workflow"])
+          .optional()
+          .describe("Filter by thought type"),
         topic: z.string().optional().describe("Filter by topic"),
         tenant_id: z
           .string()
@@ -116,6 +120,10 @@ function buildTools(user: UserContext) {
           .enum(["private", "shared"])
           .optional()
           .describe("private (default) or shared"),
+        type: z
+          .enum(["observation", "task", "idea", "reference", "person_note", "workflow"])
+          .optional()
+          .describe("Explicit type override — use 'workflow' for automation rules"),
       }),
       execute: async (args) => executeTool("capture_thought", args, user),
     }),

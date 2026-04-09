@@ -1,5 +1,5 @@
 export interface ThoughtMetadata {
-  type: "observation" | "task" | "idea" | "reference" | "person_note";
+  type: "observation" | "task" | "idea" | "reference" | "person_note" | "workflow";
   topics: string[];
   people: string[];
   action_items: string[];
@@ -65,7 +65,7 @@ export interface CaptureArgs {
   /** Source URL of the article or page being captured — og:image is auto-extracted from this URL */
   source_url?: string;
   /** Optional explicit type override — overrides the AI-chosen type when provided */
-  type?: "observation" | "task" | "idea" | "reference" | "person_note";
+  type?: "observation" | "task" | "idea" | "reference" | "person_note" | "workflow";
 }
 
 export interface UpdateThoughtArgs {

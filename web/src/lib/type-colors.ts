@@ -4,4 +4,5 @@ export const TYPE_COLORS: Record<string, string> = {
   idea: "#a68cff",
   reference: "#adaaaa",
   person_note: "#00d4ec",
+  workflow: "#f5a623",
 };

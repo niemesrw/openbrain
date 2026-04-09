@@ -39,7 +39,7 @@ describe("stats", () => {
   it("lists valid thought types in the breakdown", async () => {
     const res = await mcp("tools/call", { name: "stats", arguments: {} });
     const text = toolText(res as any);
-    const validTypes = ["observation", "task", "idea", "reference", "person_note"];
+    const validTypes = ["observation", "task", "idea", "reference", "person_note", "workflow"];
     const foundTypes = validTypes.filter((t) => text.includes(t));
     // At least one type should appear since we captured thoughts
     expect(foundTypes.length).toBeGreaterThan(0);

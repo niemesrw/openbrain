@@ -1,6 +1,6 @@
 import { TYPE_COLORS } from "../lib/type-colors";
 
-const ALL_TYPES = ["observation", "task", "idea", "reference", "person_note"];
+const ALL_TYPES = ["observation", "task", "idea", "reference", "person_note", "workflow"];
 
 interface FilterChipsProps {
   activeType: string | null;

@@ -12,6 +12,8 @@ import type { UserContext } from "./types";
 
 // --- Tool registration ---
 
+const THOUGHT_TYPE_ENUM = z.enum(["observation", "task", "idea", "reference", "person_note", "workflow"]);
+
 const SCOPE_ENUM = z.enum(["private", "shared"]).default("private")
   .describe("Scope: private (default, only you), shared (public feed)");
 
@@ -30,7 +32,7 @@ export function createMcpServer(user: UserContext): McpServer {
       query: z.string().describe("What you're looking for — natural language"),
       threshold: z.number().default(0.5).describe("Similarity threshold 0-1 (lower = broader results)"),
       limit: z.number().default(10).describe("Max results to return"),
-      type: z.string().optional().describe("Filter by type: observation, task, idea, reference, person_note"),
+      type: THOUGHT_TYPE_ENUM.optional().describe("Filter by thought type"),
       topic: z.string().optional().describe("Filter by topic"),
       scope: READ_SCOPE_ENUM,
       _format: FORMAT_ENUM,
@@ -43,7 +45,7 @@ export function createMcpServer(user: UserContext): McpServer {
     description: "Browse recent thoughts chronologically. Optionally filter by type or topic.",
     inputSchema: {
       limit: z.number().default(10).describe("Number of recent thoughts"),
-      type: z.string().optional().describe("Filter by type: observation, task, idea, reference, person_note"),
+      type: THOUGHT_TYPE_ENUM.optional().describe("Filter by thought type"),
       topic: z.string().optional().describe("Filter by topic"),
       scope: READ_SCOPE_ENUM,
       tenant_id: z.string().optional().describe("Filter shared thoughts by tenant (userId). Thoughts without tenant_id are always included for backward compatibility."),
@@ -68,7 +70,7 @@ export function createMcpServer(user: UserContext): McpServer {
     inputSchema: {
       text: z.string().describe("The thought to capture"),
       scope: SCOPE_ENUM,
-      type: z.enum(["observation", "task", "idea", "reference", "person_note"]).optional().describe("Optional explicit type override — overrides the AI-chosen type when provided"),
+      type: THOUGHT_TYPE_ENUM.optional().describe("Optional explicit type override — overrides the AI-chosen type when provided"),
       media_url: z.string().url().refine(v => /^https?:/.test(v), { message: "media_url must use http or https" }).optional().describe("Optional URL to associated media (image, video, audio, etc.)"),
       source_url: z.string().url().refine(v => /^https?:/.test(v), { message: "source_url must use http or https" }).optional().describe("Source URL of the article or page being captured — og:image is automatically extracted and stored as media_url"),
     },

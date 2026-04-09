@@ -24,7 +24,7 @@ describe("capture_thought", () => {
       },
     });
     const text = toolText(res as any);
-    const validTypes = ["observation", "task", "idea", "reference", "person_note"];
+    const validTypes = ["observation", "task", "idea", "reference", "person_note", "workflow"];
     expect(validTypes.some((t) => text.toLowerCase().includes(t))).toBe(true);
   });
 
@@ -62,6 +62,19 @@ describe("capture_thought", () => {
     });
     const text = toolText(res as any);
     expect(text).toMatch(/action items?/i);
+  });
+
+  it("captures with explicit workflow type override", async () => {
+    const res = await mcp("tools/call", {
+      name: "capture_thought",
+      arguments: {
+        text: `${RUN_ID} When a PR is merged to main, summarize the changes and capture a reference thought.`,
+        type: "workflow",
+      },
+    });
+    expect(res.error).toBeUndefined();
+    const text = toolText(res as any);
+    expect(text.toLowerCase()).toContain("workflow");
   });
 
   it("missing required text argument returns an error", async () => {

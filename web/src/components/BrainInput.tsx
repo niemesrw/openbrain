@@ -8,6 +8,7 @@ const THOUGHT_TYPES = [
   { value: "idea", label: "Idea" },
   { value: "reference", label: "Reference" },
   { value: "person_note", label: "Person note" },
+  { value: "workflow", label: "Workflow" },
 ];
 
 interface BrainInputProps {
