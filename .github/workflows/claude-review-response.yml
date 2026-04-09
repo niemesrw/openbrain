@@ -168,3 +168,80 @@ jobs:
             STEP 5 — Commit and push all changes to the PR branch.
 
             STEP 6 — Post a comment on the PR summarising what was changed and why, referencing each Copilot comment addressed.
+
+      - name: Resolve Copilot review threads from this review
+        if: steps.check.outputs.comment_count != '0' && steps.check.outputs.limit_reached == 'false'
+        run: |
+          REVIEW_NODE_ID=$(gh api graphql -f query='
+            query($owner: String!, $name: String!, $pr: Int!) {
+              repository(owner: $owner, name: $name) {
+                pullRequest(number: $pr) {
+                  reviews(last: 50) {
+                    nodes { id databaseId }
+                  }
+                }
+              }
+            }' \
+            -f owner="${{ github.repository_owner }}" \
+            -f name="${{ github.event.repository.name }}" \
+            -F pr=${{ github.event.pull_request.number }} \
+            --jq '.data.repository.pullRequest.reviews.nodes[]
+              | select(.databaseId == ${{ github.event.review.id }})
+              | .id')
+
+          # Resolve only threads belonging to the triggering review
+          CURSOR=""
+          RESOLVED=0
+          while true; do
+            AFTER_ARG=""
+            if [ -n "$CURSOR" ]; then
+              AFTER_ARG=", after: \"$CURSOR\""
+            fi
+
+            RESULT=$(gh api graphql -f query="
+              query(\$owner: String!, \$name: String!, \$pr: Int!) {
+                repository(owner: \$owner, name: \$name) {
+                  pullRequest(number: \$pr) {
+                    reviewThreads(first: 100${AFTER_ARG}) {
+                      pageInfo { hasNextPage endCursor }
+                      nodes {
+                        id
+                        isResolved
+                        comments(first: 1) {
+                          nodes {
+                            pullRequestReview { id }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }" \
+              -f owner="${{ github.repository_owner }}" \
+              -f name="${{ github.event.repository.name }}" \
+              -F pr=${{ github.event.pull_request.number }})
+
+            THREADS=$(echo "$RESULT" | jq -r "
+              .data.repository.pullRequest.reviewThreads.nodes[]
+              | select(.isResolved == false)
+              | select(.comments.nodes[0].pullRequestReview.id == \"$REVIEW_NODE_ID\")
+              | .id")
+
+            for thread_id in $THREADS; do
+              gh api graphql \
+                -f query='mutation($threadId: ID!) { resolveReviewThread(input: { threadId: $threadId }) { thread { isResolved } } }' \
+                -f threadId="$thread_id" \
+                --silent
+              RESOLVED=$((RESOLVED + 1))
+            done
+
+            HAS_NEXT=$(echo "$RESULT" | jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.hasNextPage')
+            if [ "$HAS_NEXT" != "true" ]; then
+              break
+            fi
+            CURSOR=$(echo "$RESULT" | jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.endCursor')
+          done
+
+          echo "Resolved $RESOLVED Copilot review thread(s) from review ${{ github.event.review.id }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
