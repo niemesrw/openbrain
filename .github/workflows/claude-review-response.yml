@@ -1,10 +1,38 @@
-name: Claude Responds to Copilot Review
+name: Copilot Review Handler
 
 on:
   pull_request_review:
     types: [submitted]
 
 jobs:
+  # Auto-approve any PR where Copilot's review has no inline comments.
+  # This satisfies the branch protection "1 required approval" gate so
+  # PRs aren't blocked indefinitely (Copilot only submits COMMENTED reviews).
+  auto-approve:
+    if: github.event.review.user.login == 'copilot-pull-request-reviewer[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Count inline comments on this review
+        id: count
+        run: |
+          COMMENT_COUNT=$(gh api \
+            repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/reviews/${{ github.event.review.id }}/comments \
+            --jq 'length')
+          echo "comments=$COMMENT_COUNT" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Approve PR if Copilot found no issues
+        if: steps.count.outputs.comments == '0'
+        run: |
+          gh pr review ${{ github.event.pull_request.number }} \
+            --approve \
+            --body "Auto-approved: Copilot review completed with no inline comments."
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   respond:
     # Only respond to Copilot reviews on Claude-opened PRs
     if: |

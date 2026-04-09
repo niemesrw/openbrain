@@ -21,7 +21,7 @@ const READ_SCOPE_ENUM = z.enum(["private", "shared", "all"]).default("private")
 const FORMAT_ENUM = z.enum(["json"]).optional()
   .describe("Response format: json; omit for plain text");
 
-function createMcpServer(user: UserContext): McpServer {
+export function createMcpServer(user: UserContext): McpServer {
   const server = new McpServer({ name: "open-brain", version: "2.0.0" });
 
   server.registerTool("search_thoughts", {
