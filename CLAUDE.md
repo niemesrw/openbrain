@@ -326,13 +326,65 @@ Uses S3 Vectors with an index-per-scope design. The `shared` index is created by
 
 ## CI/CD
 
+### Branch Protection (`main`)
+
+PRs to `main` require:
+1. **3 CI checks** — CDK synth, Lambda unit tests, Web build (all must pass)
+2. **1 approving review** — Copilot reviews every PR automatically; the auto-approve workflow handles approval (see below)
+
+Repository maintainers have bypass privileges for merging when the automated flow can't approve (e.g., human PRs with Copilot comments).
+
+### PR Merge Flow
+
+Copilot reviews once. No re-reviews — if comments are addressed, the workflow approves without waiting for another Copilot pass.
+
+```
+Push → CI checks run + Copilot reviews
+         ↓
+Copilot submits COMMENTED review
+         ↓
+claude-review-response.yml triggers:
+  ├── auto-approve job (all PRs):
+  │     0 inline comments → submits APPROVED review → merge unblocked
+  │     Has comments → skips
+  │
+  └── respond job (Claude-opened PRs only):
+        Claude reads comments → fixes → pushes → resolves threads
+        → workflow approves the PR → merge unblocked
+        (max 3 rounds, then flags for human review)
+```
+
+**Human PRs with Copilot comments:** fix the comments, push, then bypass-merge. The auto-approve only fires on the initial Copilot review event.
+
+### Copilot Review Instructions (`.github/copilot-instructions.md`)
+
+Copilot is configured to:
+- Classify comments as 🔴 Bug/Security, 🟡 Suggestion, or 🟢 Nit
+- Consolidate duplicate findings into a single comment
+- Check agent access control (tools inside `if (!user.agentName)` gate)
+- Flag `listAllVectors` on hot paths, missing tests, missing route wiring
+
+### Workflows
+
+| Workflow | File | Trigger | Purpose |
+|----------|------|---------|---------|
+| CI | `ci.yml` | PR + push to main | CDK synth, Lambda tests, Web build |
+| Deploy | `deploy.yml` | Push to main + manual (`workflow_dispatch`) | Deploy all CDK stacks to production |
+| Copilot Review Handler | `claude-review-response.yml` | `pull_request_review` submitted | Auto-approve clean PRs; Claude fixes Copilot comments on Claude-opened PRs; auto-resolves addressed threads |
+| Claude Code | `claude.yml` | Issue labeled | Claude implements issues labeled `claude` |
+| Integration Tests | `integration-tests.yml` | Manual (`workflow_dispatch`) | Runs integration test suite in `tests/` |
+
 ### Deploy (`.github/workflows/deploy.yml`)
 
-Triggered on push to `main`. Deploys all 5 CDK stacks to the deploy account. Uses OIDC → management account → cross-account assume role to deploy account. Requires GitHub secrets: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET_ARN`, and `CLOUDFRONT_CALLBACK_URL` (set after first deploy). Also requires repository variables `MANAGEMENT_ACCOUNT` and `AI_ACCOUNT`.
+Triggered on push to `main` or manual runs via `workflow_dispatch`. Deploys all 5 CDK stacks to the deploy account. Uses OIDC → management account → cross-account assume role to deploy account. Requires GitHub secrets: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET_ARN`, and `CLOUDFRONT_CALLBACK_URL` (set after first deploy). Also requires repository variables `MANAGEMENT_ACCOUNT` and `AI_ACCOUNT`.
 
 ### Integration Tests (`.github/workflows/integration-tests.yml`)
 
 Manual-only (`workflow_dispatch`). Uses OIDC to AWS management account to fetch test credentials from Secrets Manager, then runs the integration test suite in `tests/`.
+
+### Dependency Smoke Tests
+
+`lambda/src/__tests__/mcp-server.test.ts` and `lambda/src/__tests__/ai-sdk.test.ts` verify the API surface of key dependencies (`@modelcontextprotocol/sdk`, `hono`, `ai`, `@ai-sdk/amazon-bedrock`). Run these after any dependency upgrade to catch breaking changes before deploying.
 
 ## MCP OAuth
 
@@ -356,6 +408,7 @@ Before submitting a pull request, ensure:
 5. **Web build** — If `web/` files changed, run `cd web && npm run build` to ensure the SPA builds cleanly before deploying via CDK.
 6. **Guide** — If this adds or changes a user-facing feature (new tool, integration, or UI), update `web/src/pages/GuidePage.tsx`.
 7. **Security boundaries** — When implementing any security boundary (delimiter wrapping, input validation, allowlists, escaping), explicitly reason about what an attacker controls and whether they can escape the boundary. Ask: "if the input contains the delimiter/closing tag itself, does the boundary still hold?" Common failures: XML/HTML wrappers without escaping the content, allowlists that are enforced after use rather than before, type validation that only runs at the TypeScript layer but not at runtime.
+8. **Agent access control** — State-modifying MCP tools (write, delete, close, label, comment) must be registered inside the `if (!user.agentName)` gate in `index.ts`. Tools outside the gate are available to agents and increase prompt injection blast radius.
 
 ## Troubleshooting
 

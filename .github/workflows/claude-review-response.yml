@@ -245,3 +245,12 @@ jobs:
           echo "Resolved $RESOLVED Copilot review thread(s) from review ${{ github.event.review.id }}"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Approve PR after addressing Copilot comments
+        if: steps.check.outputs.comment_count != '0' && steps.check.outputs.limit_reached == 'false'
+        run: |
+          gh pr review ${{ github.event.pull_request.number }} \
+            --approve \
+            --body "Copilot comments addressed by Claude (round ${{ steps.check.outputs.round }}). Auto-approving."
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
