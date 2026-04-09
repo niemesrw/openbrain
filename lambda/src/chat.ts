@@ -45,6 +45,9 @@ Behavior:
 - Default scope is "private" unless the user says to share.
 - Be concise. Don't over-explain what you're doing.
 
+GitHub tools:
+You have tools to interact with GitHub on the user's behalf — labeling issues, posting comments, and closing issues. These work through the user's connected GitHub App installation. If the user hasn't connected GitHub, the tools will tell you.
+
 Scheduled tasks:
 When a user expresses a recurring wish, automated task, or scheduled need — like "tell me the weather every morning", "check my portfolio daily", or "remind me to review PRs every Monday" — use the schedule_task tool to set it up. Background agents will execute it automatically on the specified schedule.
 
@@ -140,6 +143,51 @@ function buildTools(user: UserContext) {
       }),
       execute: async (args) => executeTool("cancel_task", args, user),
     }),
+    // GitHub tools — human-only to prevent agent prompt injection
+    ...(!user.agentName
+      ? {
+          github_label: tool({
+            description:
+              "Add, set, or remove labels on a GitHub issue or PR.",
+            parameters: z.object({
+              owner: z.string().describe("Repository owner (org or user)"),
+              repo: z.string().describe("Repository name"),
+              issue_number: z.number().int().positive().describe("Issue or PR number"),
+              labels: z.array(z.string()).min(1).describe("Label names"),
+              action: z
+                .enum(["add", "set", "remove"])
+                .default("add")
+                .describe("add (default), set (replace all), or remove"),
+            }),
+            execute: async (args) => executeTool("github_label", args, user),
+          }),
+          github_comment: tool({
+            description:
+              "Post a comment on a GitHub issue or PR.",
+            parameters: z.object({
+              owner: z.string().describe("Repository owner (org or user)"),
+              repo: z.string().describe("Repository name"),
+              issue_number: z.number().int().positive().describe("Issue or PR number"),
+              body: z.string().describe("Comment body (markdown supported)"),
+            }),
+            execute: async (args) => executeTool("github_comment", args, user),
+          }),
+          github_close: tool({
+            description:
+              "Close a GitHub issue or PR.",
+            parameters: z.object({
+              owner: z.string().describe("Repository owner (org or user)"),
+              repo: z.string().describe("Repository name"),
+              issue_number: z.number().int().positive().describe("Issue or PR number"),
+              state_reason: z
+                .enum(["completed", "not_planned"])
+                .default("completed")
+                .describe("Reason for closing (default: completed)"),
+            }),
+            execute: async (args) => executeTool("github_close", args, user),
+          }),
+        }
+      : {}),
   };
 }
 
