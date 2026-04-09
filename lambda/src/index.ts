@@ -137,6 +137,43 @@ function createMcpServer(user: UserContext): McpServer {
     }, async (args) => ({
       content: [{ type: "text" as const, text: await executeTool("rotate_agent_key", args, user) }],
     }));
+
+    server.registerTool("github_label", {
+      description: "Add, replace, or remove labels on a GitHub issue or pull request.",
+      inputSchema: {
+        owner: z.string().describe("GitHub org or user login (must match a connected installation)"),
+        repo: z.string().describe("Repository name"),
+        issue_number: z.number().int().positive().describe("Issue or PR number"),
+        labels: z.array(z.string()).min(1).describe("Label names to add, set, or remove"),
+        action: z.enum(["add", "set", "remove"]).default("add").describe("add (append), set (replace all), or remove"),
+      },
+    }, async (args) => ({
+      content: [{ type: "text" as const, text: await executeTool("github_label", args, user) }],
+    }));
+
+    server.registerTool("github_comment", {
+      description: "Post a comment on a GitHub issue or pull request.",
+      inputSchema: {
+        owner: z.string().describe("GitHub org or user login (must match a connected installation)"),
+        repo: z.string().describe("Repository name"),
+        issue_number: z.number().int().positive().describe("Issue or PR number"),
+        body: z.string().describe("Comment body (Markdown supported)"),
+      },
+    }, async (args) => ({
+      content: [{ type: "text" as const, text: await executeTool("github_comment", args, user) }],
+    }));
+
+    server.registerTool("github_close", {
+      description: "Close a GitHub issue or pull request.",
+      inputSchema: {
+        owner: z.string().describe("GitHub org or user login (must match a connected installation)"),
+        repo: z.string().describe("Repository name"),
+        issue_number: z.number().int().positive().describe("Issue or PR number"),
+        state_reason: z.enum(["completed", "not_planned"]).default("completed").describe("Reason for closing: completed or not_planned"),
+      },
+    }, async (args) => ({
+      content: [{ type: "text" as const, text: await executeTool("github_close", args, user) }],
+    }));
   }
 
   server.registerTool("agent_heartbeat", {

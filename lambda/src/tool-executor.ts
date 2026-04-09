@@ -8,6 +8,7 @@ import { handleCreateAgent, handleListAgents, handleRevokeAgent, handleRotateAge
 import { handleAgentHeartbeat } from "./handlers/agent-heartbeat";
 import { handleBusActivity } from "./handlers/bus-activity";
 import { handleScheduleTask, handleListTasks, handleCancelTask } from "./handlers/agent-tasks";
+import { handleGitHubLabel, handleGitHubComment, handleGitHubClose } from "./handlers/github-actions";
 import type { UserContext } from "./types";
 
 export async function executeTool(
@@ -46,6 +47,12 @@ export async function executeTool(
       return handleListTasks(args as any, user);
     case "cancel_task":
       return handleCancelTask(args as any, user);
+    case "github_label":
+      return handleGitHubLabel(args as any, user);
+    case "github_comment":
+      return handleGitHubComment(args as any, user);
+    case "github_close":
+      return handleGitHubClose(args as any, user);
     default:
       throw new Error(`Unknown tool: ${name}`);
   }
