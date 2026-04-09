@@ -45,7 +45,10 @@ export async function handleCreateAgent(
     })
   );
 
-  const apiUrl = process.env.API_URL || "<your-api-url>";
+  const customDomain = process.env.CUSTOM_DOMAIN;
+  const apiUrl = customDomain
+    ? `https://${customDomain}`
+    : (process.env.API_URL || "<your-api-url>");
 
   return [
     `Agent "${name}" created.`,

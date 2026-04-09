@@ -39,6 +39,35 @@ beforeEach(() => {
   process.env.AGENT_KEYS_TABLE = "openbrain-agent-keys";
 });
 
+describe("handleCreateAgent — CLI snippet URL", () => {
+  it("uses CUSTOM_DOMAIN when set", async () => {
+    process.env.CUSTOM_DOMAIN = "brain.example.ai";
+    mockSend.mockResolvedValue({});
+    const result = await handleCreateAgent({ name: "test-agent" }, USER);
+    expect(result).toContain("https://brain.example.ai/mcp");
+    expect(result).not.toContain("<your-api-url>");
+    delete process.env.CUSTOM_DOMAIN;
+  });
+
+  it("falls back to API_URL when CUSTOM_DOMAIN is absent", async () => {
+    delete process.env.CUSTOM_DOMAIN;
+    process.env.API_URL = "https://abc123.execute-api.us-east-1.amazonaws.com";
+    mockSend.mockResolvedValue({});
+    const result = await handleCreateAgent({ name: "test-agent" }, USER);
+    expect(result).toContain("https://abc123.execute-api.us-east-1.amazonaws.com/mcp");
+    expect(result).not.toContain("<your-api-url>");
+    delete process.env.API_URL;
+  });
+
+  it("shows placeholder when neither env var is set", async () => {
+    delete process.env.CUSTOM_DOMAIN;
+    delete process.env.API_URL;
+    mockSend.mockResolvedValue({});
+    const result = await handleCreateAgent({ name: "test-agent" }, USER);
+    expect(result).toContain("<your-api-url>/mcp");
+  });
+});
+
 describe("handleCreateAgent — agent caller restriction", () => {
   it("rejects when caller is an agent", async () => {
     const agentUser = { userId: "user-123", agentName: "my-agent" };
