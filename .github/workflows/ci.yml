@@ -68,8 +68,7 @@ jobs:
 
       - name: Install actionlint
         run: |
-          curl -sL "$(curl -s https://api.github.com/repos/rhysd/actionlint/releases/latest \
-            | jq -r '.assets[] | select(.name | test("linux_amd64\\.tar\\.gz$")) | .browser_download_url')" \
+          curl -sL "https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_amd64.tar.gz" \
             | tar xz -C /usr/local/bin actionlint
 
       - name: Lint workflows
