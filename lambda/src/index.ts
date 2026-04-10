@@ -8,7 +8,7 @@ import { z } from "zod";
 import { verifyAuth } from "./auth/verify";
 import { executeTool } from "./tool-executor";
 import { handleInsight } from "./handlers/insight";
-import { handleAppleNativeAuth } from "./handlers/apple-native-auth";
+import { handleAppleNativeAuth, type AppleNativeAuthRequest } from "./handlers/apple-native-auth";
 import type { UserContext } from "./types";
 
 // --- Tool registration ---
@@ -294,9 +294,19 @@ export async function handler(
 
   // Native Apple sign-in — exchanges Apple identity token for Cognito tokens
   if (method === "POST" && event.rawPath === "/auth/apple-token") {
+    let body: unknown;
     try {
-      const body = JSON.parse(event.body || "{}");
-      const result = await handleAppleNativeAuth(body);
+      body = JSON.parse(event.body || "{}");
+    } catch {
+      return {
+        statusCode: 400,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ error: "Malformed JSON" }),
+      };
+    }
+
+    try {
+      const result = await handleAppleNativeAuth(body as AppleNativeAuthRequest);
       return {
         statusCode: 200,
         headers: { "Content-Type": "application/json" },
@@ -305,14 +315,24 @@ export async function handler(
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       console.error("Apple native auth error:", message);
-      // Map known validation errors to 401; everything else is 500.
-      // Never expose internal error details to the client.
-      const authErrors = ["Invalid", "expired", "identityToken is required", "No email"];
-      const isAuthError = authErrors.some((s) => message.includes(s));
+      const isAuthError =
+        message === "identityToken is required" ||
+        message === "No email in Apple identity token" ||
+        message === "Email not verified" ||
+        message === "Apple signing key not found" ||
+        message.startsWith("Invalid ") ||
+        message.startsWith("Token expired");
+      const isConfigError =
+        message === "APPLE_BUNDLE_IDS_PARAM must be configured" ||
+        message === "APPLE_BUNDLE_IDS parameter is empty";
+      const statusCode = isConfigError ? 503 : isAuthError ? 401 : 500;
+      const error = isConfigError
+        ? "Apple sign-in is not configured"
+        : isAuthError ? "Unauthorized" : "Internal server error";
       return {
-        statusCode: isAuthError ? 401 : 500,
+        statusCode,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ error: isAuthError ? "Unauthorized" : "Internal server error" }),
+        body: JSON.stringify({ error }),
       };
     }
   }

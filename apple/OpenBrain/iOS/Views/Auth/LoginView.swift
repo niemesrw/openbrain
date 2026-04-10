@@ -90,7 +90,7 @@ struct LoginView: View {
     private func signInWithApple() {
         isLoading = true
         error = nil
-        Task {
+        Task { @MainActor in
             do {
                 try await authService.loginWithApple()
             } catch {

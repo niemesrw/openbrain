@@ -377,6 +377,7 @@ extension AuthService: ASWebAuthenticationPresentationContextProviding {
 
 // MARK: - ASAuthorizationControllerDelegate
 
+@MainActor
 extension AuthService: ASAuthorizationControllerDelegate {
     public func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
         appleAuthContinuation?.resume(returning: authorization)

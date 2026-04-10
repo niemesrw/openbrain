@@ -9,17 +9,35 @@ import {
   AdminGetUserCommand,
   MessageActionType,
 } from "@aws-sdk/client-cognito-identity-provider";
+import { SSMClient, GetParameterCommand } from "@aws-sdk/client-ssm";
 
 const cognito = new CognitoIdentityProviderClient({});
+const ssm = new SSMClient({});
 
 // Read env vars lazily so tests can set them in beforeEach
-function getUserPoolId() { return process.env.USER_POOL_ID!; }
-function getMobileClientId() { return process.env.COGNITO_MOBILE_CLIENT_ID!; }
-function getAppleBundleIds() {
-  const ids = (process.env.APPLE_BUNDLE_IDS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
-  if (ids.length === 0) throw new Error("APPLE_BUNDLE_IDS must be configured");
+function getRequiredEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) throw new Error(`${name} must be configured`);
+  return value;
+}
+function getUserPoolId() { return getRequiredEnv("USER_POOL_ID"); }
+function getMobileClientId() { return getRequiredEnv("COGNITO_MOBILE_CLIENT_ID"); }
+
+// Cache SSM value for the lifetime of the Lambda execution environment
+let bundleIdsCache: string[] | null = null;
+async function getAppleBundleIds(): Promise<string[]> {
+  if (bundleIdsCache) return bundleIdsCache;
+  const paramName = process.env.APPLE_BUNDLE_IDS_PARAM;
+  if (!paramName) throw new Error("APPLE_BUNDLE_IDS_PARAM must be configured");
+  const res = await ssm.send(new GetParameterCommand({ Name: paramName }));
+  const ids = (res.Parameter?.Value ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  if (ids.length === 0) throw new Error("APPLE_BUNDLE_IDS parameter is empty");
+  bundleIdsCache = ids;
   return ids;
 }
+
+// Exported for tests to reset the cache
+export function _resetBundleIdsCache() { bundleIdsCache = null; }
 
 const APPLE_JWKS_URL = "https://appleid.apple.com/auth/keys";
 const APPLE_ISSUER = "https://appleid.apple.com";
@@ -78,15 +96,21 @@ async function verifyAppleToken(identityToken: string): Promise<AppleTokenPayloa
   const parts = identityToken.split(".");
   if (parts.length !== 3) throw new Error("Invalid token format");
 
-  const header = JSON.parse(base64UrlDecode(parts[0]).toString()) as { kid: string; alg: string };
-  const payload = JSON.parse(base64UrlDecode(parts[1]).toString()) as AppleTokenPayload;
+  let header: { kid: string; alg: string };
+  let payload: AppleTokenPayload;
+  try {
+    header = JSON.parse(base64UrlDecode(parts[0]).toString());
+    payload = JSON.parse(base64UrlDecode(parts[1]).toString());
+  } catch {
+    throw new Error("Invalid token format");
+  }
 
   // Validate header
   if (header.alg !== "RS256") throw new Error("Invalid algorithm");
 
   // Validate claims before signature (fast-fail)
   if (payload.iss !== APPLE_ISSUER) throw new Error("Invalid issuer");
-  if (!getAppleBundleIds().includes(payload.aud)) throw new Error("Invalid audience");
+  if (!(await getAppleBundleIds()).includes(payload.aud)) throw new Error("Invalid audience");
   if (payload.exp < Math.floor(Date.now() / 1000)) throw new Error("Token expired");
 
   // Require verified email when present

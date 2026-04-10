@@ -15,6 +15,7 @@
     "@aws-sdk/client-s3vectors": "^3.750.0",
     "@aws-sdk/client-secrets-manager": "^3.1018.0",
     "@aws-sdk/client-sqs": "^3.1018.0",
+    "@aws-sdk/client-ssm": "^3.1029.0",
     "@aws-sdk/lib-dynamodb": "^3.750.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "ai": "^4.0.0",

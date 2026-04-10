@@ -11,6 +11,7 @@ import * as targets from "aws-cdk-lib/aws-events-targets";
 import * as sqs from "aws-cdk-lib/aws-sqs";
 import * as lambdaEventSources from "aws-cdk-lib/aws-lambda-event-sources";
 import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
+import * as ssm from "aws-cdk-lib/aws-ssm";
 import * as cloudwatch from "aws-cdk-lib/aws-cloudwatch";
 import * as cwActions from "aws-cdk-lib/aws-cloudwatch-actions";
 import * as sns from "aws-cdk-lib/aws-sns";
@@ -72,6 +73,16 @@ export class ApiStack extends cdk.Stack {
     const agentTasksTableArn = `arn:aws:dynamodb:${this.region}:${this.account}:table/${agentTasksTableName}`;
     const dcrClientsTableArn = `arn:aws:dynamodb:${this.region}:${this.account}:table/${dcrClientsTableName}`;
 
+    // Apple bundle IDs for native Sign in with Apple token validation
+    const appleBundleIdsParamName = "/openbrain/apple-bundle-ids";
+    if (props.appleBundleIds) {
+      new ssm.StringParameter(this, "AppleBundleIds", {
+        parameterName: appleBundleIdsParamName,
+        stringValue: props.appleBundleIds,
+        description: "Comma-separated Apple bundle IDs for Sign in with Apple",
+      });
+    }
+
     // Main MCP handler Lambda
     this.handler = new lambdaNode.NodejsFunction(this, "McpHandler", {
       runtime: lambda.Runtime.NODEJS_22_X,
@@ -92,7 +103,7 @@ export class ApiStack extends cdk.Stack {
         HMAC_SECRET_ARN: hmacSecretArn,
         FREE_TIER_DAILY_LIMIT: "50",
         ...(customDomain && { CUSTOM_DOMAIN: customDomain }),
-        ...(props.appleBundleIds && { APPLE_BUNDLE_IDS: props.appleBundleIds }),
+        ...(props.appleBundleIds && { APPLE_BUNDLE_IDS_PARAM: appleBundleIdsParamName }),
       },
       bundling: {
         externalModules: ["@aws-sdk/*"],
@@ -104,6 +115,11 @@ export class ApiStack extends cdk.Stack {
     this.handler.addToRolePolicy(new iam.PolicyStatement({
       actions: ["secretsmanager:GetSecretValue"],
       resources: [hmacSecretArn],
+    }));
+
+    this.handler.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["ssm:GetParameter"],
+      resources: [`arn:aws:ssm:${this.region}:${this.account}:parameter${appleBundleIdsParamName}`],
     }));
 
     // S3 Vectors permissions

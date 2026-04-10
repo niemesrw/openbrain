@@ -15,15 +15,27 @@ jest.mock("@aws-sdk/client-cognito-identity-provider", () => {
   };
 });
 
+jest.mock("@aws-sdk/client-ssm", () => {
+  const send = jest.fn();
+  const Client = jest.fn(() => ({ send }));
+  (Client as any).__mockSend = send;
+  return {
+    SSMClient: Client,
+    GetParameterCommand: jest.fn((input: unknown) => ({ _type: "GetParameter", input })),
+  };
+});
+
 // Mock fetch for Apple JWKS
 const mockFetch = jest.fn();
 global.fetch = mockFetch as any;
 
 import { CognitoIdentityProviderClient } from "@aws-sdk/client-cognito-identity-provider";
-import { handleAppleNativeAuth } from "../apple-native-auth";
+import { SSMClient } from "@aws-sdk/client-ssm";
+import { handleAppleNativeAuth, _resetBundleIdsCache } from "../apple-native-auth";
 import * as crypto from "crypto";
 
 const mockSend = (CognitoIdentityProviderClient as any).__mockSend as jest.Mock;
+const mockSsmSend = (SSMClient as any).__mockSend as jest.Mock;
 
 // Generate a test RSA key pair for signing fake Apple tokens
 const { publicKey, privateKey } = crypto.generateKeyPairSync("rsa", {
@@ -69,10 +81,12 @@ function mockAppleJWKS() {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  _resetBundleIdsCache();
   process.env.USER_POOL_ID = "us-east-1_TestPool";
   process.env.COGNITO_MOBILE_CLIENT_ID = "test-mobile-client";
-  process.env.APPLE_BUNDLE_IDS = TEST_BUNDLE_ID;
+  process.env.APPLE_BUNDLE_IDS_PARAM = "/openbrain/apple-bundle-ids";
   mockAppleJWKS();
+  mockSsmSend.mockResolvedValue({ Parameter: { Value: TEST_BUNDLE_ID } });
 });
 
 function mockCognitoForSuccess() {
