@@ -6,7 +6,6 @@ import {
   AdminInitiateAuthCommand,
   AdminRespondToAuthChallengeCommand,
   AdminLinkProviderForUserCommand,
-  AdminGetUserCommand,
   MessageActionType,
 } from "@aws-sdk/client-cognito-identity-provider";
 import { SSMClient, GetParameterCommand } from "@aws-sdk/client-ssm";
@@ -154,7 +153,13 @@ function verifyWithKey(
 
 // --- Cognito user management ---
 
-async function findUserByEmail(email: string): Promise<string | null> {
+interface FoundUser {
+  username: string;
+  status: string;
+  identities?: string; // JSON string of linked providers
+}
+
+async function findUserByEmail(email: string): Promise<FoundUser | null> {
   // Validate email format before interpolating into filter (same as cognito-pre-signup.ts)
   if (!EMAIL_RE.test(email)) return null;
 
@@ -165,7 +170,13 @@ async function findUserByEmail(email: string): Promise<string | null> {
       Limit: 1,
     }),
   );
-  return result.Users?.[0]?.Username ?? null;
+  const user = result.Users?.[0];
+  if (!user?.Username) return null;
+  return {
+    username: user.Username,
+    status: user.UserStatus ?? "UNKNOWN",
+    identities: user.Attributes?.find((a) => a.Name === "identities")?.Value,
+  };
 }
 
 async function createUserForApple(
@@ -213,12 +224,7 @@ async function createUserForApple(
   return username;
 }
 
-async function linkAppleToExistingUser(username: string, appleSub: string): Promise<void> {
-  const user = await cognito.send(
-    new AdminGetUserCommand({ UserPoolId: getUserPoolId(), Username: username }),
-  );
-
-  const identities = user.UserAttributes?.find((a) => a.Name === "identities")?.Value;
+async function linkAppleToExistingUser(username: string, appleSub: string, identities?: string): Promise<void> {
   if (identities?.includes(`"providerName":"SignInWithApple"`)) {
     return; // Already linked
   }
@@ -237,6 +243,59 @@ async function linkAppleToExistingUser(username: string, appleSub: string): Prom
       },
     }),
   );
+}
+
+/**
+ * Convert an EXTERNAL_PROVIDER user to a native Cognito user.
+ * AdminInitiateAuth with CUSTOM_AUTH doesn't work against EXTERNAL_PROVIDER
+ * users (e.g. those created via Google federated login). Creating a native
+ * user with the same email and linking the existing provider identities to
+ * it produces a user that supports CUSTOM_AUTH.
+ */
+async function convertToNativeUser(
+  email: string,
+  identities?: string,
+): Promise<string> {
+  const result = await cognito.send(
+    new AdminCreateUserCommand({
+      UserPoolId: getUserPoolId(),
+      Username: email,
+      UserAttributes: [
+        { Name: "email", Value: email },
+        { Name: "email_verified", Value: "true" },
+      ],
+      MessageAction: MessageActionType.SUPPRESS,
+    }),
+  );
+
+  const nativeUsername = result.User!.Username!;
+
+  // Re-link any existing Google provider identity to the new native user
+  if (identities) {
+    try {
+      const parsed = JSON.parse(identities) as Array<{ providerName: string; userId: string }>;
+      for (const identity of parsed) {
+        await cognito.send(
+          new AdminLinkProviderForUserCommand({
+            UserPoolId: getUserPoolId(),
+            DestinationUser: {
+              ProviderName: "Cognito",
+              ProviderAttributeValue: nativeUsername,
+            },
+            SourceUser: {
+              ProviderName: identity.providerName,
+              ProviderAttributeName: "Cognito_Subject",
+              ProviderAttributeValue: identity.userId,
+            },
+          }),
+        );
+      }
+    } catch {
+      // If identity parsing fails, proceed — the native user is still usable
+    }
+  }
+
+  return nativeUsername;
 }
 
 /**
@@ -317,12 +376,18 @@ export async function handleAppleNativeAuth(body: AppleNativeAuthRequest): Promi
   }
 
   // 2. Find or create the Cognito user
-  const existingUsername = await findUserByEmail(email);
+  const existing = await findUserByEmail(email);
 
   let username: string;
-  if (existingUsername) {
-    await linkAppleToExistingUser(existingUsername, payload.sub);
-    username = existingUsername;
+  if (existing) {
+    if (existing.status === "EXTERNAL_PROVIDER") {
+      // User was created via Google federated login — CUSTOM_AUTH won't work.
+      // Convert to a native user and re-link existing provider identities.
+      username = await convertToNativeUser(email, existing.identities);
+    } else {
+      username = existing.username;
+    }
+    await linkAppleToExistingUser(username, payload.sub, existing.identities);
   } else {
     username = await createUserForApple(payload.sub, email, body.fullName);
   }
