@@ -98,7 +98,7 @@ public final class AuthService: NSObject {
             }
 
             session.presentationContextProvider = self
-            session.prefersEphemeralWebBrowserSession = false
+            session.prefersEphemeralWebBrowserSession = true
             currentSession = session
             session.start()
         }

@@ -86,7 +86,11 @@ export class AuthStack extends cdk.Stack {
           scopes: ["openid", "email", "name"],
           attributeMapping: {
             email: cognito.ProviderAttribute.APPLE_EMAIL,
-            preferredUsername: cognito.ProviderAttribute.other("name"),
+            // Apple returns "name" as a JSON object {firstName, lastName}, not a
+            // string.  Mapping it to preferred_username (a string attribute)
+            // causes Cognito to error on first sign-up ("Something went wrong").
+            // Apple only sends name on the very first authorization anyway, so
+            // the safest option is to skip the mapping entirely.
           },
         })
       : undefined;
