@@ -23,6 +23,7 @@ export class DataStack extends cdk.Stack {
       sortKey: { name: "sk", type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       removalPolicy: cdk.RemovalPolicy.RETAIN,
+      timeToLiveAttribute: "expiresAt",
     });
 
     this.agentKeysTable.addGlobalSecondaryIndex({

@@ -78,8 +78,8 @@ export async function handleListAgents(args: ListAgentsArgs, user: UserContext):
   const result = await ddb.send(
     new QueryCommand({
       TableName: AGENT_KEYS_TABLE,
-      KeyConditionExpression: "pk = :pk",
-      ExpressionAttributeValues: { ":pk": `USER#${user.userId}` },
+      KeyConditionExpression: "pk = :pk AND begins_with(sk, :prefix)",
+      ExpressionAttributeValues: { ":pk": `USER#${user.userId}`, ":prefix": "AGENT#" },
     })
   );
 

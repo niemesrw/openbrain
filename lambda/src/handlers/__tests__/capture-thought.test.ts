@@ -4,12 +4,14 @@ import * as embeddings from "../../services/embeddings";
 import * as metadata from "../../services/metadata";
 import * as ogImage from "../../services/og-image";
 import * as vision from "../../services/vision";
+import * as usage from "../../services/usage";
 
 jest.mock("../../services/vectors");
 jest.mock("../../services/embeddings");
 jest.mock("../../services/metadata");
 jest.mock("../../services/og-image");
 jest.mock("../../services/vision");
+jest.mock("../../services/usage");
 
 const mockSqsSend = jest.fn().mockResolvedValue({});
 jest.mock("@aws-sdk/client-sqs", () => ({
@@ -23,6 +25,7 @@ const mockGenerateEmbedding = embeddings.generateEmbedding as jest.MockedFunctio
 const mockExtractMetadata = metadata.extractMetadata as jest.MockedFunction<typeof metadata.extractMetadata>;
 const mockFetchOgImage = ogImage.fetchOgImage as jest.MockedFunction<typeof ogImage.fetchOgImage>;
 const mockDescribeImage = vision.describeImage as jest.MockedFunction<typeof vision.describeImage>;
+const mockCheckDailyQuota = usage.checkDailyQuota as jest.MockedFunction<typeof usage.checkDailyQuota>;
 
 const USER = { userId: "user-123", displayName: "Alice" };
 const EMBEDDING = [0.1, 0.2, 0.3];
@@ -44,6 +47,7 @@ beforeEach(() => {
   });
   mockFetchOgImage.mockResolvedValue(undefined);
   mockDescribeImage.mockResolvedValue(undefined);
+  mockCheckDailyQuota.mockResolvedValue({ allowed: true, used: 1, limit: 50 });
 });
 
 afterAll(() => {
@@ -494,6 +498,27 @@ describe("handleCaptureThought", () => {
       const result = await handleCaptureThought({ text: "Notification thought" }, USER);
 
       expect(result).toContain("Captured as observation");
+    });
+  });
+
+  describe("daily quota enforcement", () => {
+    it("rejects capture when daily quota is exceeded", async () => {
+      mockCheckDailyQuota.mockResolvedValue({ allowed: false, used: 50, limit: 50 });
+
+      const result = await handleCaptureThought({ text: "One more thought" }, USER);
+
+      expect(result).toContain("Daily capture limit reached");
+      expect(mockGenerateEmbedding).not.toHaveBeenCalled();
+      expect(mockPutVector).not.toHaveBeenCalled();
+    });
+
+    it("allows capture when under daily quota", async () => {
+      mockCheckDailyQuota.mockResolvedValue({ allowed: true, used: 10, limit: 50 });
+
+      const result = await handleCaptureThought({ text: "Still under limit" }, USER);
+
+      expect(result).toContain("Captured as");
+      expect(mockPutVector).toHaveBeenCalled();
     });
   });
 });

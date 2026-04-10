@@ -89,6 +89,7 @@ export class ApiStack extends cdk.Stack {
         COGNITO_CLI_CLIENT_ID: cliClient.userPoolClientId,
         COGNITO_MOBILE_CLIENT_ID: mobileClient.userPoolClientId,
         HMAC_SECRET_ARN: hmacSecretArn,
+        FREE_TIER_DAILY_LIMIT: "50",
         ...(customDomain && { CUSTOM_DOMAIN: customDomain }),
       },
       bundling: {

@@ -6,6 +6,7 @@ import { ensurePrivateIndex, putVector } from "../services/vectors";
 import { fetchOgImage } from "../services/og-image";
 import { describeImage } from "../services/vision";
 import { validateThoughtText } from "./validate-thought-text";
+import { checkDailyQuota } from "../services/usage";
 import type { CaptureArgs, UserContext } from "../types";
 
 const AGENT_SOURCE_MAP = new Map<string, string>([
@@ -28,6 +29,12 @@ export async function handleCaptureThought(
 
   const validationError = validateThoughtText(text);
   if (validationError) return validationError;
+
+  // Enforce free tier daily capture limit
+  const quota = await checkDailyQuota(user.userId);
+  if (!quota.allowed) {
+    return `Daily capture limit reached (${quota.limit}/day). Upgrade to Pro for more.`;
+  }
 
   // Determine target index
   let indexName: string;

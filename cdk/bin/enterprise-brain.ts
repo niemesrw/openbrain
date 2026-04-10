@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import * as cdk from "aws-cdk-lib";
+import * as budgets from "aws-cdk-lib/aws-budgets";
 import { VectorStorageStack } from "../lib/stacks/vector-storage-stack";
 import { AuthStack } from "../lib/stacks/auth-stack";
 import { DataStack } from "../lib/stacks/data-stack";
@@ -91,3 +92,37 @@ const web = new WebStack(app, "EnterpriseBrainWeb", {
   apiUrl: api.apiUrl,
 });
 web.addDependency(api);
+
+// Monthly cost budget — sends email when actual spend hits 80% or 100% of $100
+const budgetEmail = app.node.tryGetContext("budgetEmail") ?? process.env.BUDGET_EMAIL;
+if (budgetEmail) {
+  const budgetStack = new cdk.Stack(app, "EnterpriseBrainBudget", { env });
+  new budgets.CfnBudget(budgetStack, "MonthlyBudget", {
+    budget: {
+      budgetName: "openbrain-monthly",
+      budgetType: "COST",
+      timeUnit: "MONTHLY",
+      budgetLimit: { amount: 100, unit: "USD" },
+    },
+    notificationsWithSubscribers: [
+      {
+        notification: {
+          notificationType: "ACTUAL",
+          comparisonOperator: "GREATER_THAN",
+          threshold: 80,
+          thresholdType: "PERCENTAGE",
+        },
+        subscribers: [{ subscriptionType: "EMAIL", address: budgetEmail }],
+      },
+      {
+        notification: {
+          notificationType: "ACTUAL",
+          comparisonOperator: "GREATER_THAN",
+          threshold: 100,
+          thresholdType: "PERCENTAGE",
+        },
+        subscribers: [{ subscriptionType: "EMAIL", address: budgetEmail }],
+      },
+    ],
+  });
+}
