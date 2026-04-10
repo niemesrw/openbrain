@@ -6,13 +6,12 @@ on:
   push:
     branches: [main]
     paths-ignore:
-
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
       - '*.md'
       - 'docs/**'
       - 'skills/**'
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   test-lambda:
@@ -59,6 +58,22 @@ jobs:
           VITE_USER_POOL_ID: us-east-1_placeholder
           VITE_WEB_CLIENT_ID: placeholder
           VITE_COGNITO_DOMAIN: https://placeholder.auth.us-east-1.amazoncognito.com
+
+  lint-workflows:
+    name: Workflow lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install actionlint
+        run: |
+          curl -sL "$(curl -s https://api.github.com/repos/rhysd/actionlint/releases/latest \
+            | jq -r '.assets[] | select(.name | test("linux_amd64\\.tar\\.gz$")) | .browser_download_url')" \
+            | tar xz -C /usr/local/bin actionlint
+
+      - name: Lint workflows
+        run: actionlint
 
   synth-cdk:
     name: CDK synth

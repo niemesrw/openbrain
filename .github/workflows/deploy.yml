@@ -141,18 +141,22 @@ jobs:
           ALARM_EMAIL: ${{ secrets.ALARM_EMAIL }}
           CUSTOM_DOMAIN: ${{ secrets.CUSTOM_DOMAIN }}
           # GITHUB_APP_ID now lives in Secrets Manager (openbrain/github-app-id)
-          # Repo variable is AGENTCORE_RUNTIME_ARN; mapped here to GITHUB_AGENT_RUNTIME_ARN
-          # for CDK/Lambda compatibility (GitHub Actions blocks vars starting with GITHUB_).
-          GITHUB_AGENT_RUNTIME_ARN: ${{ vars.AGENTCORE_RUNTIME_ARN }}
           APPLE_CLIENT_ID: ${{ secrets.APPLE_CLIENT_ID }}
           APPLE_KEY_ID: ${{ secrets.APPLE_KEY_ID }}
           APPLE_PRIVATE_KEY_ARN: ${{ secrets.APPLE_PRIVATE_KEY_ARN }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           BUDGET_EMAIL: ${{ secrets.BUDGET_EMAIL }}
 
+      - name: Check budget email
+        id: budget
+        run: |
+          if [ -n "$BUDGET_EMAIL" ]; then echo "has_email=true" >> "$GITHUB_OUTPUT"; fi
+        env:
+          BUDGET_EMAIL: ${{ secrets.BUDGET_EMAIL }}
+
       - name: Deploy budget stack
         working-directory: cdk
-        if: ${{ secrets.BUDGET_EMAIL != '' }}
+        if: steps.budget.outputs.has_email == 'true'
         run: npx cdk deploy EnterpriseBrainBudget --require-approval never
         env:
           BUDGET_EMAIL: ${{ secrets.BUDGET_EMAIL }}
