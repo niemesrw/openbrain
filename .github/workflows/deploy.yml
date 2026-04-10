@@ -159,6 +159,8 @@ jobs:
         if: steps.budget.outputs.has_email == 'true'
         run: npx cdk deploy EnterpriseBrainBudget --require-approval never
         env:
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET_ARN: ${{ secrets.GOOGLE_CLIENT_SECRET_ARN }}
           BUDGET_EMAIL: ${{ secrets.BUDGET_EMAIL }}
 
       # --- Fetch CDK outputs for web build ---
