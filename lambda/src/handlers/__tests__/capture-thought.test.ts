@@ -501,6 +501,43 @@ describe("handleCaptureThought", () => {
     });
   });
 
+  describe("URL protocol validation", () => {
+    it("rejects media_url with javascript: scheme", async () => {
+      const result = await handleCaptureThought(
+        { text: "XSS attempt", media_url: "javascript:alert(1)" },
+        USER
+      );
+      expect(result).toBe("Error: media_url and source_url must use http or https protocol.");
+      expect(mockGenerateEmbedding).not.toHaveBeenCalled();
+      expect(mockPutVector).not.toHaveBeenCalled();
+    });
+
+    it("rejects source_url with data: scheme", async () => {
+      const result = await handleCaptureThought(
+        { text: "Data URI attempt", source_url: "data:text/html,<script>alert(1)</script>" },
+        USER
+      );
+      expect(result).toBe("Error: media_url and source_url must use http or https protocol.");
+      expect(mockGenerateEmbedding).not.toHaveBeenCalled();
+    });
+
+    it("allows https media_url", async () => {
+      const result = await handleCaptureThought(
+        { text: "Valid HTTPS media", media_url: "https://example.com/image.jpg" },
+        USER
+      );
+      expect(result).toContain("Captured as");
+    });
+
+    it("allows http media_url", async () => {
+      const result = await handleCaptureThought(
+        { text: "Valid HTTP media", media_url: "http://example.com/image.jpg" },
+        USER
+      );
+      expect(result).toContain("Captured as");
+    });
+  });
+
   describe("daily quota enforcement", () => {
     it("rejects capture when daily quota is exceeded", async () => {
       mockCheckDailyQuota.mockResolvedValue({ allowed: false, used: 50, limit: 50 });
@@ -519,6 +556,34 @@ describe("handleCaptureThought", () => {
 
       expect(result).toContain("Captured as");
       expect(mockPutVector).toHaveBeenCalled();
+    });
+  });
+
+  describe("URL protocol validation", () => {
+    it("rejects javascript: media_url", async () => {
+      const result = await handleCaptureThought(
+        { text: "XSS attempt", media_url: "javascript:alert(1)" },
+        USER
+      );
+      expect(result).toContain("http or https protocol");
+      expect(mockGenerateEmbedding).not.toHaveBeenCalled();
+    });
+
+    it("rejects data: source_url", async () => {
+      const result = await handleCaptureThought(
+        { text: "Data URI", source_url: "data:text/html,<script>alert(1)</script>" },
+        USER
+      );
+      expect(result).toContain("http or https protocol");
+      expect(mockGenerateEmbedding).not.toHaveBeenCalled();
+    });
+
+    it("allows https media_url", async () => {
+      const result = await handleCaptureThought(
+        { text: "Valid image", media_url: "https://example.com/photo.jpg" },
+        USER
+      );
+      expect(result).toContain("Captured as");
     });
   });
 });

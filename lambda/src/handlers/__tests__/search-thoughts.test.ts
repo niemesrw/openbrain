@@ -1,14 +1,17 @@
 import { handleSearchThoughts } from "../search-thoughts";
 import * as vectors from "../../services/vectors";
 import * as embeddings from "../../services/embeddings";
+import * as usage from "../../services/usage";
 
 jest.mock("../../services/vectors");
 jest.mock("../../services/embeddings");
+jest.mock("../../services/usage");
 
 const mockGenerateEmbedding = embeddings.generateEmbedding as jest.MockedFunction<typeof embeddings.generateEmbedding>;
 const mockResolveIndexes = vectors.resolveIndexes as jest.MockedFunction<typeof vectors.resolveIndexes>;
 const mockQueryVectors = vectors.queryVectors as jest.MockedFunction<typeof vectors.queryVectors>;
 const mockBuildMetadataFilter = vectors.buildMetadataFilter as jest.MockedFunction<typeof vectors.buildMetadataFilter>;
+const mockCheckSearchQuota = usage.checkSearchQuota as jest.MockedFunction<typeof usage.checkSearchQuota>;
 
 const USER = { userId: "user-123" };
 const EMBEDDING = [0.1, 0.2, 0.3];
@@ -33,6 +36,7 @@ beforeEach(() => {
   mockResolveIndexes.mockReturnValue(["private-user-123"]);
   mockBuildMetadataFilter.mockReturnValue(undefined);
   mockQueryVectors.mockResolvedValue([]);
+  mockCheckSearchQuota.mockResolvedValue({ allowed: true, used: 1, limit: 500 });
 });
 
 describe("handleSearchThoughts", () => {
@@ -197,5 +201,37 @@ describe("handleSearchThoughts", () => {
     await handleSearchThoughts({ query: shortQuery }, USER);
 
     expect(mockGenerateEmbedding).toHaveBeenCalledWith(shortQuery);
+  });
+
+  describe("daily search quota enforcement", () => {
+    it("rejects search when daily quota is exceeded (text format)", async () => {
+      mockCheckSearchQuota.mockResolvedValue({ allowed: false, used: 500, limit: 500 });
+
+      const result = await handleSearchThoughts({ query: "test" }, USER);
+
+      expect(result).toContain("Daily search limit reached");
+      expect(mockGenerateEmbedding).not.toHaveBeenCalled();
+      expect(mockQueryVectors).not.toHaveBeenCalled();
+    });
+
+    it("rejects search when daily quota is exceeded (JSON format)", async () => {
+      mockCheckSearchQuota.mockResolvedValue({ allowed: false, used: 500, limit: 500 });
+
+      const result = await handleSearchThoughts({ query: "test", _format: "json" }, USER);
+      const parsed = JSON.parse(result);
+
+      expect(parsed.error).toBe("search_limit_exceeded");
+      expect(mockGenerateEmbedding).not.toHaveBeenCalled();
+    });
+
+    it("allows search when under daily quota", async () => {
+      mockCheckSearchQuota.mockResolvedValue({ allowed: true, used: 10, limit: 500 });
+      mockQueryVectors.mockResolvedValue([makeVector("id-1", "A thought", 0.2)]);
+
+      const result = await handleSearchThoughts({ query: "thought" }, USER);
+
+      expect(result).toContain("Found 1 thought(s)");
+      expect(mockGenerateEmbedding).toHaveBeenCalled();
+    });
   });
 });

@@ -153,6 +153,7 @@ export async function handleRotateAgentKey(
   }
 
   const newApiKey = `ob_${randomBytes(32).toString("hex")}`;
+  const keyHash = await hashApiKey(newApiKey);
 
   try {
     await ddb.send(
@@ -162,9 +163,9 @@ export async function handleRotateAgentKey(
           pk: `USER#${user.userId}`,
           sk: `AGENT#${name}`,
         },
-        UpdateExpression: "SET apiKey = :key",
+        UpdateExpression: "SET keyHash = :h REMOVE apiKey",
         ConditionExpression: "attribute_exists(pk)",
-        ExpressionAttributeValues: { ":key": newApiKey },
+        ExpressionAttributeValues: { ":h": keyHash },
       })
     );
   } catch (err: unknown) {

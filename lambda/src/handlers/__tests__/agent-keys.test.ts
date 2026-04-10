@@ -226,6 +226,21 @@ describe("handleRotateAgentKey", () => {
     expect(result).toContain("API Key: ob_");
     expect(result).toContain("claude mcp add");
     expect(result).toContain("https://api.example.com");
+
+    // Verify the DDB update stores hash and removes plaintext
+    const updateCall = mockSend.mock.calls[0][0];
+    expect(updateCall.input.UpdateExpression).toBe("SET keyHash = :h REMOVE apiKey");
+    expect(updateCall.input.ExpressionAttributeValues[":h"]).toBe("test-hash-abc123");
+  });
+
+  it("writes keyHash and removes plaintext apiKey in DynamoDB update", async () => {
+    mockSend.mockResolvedValue({});
+
+    await handleRotateAgentKey({ name: "claude-code" }, USER);
+
+    const updateCall = mockSend.mock.calls[0][0];
+    expect(updateCall.input.UpdateExpression).toBe("SET keyHash = :h REMOVE apiKey");
+    expect(updateCall.input.ExpressionAttributeValues[":h"]).toBe("test-hash-abc123");
   });
 
   it("returns error when agent does not exist", async () => {

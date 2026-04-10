@@ -13,6 +13,10 @@ export async function handleUpdateThought(
   const validationError = validateThoughtText(text);
   if (validationError) return validationError;
 
+  if (media_url && !/^https?:\/\//i.test(media_url)) {
+    return "Error: media_url must use http or https protocol.";
+  }
+
   const indexName =
     scope === "shared" ? "shared" : `private-${user.userId}`;
 

@@ -12,6 +12,13 @@ const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 // Accept tokens from any client in the user pool (supports DCR-created clients).
 // Verify both id and access tokens — MCP OAuth clients send access tokens,
 // while existing web/cli clients send id tokens.
+//
+// SECURITY NOTE: clientId is null (accepts any client in the pool) because MCP
+// OAuth DCR creates Cognito clients with dynamic IDs. This is safe because:
+// 1. All clients in the pool authenticate via the same Google/Apple IdP
+// 2. DCR registration is rate-limited (oauth.ts)
+// 3. An attacker still needs a valid Google/Apple identity to get a token
+// 4. The user pool is solely controlled by this application
 const idTokenVerifier = CognitoJwtVerifier.create({
   userPoolId: USER_POOL_ID,
   tokenUse: "id",

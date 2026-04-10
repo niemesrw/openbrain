@@ -356,6 +356,7 @@ export class ApiStack extends cdk.Stack {
         AGENT_TASKS_TABLE: agentTasksTableName,
         USER_POOL_ID: userPool.userPoolId,
         HMAC_SECRET_ARN: hmacSecretArn,
+        ...(webOrigin && { WEB_ORIGIN: webOrigin }),
       },
       bundling: {
         externalModules: ["@aws-sdk/*"],

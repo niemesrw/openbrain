@@ -207,6 +207,35 @@ describe("handleUpdateThought", () => {
     expect(call).not.toHaveProperty("tenant_id");
   });
 
+  it("rejects media_url with javascript: scheme", async () => {
+    const result = await handleUpdateThought(
+      { id: THOUGHT_ID, text: "XSS attempt", media_url: "javascript:alert(1)" },
+      USER
+    );
+    expect(result).toBe("Error: media_url must use http or https protocol.");
+    expect(mockGetVector).not.toHaveBeenCalled();
+    expect(mockPutVector).not.toHaveBeenCalled();
+  });
+
+  it("rejects media_url with data: scheme", async () => {
+    const result = await handleUpdateThought(
+      { id: THOUGHT_ID, text: "Data URI attempt", media_url: "data:text/html,<script>alert(1)</script>" },
+      USER
+    );
+    expect(result).toBe("Error: media_url must use http or https protocol.");
+    expect(mockGetVector).not.toHaveBeenCalled();
+  });
+
+  it("allows https media_url", async () => {
+    mockGetVector.mockResolvedValue(EXISTING_VECTOR);
+
+    const result = await handleUpdateThought(
+      { id: THOUGHT_ID, text: "Valid HTTPS media", media_url: "https://example.com/image.jpg" },
+      USER
+    );
+    expect(result).toContain("Updated as");
+  });
+
   it("includes media_url in metadata when provided", async () => {
     mockGetVector.mockResolvedValue(EXISTING_VECTOR);
 
@@ -230,5 +259,24 @@ describe("handleUpdateThought", () => {
 
     const call = mockPutVector.mock.calls[0][3];
     expect(call).not.toHaveProperty("media_url");
+  });
+
+  it("rejects javascript: media_url", async () => {
+    const result = await handleUpdateThought(
+      { id: THOUGHT_ID, text: "XSS attempt", media_url: "javascript:alert(1)" },
+      USER
+    );
+    expect(result).toContain("http or https protocol");
+    expect(mockGetVector).not.toHaveBeenCalled();
+  });
+
+  it("allows https media_url", async () => {
+    mockGetVector.mockResolvedValue(EXISTING_VECTOR);
+
+    await handleUpdateThought(
+      { id: THOUGHT_ID, text: "Valid update", media_url: "https://example.com/img.jpg" },
+      USER
+    );
+    expect(mockPutVector).toHaveBeenCalled();
   });
 });

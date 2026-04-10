@@ -102,8 +102,9 @@ interface ChatRequest {
 export async function handler(
   event: APIGatewayProxyEventV2
 ): Promise<APIGatewayProxyResultV2> {
+  const allowedOrigin = process.env.WEB_ORIGIN ?? "";
   const cors = {
-    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Origin": allowedOrigin,
     "Access-Control-Allow-Headers": "Content-Type, Authorization",
   };
 

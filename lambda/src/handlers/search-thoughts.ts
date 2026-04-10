@@ -4,6 +4,7 @@ import {
   queryVectors,
   buildMetadataFilter,
 } from "../services/vectors";
+import { checkSearchQuota } from "../services/usage";
 import type { SearchArgs, UserContext } from "../types";
 import { xmlEscape } from "../utils/xml-escape";
 
@@ -33,6 +34,14 @@ export async function handleSearchThoughts(
 
   if (typeof rawQuery !== "string") {
     return `<search_results error="invalid_query"><message>${xmlEscape("The 'query' argument must be a string.")}</message></search_results>`;
+  }
+
+  // Enforce daily search limit to prevent Bedrock cost abuse
+  const quota = await checkSearchQuota(user.userId);
+  if (!quota.allowed) {
+    return _format === "json"
+      ? JSON.stringify({ error: "search_limit_exceeded", message: `Daily search limit reached (${quota.limit}/day).` })
+      : `Daily search limit reached (${quota.limit}/day). Try again tomorrow.`;
   }
 
   const query = rawQuery.length > MAX_QUERY_CHARS ? rawQuery.slice(0, MAX_QUERY_CHARS) : rawQuery;

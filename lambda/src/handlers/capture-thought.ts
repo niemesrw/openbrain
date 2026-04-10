@@ -30,6 +30,13 @@ export async function handleCaptureThought(
   const validationError = validateThoughtText(text);
   if (validationError) return validationError;
 
+  // Only allow HTTP(S) media/source URLs to block dangerous schemes like javascript:/data:
+  for (const url of [media_url, source_url]) {
+    if (url && !/^https?:\/\//i.test(url)) {
+      return "Error: media_url and source_url must use http or https protocol.";
+    }
+  }
+
   // Enforce free tier daily capture limit
   const quota = await checkDailyQuota(user.userId);
   if (!quota.allowed) {
