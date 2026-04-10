@@ -1,6 +1,5 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
-import { BedrockAgentCoreClient } from "@aws-sdk/client-bedrock-agentcore";
 
 jest.mock("@aws-sdk/client-dynamodb", () => ({
   DynamoDBClient: jest.fn(() => ({})),
@@ -16,22 +15,23 @@ jest.mock("@aws-sdk/lib-dynamodb", () => {
   };
 });
 
-jest.mock("@aws-sdk/client-bedrock-agentcore", () => {
-  const send = jest.fn();
-  const Client = jest.fn(() => ({ send }));
-  (Client as any).__mockSend = send;
-  return {
-    BedrockAgentCoreClient: Client,
-    InvokeAgentRuntimeCommand: jest.fn((input: unknown) => ({ input })),
-  };
-});
+const mockGenerateText = jest.fn();
+jest.mock("ai", () => ({
+  generateText: (...args: unknown[]) => mockGenerateText(...args),
+  tool: (def: unknown) => def,
+}));
+
+jest.mock("@ai-sdk/amazon-bedrock", () => ({
+  createAmazonBedrock: jest.fn(() => jest.fn((modelId: string) => modelId)),
+}));
+
+jest.mock("../../tool-executor", () => ({
+  executeTool: jest.fn().mockResolvedValue("ok"),
+}));
 
 import { handler } from "../../github-agent";
 
 const mockDdbSend = (DynamoDBDocumentClient as any).from.__mockSend as jest.Mock;
-const mockAgentSend = (BedrockAgentCoreClient as any).__mockSend as jest.Mock;
-
-const RUNTIME_ARN = "arn:aws:bedrock-agentcore:us-east-1:123456789:runtime/test-123";
 
 function makeSqsEvent(records: object[]) {
   return {
@@ -46,138 +46,178 @@ function makeMessage(overrides: object = {}) {
   return {
     eventType: "pull_request",
     installationId: 42,
-    payload: JSON.stringify({ action: "closed", pull_request: { merged: true } }),
+    payload: JSON.stringify({
+      action: "closed",
+      pull_request: { number: 99, title: "Fix bug", merged: true, state: "closed" },
+      repository: { full_name: "BLANXLAIT/openbrain" },
+    }),
     receivedAt: new Date().toISOString(),
     ...overrides,
   };
 }
 
+const INSTALLATION = {
+  installationId: "42",
+  userId: "user-abc",
+  accountLogin: "ryanniem",
+  accountType: "User",
+};
+
 beforeEach(() => {
   mockDdbSend.mockReset();
-  mockAgentSend.mockReset();
-  mockAgentSend.mockResolvedValue({});
+  mockGenerateText.mockReset();
+  mockGenerateText.mockResolvedValue({ steps: [] });
   process.env.GITHUB_INSTALLATIONS_TABLE = "openbrain-github-installations";
-  process.env.GITHUB_AGENT_RUNTIME_ARN = RUNTIME_ARN;
 });
 
 afterEach(() => {
-  delete process.env.GITHUB_AGENT_RUNTIME_ARN;
   delete process.env.GITHUB_INSTALLATIONS_TABLE;
 });
 
 describe("handler", () => {
-  it("throws (triggering SQS retry/DLQ) when GITHUB_AGENT_RUNTIME_ARN is not set", async () => {
-    delete process.env.GITHUB_AGENT_RUNTIME_ARN;
-    await expect(handler(makeSqsEvent([makeMessage()]) as any)).rejects.toThrow(
-      "GITHUB_AGENT_RUNTIME_ARN is not set"
-    );
-    expect(mockAgentSend).not.toHaveBeenCalled();
-  });
-
-
-  it("invokes AgentCore Runtime with the correct payload for a known installation", async () => {
-    mockDdbSend.mockResolvedValue({
-      Item: { installationId: "42", userId: "user-abc", accountLogin: "ryanniem", accountType: "User" },
-    });
+  it("invokes generateText with event context for a known installation", async () => {
+    mockDdbSend.mockResolvedValue({ Item: INSTALLATION });
 
     await handler(makeSqsEvent([makeMessage()]) as any);
 
-    expect(mockAgentSend).toHaveBeenCalledTimes(1);
-    const cmd = mockAgentSend.mock.calls[0][0];
-    expect(cmd.input.agentRuntimeArn).toBe(RUNTIME_ARN);
-    expect(cmd.input.runtimeUserId).toBe("user-abc");
-    expect(cmd.input.runtimeSessionId).toMatch(/^github-user-abc-\d+$/);
+    expect(mockGenerateText).toHaveBeenCalledTimes(1);
+    const call = mockGenerateText.mock.calls[0][0];
+    expect(call.system).toContain("GitHub Agent");
+    expect(call.messages[0].content).toContain("pull_request");
+    expect(call.messages[0].content).toContain("BLANXLAIT/openbrain");
+    expect(call.maxSteps).toBe(10);
+  });
 
-    const dispatched = JSON.parse(Buffer.from(cmd.input.payload).toString());
-    expect(dispatched.eventType).toBe("pull_request");
-    expect(dispatched.userId).toBe("user-abc");
-    expect(dispatched.payload).toMatchObject({ action: "closed" });
+  it("provides search, capture, and GitHub tools to the agent", async () => {
+    mockDdbSend.mockResolvedValue({ Item: INSTALLATION });
+
+    await handler(makeSqsEvent([makeMessage()]) as any);
+
+    const tools = mockGenerateText.mock.calls[0][0].tools;
+    expect(tools).toHaveProperty("search_thoughts");
+    expect(tools).toHaveProperty("capture_thought");
+    expect(tools).toHaveProperty("browse_recent");
+    expect(tools).toHaveProperty("github_label");
+    expect(tools).toHaveProperty("github_comment");
+    expect(tools).toHaveProperty("github_close");
+  });
+
+  it("scopes GitHub tools to the event's repository and hardcodes issue number", async () => {
+    mockDdbSend.mockResolvedValue({ Item: INSTALLATION });
+
+    await handler(makeSqsEvent([makeMessage()]) as any);
+
+    const tools = mockGenerateText.mock.calls[0][0].tools;
+    // GitHub tool descriptions should mention the scoped repo and issue number
+    expect(tools.github_label.description).toContain("BLANXLAIT/openbrain");
+    expect(tools.github_label.description).toContain("#99");
+    // issue_number should NOT be a parameter (hardcoded from event)
+    expect(tools.github_label.parameters.shape).not.toHaveProperty("issue_number");
+  });
+
+  it("omits GitHub write tools when event has no issue/PR number (push events)", async () => {
+    mockDdbSend.mockResolvedValue({ Item: INSTALLATION });
+
+    await handler(
+      makeSqsEvent([
+        makeMessage({
+          eventType: "push",
+          payload: JSON.stringify({
+            ref: "refs/heads/main",
+            commits: [{ message: "fix: bug" }],
+            repository: { full_name: "BLANXLAIT/openbrain" },
+          }),
+        }),
+      ]) as any
+    );
+
+    const tools = mockGenerateText.mock.calls[0][0].tools;
+    expect(tools).toHaveProperty("search_thoughts");
+    expect(tools).toHaveProperty("capture_thought");
+    expect(tools).not.toHaveProperty("github_label");
+    expect(tools).not.toHaveProperty("github_comment");
+    expect(tools).not.toHaveProperty("github_close");
   });
 
   it("skips records with no installationId", async () => {
     await handler(makeSqsEvent([makeMessage({ installationId: undefined })]) as any);
 
     expect(mockDdbSend).not.toHaveBeenCalled();
-    expect(mockAgentSend).not.toHaveBeenCalled();
+    expect(mockGenerateText).not.toHaveBeenCalled();
   });
 
   it("skips records with unparseable body", async () => {
     await handler({ Records: [{ messageId: "x", body: "not json" }] } as any);
 
     expect(mockDdbSend).not.toHaveBeenCalled();
-    expect(mockAgentSend).not.toHaveBeenCalled();
+    expect(mockGenerateText).not.toHaveBeenCalled();
   });
 
   it("skips records with unparseable payload", async () => {
-    mockDdbSend.mockResolvedValue({
-      Item: { installationId: "42", userId: "user-abc", accountLogin: "a", accountType: "User" },
-    });
-
     await handler(makeSqsEvent([makeMessage({ payload: "not json" })]) as any);
 
-    expect(mockAgentSend).not.toHaveBeenCalled();
+    expect(mockGenerateText).not.toHaveBeenCalled();
   });
 
-  it("skips when no installation is found for the id", async () => {
+  it("skips when no installation is found", async () => {
     mockDdbSend.mockResolvedValue({ Item: undefined });
 
     await handler(makeSqsEvent([makeMessage()]) as any);
 
-    expect(mockAgentSend).not.toHaveBeenCalled();
+    expect(mockGenerateText).not.toHaveBeenCalled();
   });
 
   it("continues processing remaining records when DynamoDB lookup fails", async () => {
     mockDdbSend
       .mockRejectedValueOnce(new Error("DDB error"))
-      .mockResolvedValue({
-        Item: { installationId: "43", userId: "user-xyz", accountLogin: "b", accountType: "User" },
-      });
+      .mockResolvedValue({ Item: { ...INSTALLATION, installationId: "43", userId: "user-xyz" } });
 
     await handler(
       makeSqsEvent([makeMessage({ installationId: 42 }), makeMessage({ installationId: 43 })]) as any
     );
 
-    expect(mockAgentSend).toHaveBeenCalledTimes(1);
-    const cmd = mockAgentSend.mock.calls[0][0];
-    expect(cmd.input.runtimeUserId).toBe("user-xyz");
+    expect(mockGenerateText).toHaveBeenCalledTimes(1);
   });
 
-  it("continues processing remaining records when AgentCore invocation fails", async () => {
-    mockDdbSend.mockResolvedValue({
-      Item: { installationId: "42", userId: "user-abc", accountLogin: "a", accountType: "User" },
-    });
-    mockAgentSend
-      .mockRejectedValueOnce(new Error("throttled"))
-      .mockResolvedValue({});
+  it("continues processing remaining records when agent execution fails", async () => {
+    mockDdbSend.mockResolvedValue({ Item: INSTALLATION });
+    mockGenerateText
+      .mockRejectedValueOnce(new Error("bedrock throttled"))
+      .mockResolvedValue({ steps: [] });
 
     await handler(
       makeSqsEvent([makeMessage(), makeMessage({ installationId: 43 })]) as any
     );
 
-    // Both records attempted AgentCore; first failed but second succeeded
-    expect(mockAgentSend).toHaveBeenCalledTimes(2);
+    expect(mockGenerateText).toHaveBeenCalledTimes(2);
   });
 
   it("processes multiple records in a single batch", async () => {
-    mockDdbSend.mockResolvedValue({
-      Item: { installationId: "42", userId: "user-abc", accountLogin: "a", accountType: "User" },
-    });
+    mockDdbSend.mockResolvedValue({ Item: INSTALLATION });
 
     await handler(
       makeSqsEvent([
         makeMessage(),
         makeMessage({
           eventType: "push",
-          payload: JSON.stringify({ ref: "refs/heads/main", commits: [{ message: "fix: bug" }] }),
+          payload: JSON.stringify({
+            ref: "refs/heads/main",
+            commits: [{ message: "fix: bug" }],
+            repository: { full_name: "BLANXLAIT/openbrain" },
+          }),
         }),
         makeMessage({
           eventType: "release",
-          payload: JSON.stringify({ action: "published", release: { tag_name: "v1.0.0" } }),
+          payload: JSON.stringify({
+            action: "published",
+            release: { tag_name: "v1.0.0", name: "v1.0.0" },
+            repository: { full_name: "BLANXLAIT/openbrain" },
+          }),
         }),
       ]) as any
     );
 
-    expect(mockAgentSend).toHaveBeenCalledTimes(3);
+    expect(mockGenerateText).toHaveBeenCalledTimes(3);
   });
 
   it("skips non-actionable push events (tag deletions, empty commits)", async () => {
@@ -188,7 +228,7 @@ describe("handler", () => {
       ]) as any
     );
     expect(mockDdbSend).not.toHaveBeenCalled();
-    expect(mockAgentSend).not.toHaveBeenCalled();
+    expect(mockGenerateText).not.toHaveBeenCalled();
   });
 
   it("skips non-published release events", async () => {
@@ -196,7 +236,7 @@ describe("handler", () => {
       makeSqsEvent([makeMessage({ eventType: "release", payload: JSON.stringify({ action: "created" }) })]) as any
     );
     expect(mockDdbSend).not.toHaveBeenCalled();
-    expect(mockAgentSend).not.toHaveBeenCalled();
+    expect(mockGenerateText).not.toHaveBeenCalled();
   });
 
   it("skips unknown event types", async () => {
@@ -204,6 +244,41 @@ describe("handler", () => {
       makeSqsEvent([makeMessage({ eventType: "star" })]) as any
     );
     expect(mockDdbSend).not.toHaveBeenCalled();
-    expect(mockAgentSend).not.toHaveBeenCalled();
+    expect(mockGenerateText).not.toHaveBeenCalled();
+  });
+
+  it("dispatches issues events", async () => {
+    mockDdbSend.mockResolvedValue({ Item: INSTALLATION });
+
+    await handler(
+      makeSqsEvent([
+        makeMessage({
+          eventType: "issues",
+          payload: JSON.stringify({
+            action: "opened",
+            issue: { number: 5, title: "Bug report" },
+            repository: { full_name: "BLANXLAIT/openbrain" },
+          }),
+        }),
+      ]) as any
+    );
+
+    expect(mockGenerateText).toHaveBeenCalledTimes(1);
+    expect(mockGenerateText.mock.calls[0][0].messages[0].content).toContain("issues");
+  });
+
+  it("wraps event details in XML delimiters in the agent prompt", async () => {
+    mockDdbSend.mockResolvedValue({ Item: INSTALLATION });
+
+    await handler(makeSqsEvent([makeMessage()]) as any);
+
+    const content = mockGenerateText.mock.calls[0][0].messages[0].content;
+    expect(content).toContain("<github-event>");
+    expect(content).toContain("</github-event>");
+    expect(content).toContain("PR #99");
+    expect(content).toContain("Fix bug");
+    expect(content).toContain("merged");
+    // Bodies should NOT appear in the summary (prompt injection risk)
+    expect(content).not.toContain("Description:");
   });
 });

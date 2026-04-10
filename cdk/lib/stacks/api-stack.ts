@@ -662,12 +662,9 @@ export class ApiStack extends cdk.Stack {
         GITHUB_INSTALLATIONS_TABLE: githubInstallationsTableName,
         EMBEDDING_MODEL_ID: "amazon.titan-embed-text-v2:0",
         METADATA_MODEL_ID: "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+        CHAT_MODEL_ID: "us.anthropic.claude-haiku-4-5-20251001-v1:0",
         GITHUB_APP_ID_SECRET_NAME: githubAppIdSecretName,
         GITHUB_APP_PRIVATE_KEY_SECRET_NAME: githubAppPrivateKeySecretName,
-        // Set via GitHub Actions repo variable once the AgentCore Runtime is deployed.
-        // If unset, the Lambda throws on every invocation so SQS retries/DLQ rather
-        // than silently dropping events.
-        GITHUB_AGENT_RUNTIME_ARN: process.env.GITHUB_AGENT_RUNTIME_ARN ?? "",
       },
       bundling: {
         externalModules: ["@aws-sdk/*"],
@@ -714,13 +711,6 @@ export class ApiStack extends cdk.Stack {
         `arn:aws:secretsmanager:${this.region}:${this.account}:secret:${githubAppPrivateKeySecretName}*`,
       ],
     }));
-    const githubAgentRuntimeArn = process.env.GITHUB_AGENT_RUNTIME_ARN;
-    if (githubAgentRuntimeArn) {
-      githubAgentHandler.addToRolePolicy(new iam.PolicyStatement({
-        actions: ["bedrock-agentcore:InvokeAgentRuntime"],
-        resources: [githubAgentRuntimeArn],
-      }));
-    }
 
     // GitHub REST Lambda — authenticated endpoints for installation management
     const githubRestHandler = new lambdaNode.NodejsFunction(this, "GitHubRestHandler", {

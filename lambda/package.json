@@ -8,7 +8,6 @@
   },
   "dependencies": {
     "@ai-sdk/amazon-bedrock": "^1.1.6",
-    "@aws-sdk/client-bedrock-agentcore": "^3.1024.0",
     "@aws-sdk/client-bedrock-runtime": "^3.750.0",
     "@aws-sdk/client-cognito-identity-provider": "^3.1018.0",
     "@aws-sdk/client-dynamodb": "^3.750.0",
