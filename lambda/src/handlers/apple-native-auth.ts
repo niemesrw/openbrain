@@ -6,6 +6,7 @@ import {
   AdminInitiateAuthCommand,
   AdminRespondToAuthChallengeCommand,
   AdminLinkProviderForUserCommand,
+  AdminSetUserPasswordCommand,
   MessageActionType,
 } from "@aws-sdk/client-cognito-identity-provider";
 import { SSMClient, GetParameterCommand } from "@aws-sdk/client-ssm";
@@ -179,6 +180,23 @@ async function findUserByEmail(email: string): Promise<FoundUser | null> {
   };
 }
 
+/**
+ * Move a user from FORCE_CHANGE_PASSWORD to CONFIRMED.
+ * AdminCreateUser leaves users in FORCE_CHANGE_PASSWORD, but CUSTOM_AUTH
+ * requires CONFIRMED status. Setting a random permanent password confirms
+ * the user without exposing any real credential (auth is token-based).
+ */
+async function confirmUser(username: string): Promise<void> {
+  await cognito.send(
+    new AdminSetUserPasswordCommand({
+      UserPoolId: getUserPoolId(),
+      Username: username,
+      Password: crypto.randomBytes(32).toString("base64url") + "!Aa1",
+      Permanent: true,
+    }),
+  );
+}
+
 async function createUserForApple(
   appleSub: string,
   email: string,
@@ -204,6 +222,7 @@ async function createUserForApple(
   );
 
   const username = result.User!.Username!;
+  await confirmUser(username);
 
   // Link Apple identity to this user
   await cognito.send(
@@ -269,6 +288,7 @@ async function convertToNativeUser(
   );
 
   const nativeUsername = result.User!.Username!;
+  await confirmUser(nativeUsername);
 
   // Re-link any existing Google provider identity to the new native user
   if (identities) {
@@ -386,6 +406,10 @@ export async function handleAppleNativeAuth(body: AppleNativeAuthRequest): Promi
       username = await convertToNativeUser(email, existing.identities);
     } else {
       username = existing.username;
+      if (existing.status === "FORCE_CHANGE_PASSWORD") {
+        // User was created by AdminCreateUser but never confirmed — fix it.
+        await confirmUser(username);
+      }
     }
     await linkAppleToExistingUser(username, payload.sub, existing.identities);
   } else {

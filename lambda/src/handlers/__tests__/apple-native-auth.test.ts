@@ -10,6 +10,7 @@ jest.mock("@aws-sdk/client-cognito-identity-provider", () => {
     AdminInitiateAuthCommand: jest.fn((input: unknown) => ({ _type: "AdminInitiateAuth", input })),
     AdminRespondToAuthChallengeCommand: jest.fn((input: unknown) => ({ _type: "AdminRespondToAuthChallenge", input })),
     AdminLinkProviderForUserCommand: jest.fn((input: unknown) => ({ _type: "AdminLinkProviderForUser", input })),
+    AdminSetUserPasswordCommand: jest.fn((input: unknown) => ({ _type: "AdminSetUserPassword", input })),
     MessageActionType: { SUPPRESS: "SUPPRESS" },
   };
 });
@@ -93,6 +94,7 @@ function mockCognitoForSuccess() {
     if (cmd._type === "ListUsers") return { Users: [] };
     if (cmd._type === "AdminCreateUser") return { User: { Username: "new-user-123" } };
     if (cmd._type === "AdminLinkProviderForUser") return {};
+    if (cmd._type === "AdminSetUserPassword") return {};
     if (cmd._type === "AdminInitiateAuth") return { Session: "test-session" };
     if (cmd._type === "AdminRespondToAuthChallenge") return {
       AuthenticationResult: {
