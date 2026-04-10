@@ -28,7 +28,6 @@ interface ApiStackProps extends cdk.StackProps {
   userPoolDomain: cognito.UserPoolDomain;
   customDomain?: string;
   webOrigin?: string;
-  appleBundleIds?: string;
 }
 
 export class ApiStack extends cdk.Stack {
@@ -74,14 +73,9 @@ export class ApiStack extends cdk.Stack {
     const dcrClientsTableArn = `arn:aws:dynamodb:${this.region}:${this.account}:table/${dcrClientsTableName}`;
 
     // Apple bundle IDs for native Sign in with Apple token validation
+    // The SSM parameter is created manually (not managed by CDK) so deploys
+    // don't require the value to be passed in every time.
     const appleBundleIdsParamName = "/openbrain/apple-bundle-ids";
-    if (props.appleBundleIds) {
-      new ssm.StringParameter(this, "AppleBundleIds", {
-        parameterName: appleBundleIdsParamName,
-        stringValue: props.appleBundleIds,
-        description: "Comma-separated Apple bundle IDs for Sign in with Apple",
-      });
-    }
 
     // Main MCP handler Lambda
     this.handler = new lambdaNode.NodejsFunction(this, "McpHandler", {
@@ -103,7 +97,7 @@ export class ApiStack extends cdk.Stack {
         HMAC_SECRET_ARN: hmacSecretArn,
         FREE_TIER_DAILY_LIMIT: "50",
         ...(customDomain && { CUSTOM_DOMAIN: customDomain }),
-        ...(props.appleBundleIds && { APPLE_BUNDLE_IDS_PARAM: appleBundleIdsParamName }),
+        APPLE_BUNDLE_IDS_PARAM: appleBundleIdsParamName,
       },
       bundling: {
         externalModules: ["@aws-sdk/*"],
