@@ -27,6 +27,7 @@ interface ApiStackProps extends cdk.StackProps {
   userPoolDomain: cognito.UserPoolDomain;
   customDomain?: string;
   webOrigin?: string;
+  appleBundleIds?: string;
 }
 
 export class ApiStack extends cdk.Stack {
@@ -91,6 +92,7 @@ export class ApiStack extends cdk.Stack {
         HMAC_SECRET_ARN: hmacSecretArn,
         FREE_TIER_DAILY_LIMIT: "50",
         ...(customDomain && { CUSTOM_DOMAIN: customDomain }),
+        ...(props.appleBundleIds && { APPLE_BUNDLE_IDS: props.appleBundleIds }),
       },
       bundling: {
         externalModules: ["@aws-sdk/*"],
@@ -145,6 +147,19 @@ export class ApiStack extends cdk.Stack {
     this.handler.addToRolePolicy(new iam.PolicyStatement({
       actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:Query", "dynamodb:Scan", "dynamodb:BatchGetItem", "dynamodb:BatchWriteItem"],
       resources: [agentTasksTableArn, `${agentTasksTableArn}/index/*`],
+    }));
+
+    // Cognito admin permissions — native Apple sign-in token exchange
+    this.handler.addToRolePolicy(new iam.PolicyStatement({
+      actions: [
+        "cognito-idp:ListUsers",
+        "cognito-idp:AdminGetUser",
+        "cognito-idp:AdminCreateUser",
+        "cognito-idp:AdminInitiateAuth",
+        "cognito-idp:AdminRespondToAuthChallenge",
+        "cognito-idp:AdminLinkProviderForUser",
+      ],
+      resources: [`arn:aws:cognito-idp:${this.region}:${this.account}:userpool/${props.userPool.userPoolId}`],
     }));
 
     // Chat handler Lambda (LLM + brain tools via Bedrock Converse)
@@ -318,6 +333,13 @@ export class ApiStack extends cdk.Stack {
     this.api.addRoutes({
       path: "/mcp",
       methods: [apigwv2.HttpMethod.POST, apigwv2.HttpMethod.GET],
+      integration,
+    });
+
+    // Native Apple sign-in — token exchange (auth via Apple identity token, not Cognito JWT)
+    this.api.addRoutes({
+      path: "/auth/apple-token",
+      methods: [apigwv2.HttpMethod.POST],
       integration,
     });
 

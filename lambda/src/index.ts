@@ -8,6 +8,7 @@ import { z } from "zod";
 import { verifyAuth } from "./auth/verify";
 import { executeTool } from "./tool-executor";
 import { handleInsight } from "./handlers/insight";
+import { handleAppleNativeAuth } from "./handlers/apple-native-auth";
 import type { UserContext } from "./types";
 
 // --- Tool registration ---
@@ -289,6 +290,31 @@ export async function handler(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     };
+  }
+
+  // Native Apple sign-in — exchanges Apple identity token for Cognito tokens
+  if (method === "POST" && event.rawPath === "/auth/apple-token") {
+    try {
+      const body = JSON.parse(event.body || "{}");
+      const result = await handleAppleNativeAuth(body);
+      return {
+        statusCode: 200,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(result),
+      };
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      console.error("Apple native auth error:", message);
+      // Map known validation errors to 401; everything else is 500.
+      // Never expose internal error details to the client.
+      const authErrors = ["Invalid", "expired", "identityToken is required", "No email"];
+      const isAuthError = authErrors.some((s) => message.includes(s));
+      return {
+        statusCode: isAuthError ? 401 : 500,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ error: isAuthError ? "Unauthorized" : "Internal server error" }),
+      };
+    }
   }
 
   // Insight endpoint — GET /insight, auth required

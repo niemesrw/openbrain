@@ -169,6 +169,7 @@ export class AuthStack extends cdk.Stack {
       userPoolClientName: "brain-mobile",
       authFlows: {
         userSrp: true,
+        custom: true, // enables CUSTOM_AUTH for native Apple sign-in token exchange
       },
       generateSecret: false,
       supportedIdentityProviders: [
@@ -215,6 +216,35 @@ export class AuthStack extends cdk.Stack {
     );
 
     this.userPool.addTrigger(cognito.UserPoolOperation.PRE_SIGN_UP, preSignUpFn);
+
+    // Custom Auth Challenge triggers — used by native Apple sign-in to issue
+    // Cognito tokens without mutating user passwords. A server-generated nonce
+    // is passed via ClientMetadata and used as the challenge answer.
+    const customAuthEntry = path.join(__dirname, "../../../lambda/src/cognito-custom-auth.ts");
+
+    const defineAuthFn = new lambdaNode.NodejsFunction(this, "DefineAuthChallengeFn", {
+      entry: customAuthEntry,
+      handler: "defineAuthChallenge",
+      runtime: lambda.Runtime.NODEJS_22_X,
+      timeout: cdk.Duration.seconds(5),
+    });
+    this.userPool.addTrigger(cognito.UserPoolOperation.DEFINE_AUTH_CHALLENGE, defineAuthFn);
+
+    const createAuthFn = new lambdaNode.NodejsFunction(this, "CreateAuthChallengeFn", {
+      entry: customAuthEntry,
+      handler: "createAuthChallenge",
+      runtime: lambda.Runtime.NODEJS_22_X,
+      timeout: cdk.Duration.seconds(5),
+    });
+    this.userPool.addTrigger(cognito.UserPoolOperation.CREATE_AUTH_CHALLENGE, createAuthFn);
+
+    const verifyAuthFn = new lambdaNode.NodejsFunction(this, "VerifyAuthChallengeFn", {
+      entry: customAuthEntry,
+      handler: "verifyAuthChallenge",
+      runtime: lambda.Runtime.NODEJS_22_X,
+      timeout: cdk.Duration.seconds(5),
+    });
+    this.userPool.addTrigger(cognito.UserPoolOperation.VERIFY_AUTH_CHALLENGE_RESPONSE, verifyAuthFn);
 
     // Hosted UI theme — Synaptic Interface design system.
     // CSS lives in cdk/assets/cognito-hosted-ui.css for easy iteration.

@@ -145,6 +145,7 @@ jobs:
           APPLE_KEY_ID: ${{ secrets.APPLE_KEY_ID }}
           APPLE_PRIVATE_KEY_ARN: ${{ secrets.APPLE_PRIVATE_KEY_ARN }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_BUNDLE_IDS: ${{ secrets.APPLE_BUNDLE_IDS }}
           BUDGET_EMAIL: ${{ secrets.BUDGET_EMAIL }}
 
       - name: Check budget email

@@ -30,6 +30,7 @@ const appleClientId = app.node.tryGetContext("appleClientId") ?? process.env.APP
 const appleKeyId = app.node.tryGetContext("appleKeyId") ?? process.env.APPLE_KEY_ID;
 const applePrivateKeyArn = app.node.tryGetContext("applePrivateKeyArn") ?? process.env.APPLE_PRIVATE_KEY_ARN;
 const appleTeamId = app.node.tryGetContext("appleTeamId") ?? process.env.APPLE_TEAM_ID;
+const appleBundleIds = app.node.tryGetContext("appleBundleIds") ?? process.env.APPLE_BUNDLE_IDS;
 
 function parseStringOrArray(val: unknown, fallback: string[]): string[] {
   if (!val) return fallback;
@@ -72,6 +73,7 @@ const api = new ApiStack(app, "EnterpriseBrainApi", {
   userPoolDomain: auth.userPoolDomain,
   customDomain,
   webOrigin,
+  appleBundleIds,
 });
 
 api.addDependency(vectors);

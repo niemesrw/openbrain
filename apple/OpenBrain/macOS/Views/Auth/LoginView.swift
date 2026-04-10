@@ -43,7 +43,7 @@ struct LoginView: View {
                 .disabled(isLoading)
 
                 Button {
-                    signIn(provider: "SignInWithApple")
+                    signInWithApple()
                 } label: {
                     HStack(spacing: 8) {
                         Image(systemName: "apple.logo")
@@ -73,6 +73,19 @@ struct LoginView: View {
         Task {
             do {
                 try await authService.login(provider: provider)
+            } catch {
+                self.error = error.localizedDescription
+            }
+            isLoading = false
+        }
+    }
+
+    private func signInWithApple() {
+        isLoading = true
+        error = nil
+        Task {
+            do {
+                try await authService.loginWithApple()
             } catch {
                 self.error = error.localizedDescription
             }
