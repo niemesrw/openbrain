@@ -172,6 +172,7 @@ jobs:
       - name: Resolve Copilot review threads from this review
         if: steps.check.outputs.comment_count != '0' && steps.check.outputs.limit_reached == 'false'
         run: |
+          # shellcheck disable=SC2016
           REVIEW_NODE_ID=$(gh api graphql -f query='
             query($owner: String!, $name: String!, $pr: Int!) {
               repository(owner: $owner, name: $name) {
@@ -228,6 +229,7 @@ jobs:
               | .id")
 
             for thread_id in $THREADS; do
+              # shellcheck disable=SC2016
               gh api graphql \
                 -f query='mutation($threadId: ID!) { resolveReviewThread(input: { threadId: $threadId }) { thread { isResolved } } }' \
                 -f threadId="$thread_id" \

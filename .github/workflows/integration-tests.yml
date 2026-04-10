@@ -31,11 +31,13 @@ jobs:
             --region us-east-1 \
             --query SecretString \
             --output text)
-          echo "OPENBRAIN_API_URL=$(echo $SECRET | jq -r .api_url)" >> $GITHUB_ENV
-          echo "OPENBRAIN_USERNAME=$(echo $SECRET | jq -r .username)" >> $GITHUB_ENV
-          echo "OPENBRAIN_PASSWORD=$(echo $SECRET | jq -r .password)" >> $GITHUB_ENV
-          echo "OPENBRAIN_CLIENT_ID=$(echo $SECRET | jq -r .client_id)" >> $GITHUB_ENV
-          echo "OPENBRAIN_USER_POOL_ID=$(echo $SECRET | jq -r .user_pool_id)" >> $GITHUB_ENV
+          {
+            echo "OPENBRAIN_API_URL=$(jq -r '.api_url' <<< "$SECRET")"
+            echo "OPENBRAIN_USERNAME=$(jq -r '.username' <<< "$SECRET")"
+            echo "OPENBRAIN_PASSWORD=$(jq -r '.password' <<< "$SECRET")"
+            echo "OPENBRAIN_CLIENT_ID=$(jq -r '.client_id' <<< "$SECRET")"
+            echo "OPENBRAIN_USER_POOL_ID=$(jq -r '.user_pool_id' <<< "$SECRET")"
+          } >> "$GITHUB_ENV"
 
       - name: Run integration tests
         run: ./tests/run.sh

@@ -118,15 +118,17 @@ function decodeBase64Url(str: string): string {
   return atob(padded);
 }
 
-export function signInWithGoogle(): void {
+type OAuthProvider = "Google" | "SignInWithApple";
+
+function signInWithProvider(provider: OAuthProvider): void {
   if (!COGNITO_DOMAIN) {
-    throw new Error("VITE_COGNITO_DOMAIN is required for Google sign-in");
+    throw new Error("VITE_COGNITO_DOMAIN is required for OAuth sign-in");
   }
   const state = generateOAuthState();
   sessionStorage.setItem(OAUTH_STATE_KEY, state);
 
   const params = new URLSearchParams({
-    identity_provider: "Google",
+    identity_provider: provider,
     redirect_uri: getRedirectUri(),
     response_type: "code",
     client_id: WEB_CLIENT_ID,
@@ -134,6 +136,14 @@ export function signInWithGoogle(): void {
     state,
   });
   window.location.href = `${COGNITO_DOMAIN}/oauth2/authorize?${params}`;
+}
+
+export function signInWithGoogle(): void {
+  signInWithProvider("Google");
+}
+
+export function signInWithApple(): void {
+  signInWithProvider("SignInWithApple");
 }
 
 export async function handleOAuthCallback(

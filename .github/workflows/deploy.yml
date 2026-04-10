@@ -196,12 +196,14 @@ jobs:
           else
             MCP_URL="${API_URL}/mcp"
           fi
-          echo "api_url=$API_URL" >> "$GITHUB_OUTPUT"
-          echo "mcp_url=$MCP_URL" >> "$GITHUB_OUTPUT"
-          echo "user_pool_id=$USER_POOL_ID" >> "$GITHUB_OUTPUT"
-          echo "web_client_id=$WEB_CLIENT_ID" >> "$GITHUB_OUTPUT"
-          echo "cognito_domain=$COGNITO_DOMAIN" >> "$GITHUB_OUTPUT"
-          echo "chat_url=$CHAT_URL" >> "$GITHUB_OUTPUT"
+          {
+            echo "api_url=$API_URL"
+            echo "mcp_url=$MCP_URL"
+            echo "user_pool_id=$USER_POOL_ID"
+            echo "web_client_id=$WEB_CLIENT_ID"
+            echo "cognito_domain=$COGNITO_DOMAIN"
+            echo "chat_url=$CHAT_URL"
+          } >> "$GITHUB_OUTPUT"
 
       # --- Build and deploy web (rebuild with real env vars) ---
 
@@ -255,10 +257,12 @@ jobs:
 
       - name: Deployment summary
         run: |
-          echo "### Deployment Complete" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Resource | Value |" >> "$GITHUB_STEP_SUMMARY"
-          echo "|----------|-------|" >> "$GITHUB_STEP_SUMMARY"
-          echo "| API URL | ${{ steps.outputs.outputs.api_url }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Web URL | ${{ steps.web.outputs.url }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Cognito Domain | ${{ steps.outputs.outputs.cognito_domain }} |" >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "### Deployment Complete"
+            echo ""
+            echo "| Resource | Value |"
+            echo "|----------|-------|"
+            echo "| API URL | ${{ steps.outputs.outputs.api_url }} |"
+            echo "| Web URL | ${{ steps.web.outputs.url }} |"
+            echo "| Cognito Domain | ${{ steps.outputs.outputs.cognito_domain }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
