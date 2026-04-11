@@ -8,7 +8,6 @@ jest.mock("@aws-sdk/client-cognito-identity-provider", () => {
     ListUsersCommand: jest.fn((input: unknown) => ({ _type: "ListUsers", input })),
     AdminCreateUserCommand: jest.fn((input: unknown) => ({ _type: "AdminCreateUser", input })),
     AdminInitiateAuthCommand: jest.fn((input: unknown) => ({ _type: "AdminInitiateAuth", input })),
-    AdminRespondToAuthChallengeCommand: jest.fn((input: unknown) => ({ _type: "AdminRespondToAuthChallenge", input })),
     AdminLinkProviderForUserCommand: jest.fn((input: unknown) => ({ _type: "AdminLinkProviderForUser", input })),
     AdminSetUserPasswordCommand: jest.fn((input: unknown) => ({ _type: "AdminSetUserPassword", input })),
     MessageActionType: { SUPPRESS: "SUPPRESS" },
@@ -95,8 +94,7 @@ function mockCognitoForSuccess() {
     if (cmd._type === "AdminCreateUser") return { User: { Username: "new-user-123" } };
     if (cmd._type === "AdminLinkProviderForUser") return {};
     if (cmd._type === "AdminSetUserPassword") return {};
-    if (cmd._type === "AdminInitiateAuth") return { Session: "test-session" };
-    if (cmd._type === "AdminRespondToAuthChallenge") return {
+    if (cmd._type === "AdminInitiateAuth") return {
       AuthenticationResult: {
         IdToken: "id-token",
         AccessToken: "access-token",
@@ -125,10 +123,10 @@ describe("handleAppleNativeAuth", () => {
     expect(createCall).toBeDefined();
     expect(createCall[0].input.Username).toBe("test@example.com");
 
-    // Should use CUSTOM_AUTH, not password auth
+    // Should use ADMIN_USER_PASSWORD_AUTH with a random password
     const authCall = mockSend.mock.calls.find((c: any) => c[0]._type === "AdminInitiateAuth");
-    expect(authCall[0].input.AuthFlow).toBe("CUSTOM_AUTH");
-    expect(authCall[0].input.ClientMetadata?.nonce).toBeDefined();
+    expect(authCall[0].input.AuthFlow).toBe("ADMIN_USER_PASSWORD_AUTH");
+    expect(authCall[0].input.AuthParameters.PASSWORD).toBeDefined();
   });
 
   it("links Apple identity to existing CONFIRMED user", async () => {
@@ -141,8 +139,8 @@ describe("handleAppleNativeAuth", () => {
         }],
       };
       if (cmd._type === "AdminLinkProviderForUser") return {};
-      if (cmd._type === "AdminInitiateAuth") return { Session: "test-session" };
-      if (cmd._type === "AdminRespondToAuthChallenge") return {
+      if (cmd._type === "AdminSetUserPassword") return {};
+      if (cmd._type === "AdminInitiateAuth") return {
         AuthenticationResult: {
           IdToken: "id-token",
           AccessToken: "access-token",
@@ -179,8 +177,8 @@ describe("handleAppleNativeAuth", () => {
       };
       if (cmd._type === "AdminCreateUser") return { User: { Username: "native-user-456" } };
       if (cmd._type === "AdminLinkProviderForUser") return {};
-      if (cmd._type === "AdminInitiateAuth") return { Session: "test-session" };
-      if (cmd._type === "AdminRespondToAuthChallenge") return {
+      if (cmd._type === "AdminSetUserPassword") return {};
+      if (cmd._type === "AdminInitiateAuth") return {
         AuthenticationResult: {
           IdToken: "id-token",
           AccessToken: "access-token",

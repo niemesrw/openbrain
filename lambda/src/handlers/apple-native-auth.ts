@@ -4,7 +4,6 @@ import {
   ListUsersCommand,
   AdminCreateUserCommand,
   AdminInitiateAuthCommand,
-  AdminRespondToAuthChallengeCommand,
   AdminLinkProviderForUserCommand,
   AdminSetUserPasswordCommand,
   MessageActionType,
@@ -186,15 +185,17 @@ async function findUserByEmail(email: string): Promise<FoundUser | null> {
  * requires CONFIRMED status. Setting a random permanent password confirms
  * the user without exposing any real credential (auth is token-based).
  */
-async function confirmUser(username: string): Promise<void> {
+async function setRandomPassword(username: string): Promise<string> {
+  const password = crypto.randomBytes(32).toString("base64url") + "!Aa1";
   await cognito.send(
     new AdminSetUserPasswordCommand({
       UserPoolId: getUserPoolId(),
       Username: username,
-      Password: crypto.randomBytes(32).toString("base64url") + "!Aa1",
+      Password: password,
       Permanent: true,
     }),
   );
+  return password;
 }
 
 async function createUserForApple(
@@ -222,7 +223,7 @@ async function createUserForApple(
   );
 
   const username = result.User!.Username!;
-  await confirmUser(username);
+  await setRandomPassword(username);
 
   // Link Apple identity to this user
   await cognito.send(
@@ -300,7 +301,7 @@ async function convertToNativeUser(
   );
 
   const nativeUsername = result.User!.Username!;
-  await confirmUser(nativeUsername);
+  await setRandomPassword(nativeUsername);
 
   // Re-link any existing Google provider identity to the new native user
   if (identities) {
@@ -331,10 +332,8 @@ async function convertToNativeUser(
 }
 
 /**
- * Issue Cognito tokens using CUSTOM_AUTH flow.
- * Uses a server-generated nonce as the challenge answer — no password mutation.
- * Requires DefineAuthChallenge, CreateAuthChallenge, and VerifyAuthChallenge
- * Lambda triggers on the user pool (see cognito-custom-auth.ts).
+ * Issue Cognito tokens by setting a random password and authenticating with it.
+ * The password is ephemeral — generated per-request, never stored or exposed.
  */
 async function issueTokens(username: string): Promise<{
   idToken: string;
@@ -342,33 +341,18 @@ async function issueTokens(username: string): Promise<{
   refreshToken: string;
   expiresIn: number;
 }> {
-  const nonce = crypto.randomBytes(32).toString("hex");
+  const password = await setRandomPassword(username);
 
-  const initResult = await cognito.send(
+  const authResult = await cognito.send(
     new AdminInitiateAuthCommand({
       UserPoolId: getUserPoolId(),
       ClientId: getMobileClientId(),
-      AuthFlow: "CUSTOM_AUTH",
-      AuthParameters: { USERNAME: username },
-      ClientMetadata: { nonce },
+      AuthFlow: "ADMIN_USER_PASSWORD_AUTH",
+      AuthParameters: { USERNAME: username, PASSWORD: password },
     }),
   );
 
-  if (!initResult.Session) {
-    throw new Error("Custom auth challenge not issued");
-  }
-
-  const challengeResult = await cognito.send(
-    new AdminRespondToAuthChallengeCommand({
-      UserPoolId: getUserPoolId(),
-      ClientId: getMobileClientId(),
-      ChallengeName: "CUSTOM_CHALLENGE",
-      Session: initResult.Session,
-      ChallengeResponses: { USERNAME: username, ANSWER: nonce },
-    }),
-  );
-
-  const result = challengeResult.AuthenticationResult;
+  const result = authResult.AuthenticationResult;
   if (!result?.IdToken || !result.AccessToken || !result.RefreshToken) {
     throw new Error("Cognito did not return complete tokens");
   }
@@ -422,7 +406,7 @@ export async function handleAppleNativeAuth(body: AppleNativeAuthRequest): Promi
       username = existing.username;
       if (existing.status === "FORCE_CHANGE_PASSWORD") {
         // User was created by AdminCreateUser but never confirmed — fix it.
-        await confirmUser(username);
+        await setRandomPassword(username);
       }
     }
     await linkAppleToExistingUser(username, payload.sub, existing.identities);
