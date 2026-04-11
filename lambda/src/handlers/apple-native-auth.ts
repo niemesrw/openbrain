@@ -159,6 +159,26 @@ interface FoundUser {
   identities?: string; // JSON string of linked providers
 }
 
+async function findUserByAppleSub(appleSub: string): Promise<FoundUser | null> {
+  // Search for a user that already has this Apple identity linked.
+  // Cognito stores linked providers in the "identities" attribute as JSON.
+  // The federated username format is "SignInWithApple_<sub>".
+  const result = await cognito.send(
+    new ListUsersCommand({
+      UserPoolId: getUserPoolId(),
+      Filter: `username = "SignInWithApple_${appleSub}"`,
+      Limit: 1,
+    }),
+  );
+  const user = result.Users?.[0];
+  if (!user?.Username) return null;
+  return {
+    username: user.Username,
+    status: user.UserStatus ?? "UNKNOWN",
+    identities: user.Attributes?.find((a) => a.Name === "identities")?.Value,
+  };
+}
+
 async function findUserByEmail(email: string): Promise<FoundUser | null> {
   // Validate email format before interpolating into filter (same as cognito-pre-signup.ts)
   if (!EMAIL_RE.test(email)) return null;
@@ -347,8 +367,9 @@ export async function handleAppleNativeAuth(body: AppleNativeAuthRequest): Promi
   }
 
   // 2. Find or create the Cognito user
-  const existing = await findUserByEmail(email);
-  console.log("Apple auth: email=%s existing=%j", email, existing ? { username: existing.username, status: existing.status } : null);
+  // Try Apple sub first (handles "Hide My Email" where the private relay
+  // email won't match the user's real email on file), then fall back to email.
+  const existing = await findUserByAppleSub(payload.sub) ?? await findUserByEmail(email);
 
   let username: string;
   if (existing) {
@@ -357,7 +378,6 @@ export async function handleAppleNativeAuth(body: AppleNativeAuthRequest): Promi
       // Promote in-place so ADMIN_USER_PASSWORD_AUTH works while preserving
       // the same sub/userId (and thus the user's brain data).
       await promoteExternalUser(username);
-      console.log("Apple auth: promoted EXTERNAL_PROVIDER user=%s", username);
     } else if (existing.status === "FORCE_CHANGE_PASSWORD") {
       await setRandomPassword(username);
     }
@@ -367,6 +387,5 @@ export async function handleAppleNativeAuth(body: AppleNativeAuthRequest): Promi
   }
 
   // 3. Issue Cognito tokens via custom auth (no password mutation)
-  console.log("Apple auth: issuing tokens for username=%s", username);
   return issueTokens(username);
 }

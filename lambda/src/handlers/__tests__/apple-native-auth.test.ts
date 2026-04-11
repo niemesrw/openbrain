@@ -206,6 +206,52 @@ describe("handleAppleNativeAuth", () => {
     expect(authCall[0].input.AuthParameters.USERNAME).toBe("Google_123");
   });
 
+  it("finds existing user by Apple sub when using Hide My Email", async () => {
+    // User signed in before with real email, now uses private relay email
+    mockSend.mockImplementation((cmd: any) => {
+      if (cmd._type === "ListUsers") {
+        // First call: findUserByAppleSub — finds the user by federated username
+        if (cmd.input.Filter?.includes("SignInWithApple_")) {
+          return {
+            Users: [{
+              Username: "existing-user",
+              UserStatus: "CONFIRMED",
+              Attributes: [
+                { Name: "identities", Value: JSON.stringify([{ providerName: "SignInWithApple", userId: "apple-user-001" }]) },
+              ],
+            }],
+          };
+        }
+        // findUserByEmail would not find anyone (private relay email)
+        return { Users: [] };
+      }
+      if (cmd._type === "AdminLinkProviderForUser") return {};
+      if (cmd._type === "AdminSetUserPassword") return {};
+      if (cmd._type === "AdminInitiateAuth") return {
+        AuthenticationResult: {
+          IdToken: "id-token",
+          AccessToken: "access-token",
+          RefreshToken: "refresh-token",
+          ExpiresIn: 3600,
+        },
+      };
+      return {};
+    });
+
+    const token = createAppleToken({ email: "abc123@privaterelay.appleid.com" });
+    const result = await handleAppleNativeAuth({ identityToken: token });
+
+    expect(result.idToken).toBe("id-token");
+
+    // Should NOT create a new user — found existing via Apple sub
+    const createCall = mockSend.mock.calls.find((c: any) => c[0]._type === "AdminCreateUser");
+    expect(createCall).toBeUndefined();
+
+    // Should auth against the existing user
+    const authCall = mockSend.mock.calls.find((c: any) => c[0]._type === "AdminInitiateAuth");
+    expect(authCall[0].input.AuthParameters.USERNAME).toBe("existing-user");
+  });
+
   it("rejects expired tokens", async () => {
     const token = createAppleToken({ exp: Math.floor(Date.now() / 1000) - 100 });
     await expect(handleAppleNativeAuth({ identityToken: token })).rejects.toThrow("Token expired");
