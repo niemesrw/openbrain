@@ -147,9 +147,17 @@ export class ApiStack extends cdk.Stack {
             memoryId: new customResources.PhysicalResourceIdReference(),
           },
         },
-        policy: customResources.AwsCustomResourcePolicy.fromSdkCalls({
-          resources: customResources.AwsCustomResourcePolicy.ANY_RESOURCE,
-        }),
+        policy: customResources.AwsCustomResourcePolicy.fromStatements([
+          new iam.PolicyStatement({
+            actions: [
+              "bedrock-agentcore:CreateMemory",
+              "bedrock-agentcore:UpdateMemory",
+              "bedrock-agentcore:DeleteMemory",
+              "bedrock-agentcore:GetMemory",
+            ],
+            resources: ["*"],
+          }),
+        ]),
       }
     );
 
