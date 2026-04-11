@@ -168,6 +168,7 @@ export class ApiStack extends cdk.Stack {
         "cognito-idp:AdminInitiateAuth",
         "cognito-idp:AdminRespondToAuthChallenge",
         "cognito-idp:AdminLinkProviderForUser",
+        "cognito-idp:AdminSetUserPassword",
       ],
       resources: [`arn:aws:cognito-idp:${this.region}:${this.account}:userpool/${props.userPool.userPoolId}`],
     }));
