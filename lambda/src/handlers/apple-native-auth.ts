@@ -409,6 +409,7 @@ export async function handleAppleNativeAuth(body: AppleNativeAuthRequest): Promi
 
   // 2. Find or create the Cognito user
   const existing = await findUserByEmail(email);
+  console.log("Apple auth: email=%s existing=%j", email, existing ? { username: existing.username, status: existing.status } : null);
 
   let username: string;
   if (existing) {
@@ -416,6 +417,7 @@ export async function handleAppleNativeAuth(body: AppleNativeAuthRequest): Promi
       // User was created via Google federated login — CUSTOM_AUTH won't work.
       // Convert to a native user and re-link existing provider identities.
       username = await convertToNativeUser(email, existing.identities);
+      console.log("Apple auth: converted to native user=%s", username);
     } else {
       username = existing.username;
       if (existing.status === "FORCE_CHANGE_PASSWORD") {
@@ -429,5 +431,6 @@ export async function handleAppleNativeAuth(body: AppleNativeAuthRequest): Promi
   }
 
   // 3. Issue Cognito tokens via custom auth (no password mutation)
+  console.log("Apple auth: issuing tokens for username=%s", username);
   return issueTokens(username);
 }
