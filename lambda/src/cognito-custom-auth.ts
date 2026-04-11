@@ -44,6 +44,7 @@ export const createAuthChallenge = async (event: any): Promise<any> => {
   if (event.request.challengeName === "CUSTOM_CHALLENGE") {
     // Store the server-generated nonce as the expected answer
     const nonce = event.request.clientMetadata?.nonce ?? "";
+    console.log("CreateAuthChallenge: nonce=%s clientMetadata=%j", nonce ? "present" : "MISSING", Object.keys(event.request.clientMetadata ?? {}));
     event.response.publicChallengeParameters = {};
     event.response.privateChallengeParameters = { answer: nonce };
   }
@@ -55,6 +56,8 @@ export const createAuthChallenge = async (event: any): Promise<any> => {
 export const verifyAuthChallenge = async (event: any): Promise<any> => {
   const expected = event.request.privateChallengeParameters?.answer;
   const provided = event.request.challengeAnswer;
-  event.response.answerCorrect = !!expected && expected === provided;
+  const correct = !!expected && expected === provided;
+  console.log("VerifyAuthChallenge: expected=%s provided=%s match=%s", expected ? "present" : "MISSING", provided ? "present" : "MISSING", correct);
+  event.response.answerCorrect = correct;
   return event;
 };
