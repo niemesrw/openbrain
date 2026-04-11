@@ -95,7 +95,7 @@ export class ApiStack extends cdk.Stack {
           service: "bedrock-agentcore-control",
           action: "CreateMemory",
           parameters: {
-            name: "openbrain-agent-memory",
+            name: "openbrain_agent_memory",
             description: "Short and long-term memory for Open Brain conversational agents",
             eventExpiryDuration: 30, // days — raw STM events are retained for 30 days
             memoryStrategies: [
@@ -120,7 +120,7 @@ export class ApiStack extends cdk.Stack {
           action: "UpdateMemory",
           parameters: {
             memoryId: new customResources.PhysicalResourceIdReference(),
-            name: "openbrain-agent-memory",
+            name: "openbrain_agent_memory",
             description: "Short and long-term memory for Open Brain conversational agents",
             eventExpiryDuration: 30,
             memoryStrategies: [
