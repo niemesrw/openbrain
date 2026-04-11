@@ -169,7 +169,7 @@ export class AuthStack extends cdk.Stack {
       userPoolClientName: "brain-mobile",
       authFlows: {
         userSrp: true,
-        userPassword: true, // enables ADMIN_USER_PASSWORD_AUTH for native Apple sign-in token exchange
+        adminUserPassword: true, // enables ADMIN_USER_PASSWORD_AUTH for native Apple sign-in token exchange
       },
       generateSecret: false,
       supportedIdentityProviders: [
