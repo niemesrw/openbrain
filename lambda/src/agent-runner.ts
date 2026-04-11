@@ -22,6 +22,12 @@ import {
   type AgentTask,
 } from "./handlers/agent-tasks";
 import type { UserContext } from "./types";
+import {
+  loadSessionHistory,
+  saveSessionEvent,
+  retrieveLongTermMemory,
+  formatSessionHistory,
+} from "./services/agentcore-memory";
 
 const CHAT_MODEL_ID =
   process.env.CHAT_MODEL_ID || "us.anthropic.claude-haiku-4-5-20251001-v1:0";
@@ -273,20 +279,42 @@ async function executeTask(
   ownerContext: UserContext,
 ): Promise<boolean> {
   let resultCaptured = false;
-  const systemPrompt: SystemContentBlock[] = [
-    {
-      text: `You are a background agent executing a scheduled task for a user. Execute the action described below. Use web_fetch to get information from the internet. Use search_brain to find relevant context from the user's knowledge base. Use browse_recent to list recent thoughts by type or topic. Use update_thought to edit an existing thought by ID. When you have a useful result, use capture_result to save a clear, concise summary. Be direct.`,
-    },
-  ];
+
+  // AgentCore Memory — load session context for this task (best-effort)
+  const memoryId = process.env.AGENTCORE_MEMORY_ID ?? "";
+  const actorId = ownerContext.userId;
+  const sessionId = `task-${task.taskId}`;
+
+  const [sessionHistory, ltmContext] = await Promise.all([
+    loadSessionHistory(memoryId, actorId, sessionId),
+    retrieveLongTermMemory(
+      memoryId,
+      `/users/${actorId}/preferences/`,
+      `scheduled task preferences for: ${task.title}`,
+      5
+    ),
+  ]);
+
+  const sessionHistoryText = formatSessionHistory(sessionHistory);
+  let basePrompt = `You are a background agent executing a scheduled task for a user. Execute the action described below. Use web_fetch to get information from the internet. Use search_brain to find relevant context from the user's knowledge base. Use browse_recent to list recent thoughts by type or topic. Use update_thought to edit an existing thought by ID. When you have a useful result, use capture_result to save a clear, concise summary. Be direct.`;
+  if (ltmContext) {
+    basePrompt += `\n\nLong-term memory (user preferences):\n${ltmContext}`;
+  }
+  if (sessionHistoryText) {
+    basePrompt += `\n\nPrevious run context for this task:\n${sessionHistoryText}`;
+  }
+
+  const systemPrompt: SystemContentBlock[] = [{ text: basePrompt }];
+  const userMessageText = `Task: ${task.title}\nAction: ${task.action}\n\nExecute this task now.`;
 
   const messages: Message[] = [
     {
       role: "user",
-      content: [
-        { text: `Task: ${task.title}\nAction: ${task.action}\n\nExecute this task now.` },
-      ],
+      content: [{ text: userMessageText }],
     },
   ];
+
+  let finalAssistantText = "";
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     const response = await bedrock.send(
@@ -302,6 +330,12 @@ async function executeTask(
     const outputMessage = response.output?.message;
     if (!outputMessage) break;
     messages.push(outputMessage);
+
+    // Collect assistant text for memory persistence
+    const textBlocks = outputMessage.content?.filter((b) => b.text) ?? [];
+    if (textBlocks.length > 0) {
+      finalAssistantText = textBlocks.map((b) => b.text).filter(Boolean).join("\n");
+    }
 
     if (response.stopReason === "end_turn") break;
 
@@ -336,6 +370,18 @@ async function executeTask(
     }
 
     break;
+  }
+
+  // Save task run to short-term memory (best-effort)
+  if (memoryId && finalAssistantText) {
+    saveSessionEvent(memoryId, actorId, sessionId, [
+      { role: "user", content: userMessageText },
+      { role: "assistant", content: finalAssistantText },
+    ]).catch((err: unknown) => {
+      console.warn("[agent-runner] Failed to save session event", {
+        err: err instanceof Error ? err.message : String(err),
+      });
+    });
   }
 
   return resultCaptured;

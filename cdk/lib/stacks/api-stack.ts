@@ -15,6 +15,7 @@ import * as ssm from "aws-cdk-lib/aws-ssm";
 import * as cloudwatch from "aws-cdk-lib/aws-cloudwatch";
 import * as cwActions from "aws-cdk-lib/aws-cloudwatch-actions";
 import * as sns from "aws-cdk-lib/aws-sns";
+import * as customResources from "aws-cdk-lib/custom-resources";
 
 import { Construct } from "constructs";
 import * as path from "path";
@@ -76,6 +77,94 @@ export class ApiStack extends cdk.Stack {
     // The SSM parameter is created manually (not managed by CDK) so deploys
     // don't require the value to be passed in every time.
     const appleBundleIdsParamName = "/openbrain/apple-bundle-ids";
+
+    // -------------------------------------------------------------------------
+    // AgentCore Memory — session layer for conversational agents
+    // STM (short-term): raw conversation events within a session
+    // LTM (long-term): extracted preferences and knowledge across sessions
+    //
+    // AWS::BedrockAgentCore::Memory is not yet a native CFN type, so we use
+    // AwsCustomResource (SDK-backed Lambda) to manage its lifecycle.
+    // -------------------------------------------------------------------------
+    const agentCoreMemory = new customResources.AwsCustomResource(
+      this,
+      "AgentCoreMemory",
+      {
+        installLatestAwsSdk: true,
+        onCreate: {
+          service: "bedrock-agentcore-control",
+          action: "CreateMemory",
+          parameters: {
+            name: "openbrain-agent-memory",
+            description: "Short and long-term memory for Open Brain conversational agents",
+            eventExpiryDuration: 30, // days — raw STM events are retained for 30 days
+            memoryStrategies: [
+              {
+                userPreferenceMemoryStrategy: {
+                  name: "UserPreferenceExtractor",
+                  namespaceTemplates: ["/users/{actorId}/preferences/"],
+                },
+              },
+              {
+                semanticMemoryStrategy: {
+                  name: "SemanticKnowledgeExtractor",
+                  namespaceTemplates: ["/users/{actorId}/knowledge/"],
+                },
+              },
+            ],
+          },
+          physicalResourceId: customResources.PhysicalResourceId.fromResponse("memory.id"),
+        },
+        onUpdate: {
+          service: "bedrock-agentcore-control",
+          action: "UpdateMemory",
+          parameters: {
+            memoryId: new customResources.PhysicalResourceIdReference(),
+            name: "openbrain-agent-memory",
+            description: "Short and long-term memory for Open Brain conversational agents",
+            eventExpiryDuration: 30,
+            memoryStrategies: [
+              {
+                userPreferenceMemoryStrategy: {
+                  name: "UserPreferenceExtractor",
+                  namespaceTemplates: ["/users/{actorId}/preferences/"],
+                },
+              },
+              {
+                semanticMemoryStrategy: {
+                  name: "SemanticKnowledgeExtractor",
+                  namespaceTemplates: ["/users/{actorId}/knowledge/"],
+                },
+              },
+            ],
+          },
+          physicalResourceId: customResources.PhysicalResourceId.fromResponse("memory.id"),
+        },
+        onDelete: {
+          service: "bedrock-agentcore-control",
+          action: "DeleteMemory",
+          parameters: {
+            memoryId: new customResources.PhysicalResourceIdReference(),
+          },
+        },
+        policy: customResources.AwsCustomResourcePolicy.fromSdkCalls({
+          resources: customResources.AwsCustomResourcePolicy.ANY_RESOURCE,
+        }),
+      }
+    );
+
+    const agentCoreMemoryId = agentCoreMemory.getResponseField("memory.id");
+    const agentCoreMemoryArn = agentCoreMemory.getResponseField("memory.arn");
+
+    // IAM permissions for Lambdas to interact with AgentCore Memory data plane.
+    // Scoped to the specific memory resource ARN for least-privilege access.
+    const agentCoreMemoryDataPlaneActions = [
+      "bedrock-agentcore:CreateEvent",
+      "bedrock-agentcore:GetEvent",
+      "bedrock-agentcore:ListEvents",
+      "bedrock-agentcore:ListSessions",
+      "bedrock-agentcore:RetrieveMemoryRecords",
+    ];
 
     // Main MCP handler Lambda
     this.handler = new lambdaNode.NodejsFunction(this, "McpHandler", {
@@ -538,6 +627,7 @@ export class ApiStack extends cdk.Stack {
         METADATA_MODEL_ID: "us.anthropic.claude-haiku-4-5-20251001-v1:0",
         CHAT_MODEL_ID: "us.anthropic.claude-haiku-4-5-20251001-v1:0",
         AGENT_TASKS_TABLE: agentTasksTableName,
+        AGENTCORE_MEMORY_ID: agentCoreMemoryId,
       },
       bundling: {
         externalModules: ["@aws-sdk/*"],
@@ -549,6 +639,10 @@ export class ApiStack extends cdk.Stack {
     agentRunner.addToRolePolicy(new iam.PolicyStatement({
       actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:Query", "dynamodb:Scan", "dynamodb:BatchGetItem", "dynamodb:BatchWriteItem"],
       resources: [agentTasksTableArn, `${agentTasksTableArn}/index/*`],
+    }));
+    agentRunner.addToRolePolicy(new iam.PolicyStatement({
+      actions: agentCoreMemoryDataPlaneActions,
+      resources: [agentCoreMemoryArn],
     }));
 
     agentRunner.addToRolePolicy(
@@ -699,6 +793,7 @@ export class ApiStack extends cdk.Stack {
         CHAT_MODEL_ID: "us.anthropic.claude-haiku-4-5-20251001-v1:0",
         GITHUB_APP_ID_SECRET_NAME: githubAppIdSecretName,
         GITHUB_APP_PRIVATE_KEY_SECRET_NAME: githubAppPrivateKeySecretName,
+        AGENTCORE_MEMORY_ID: agentCoreMemoryId,
       },
       bundling: {
         externalModules: ["@aws-sdk/*"],
@@ -712,6 +807,10 @@ export class ApiStack extends cdk.Stack {
     githubAgentHandler.addToRolePolicy(new iam.PolicyStatement({
       actions: ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:Scan"],
       resources: [githubInstallationsTableArn, `${githubInstallationsTableArn}/index/*`],
+    }));
+    githubAgentHandler.addToRolePolicy(new iam.PolicyStatement({
+      actions: agentCoreMemoryDataPlaneActions,
+      resources: [agentCoreMemoryArn],
     }));
     githubAgentHandler.addToRolePolicy(new iam.PolicyStatement({
       actions: [

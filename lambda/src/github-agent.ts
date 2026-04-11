@@ -7,6 +7,13 @@ import { z } from "zod";
 import { executeTool } from "./tool-executor";
 import type { GitHubInstallation } from "./handlers/github-connect";
 import type { UserContext } from "./types";
+import {
+  loadSessionHistory,
+  saveSessionEvent,
+  retrieveLongTermMemory,
+  formatSessionHistory,
+  extractAssistantText,
+} from "./services/agentcore-memory";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const bedrock = createAmazonBedrock();
@@ -316,14 +323,43 @@ export async function handler(event: SQSEvent): Promise<void> {
     const eventScope = extractEventScope(eventType, payload);
     const eventSummary = summarizePayload(eventType, payload);
 
+    // AgentCore Memory — load session context (best-effort, non-blocking)
+    const memoryId = process.env.AGENTCORE_MEMORY_ID ?? "";
+    const actorId = installation.userId;
+    // Session ID scoped to the specific PR/issue so context is event-specific
+    const sessionId = eventScope.number
+      ? `github-${eventScope.owner}-${eventScope.repo}-${eventScope.number}`
+      : `github-${eventScope.owner}-${eventScope.repo}-${eventType}`;
+
+    const [sessionHistory, ltmContext] = await Promise.all([
+      loadSessionHistory(memoryId, actorId, sessionId),
+      retrieveLongTermMemory(
+        memoryId,
+        `/users/${actorId}/preferences/`,
+        `GitHub ${eventType} workflow preferences`,
+        5
+      ),
+    ]);
+
+    const sessionHistoryText = formatSessionHistory(sessionHistory);
+    let systemPrompt = SYSTEM_PROMPT;
+    if (ltmContext) {
+      systemPrompt += `\n\nLong-term memory (user preferences and past patterns):\n${ltmContext}`;
+    }
+    if (sessionHistoryText) {
+      systemPrompt += `\n\nPrevious conversation context for this ${eventType}:\n${sessionHistoryText}`;
+    }
+
+    const userMessage = `A GitHub event just arrived. Process it according to any matching workflow rules in my brain.\n\n<github-event>\n${eventSummary}\n</github-event>`;
+
     try {
       const result = await generateText({
         model: bedrock(MODEL_ID),
-        system: SYSTEM_PROMPT,
+        system: systemPrompt,
         messages: [
           {
             role: "user",
-            content: `A GitHub event just arrived. Process it according to any matching workflow rules in my brain.\n\n<github-event>\n${eventSummary}\n</github-event>`,
+            content: userMessage,
           },
         ],
         tools: buildAgentTools(user, eventScope),
@@ -336,6 +372,21 @@ export async function handler(event: SQSEvent): Promise<void> {
         steps: result.steps.length,
         toolCalls: result.steps.reduce((n, s) => n + (s.toolCalls?.length ?? 0), 0),
       });
+
+      // Save conversation turn to short-term memory (best-effort)
+      if (memoryId) {
+        const assistantText = extractAssistantText(result);
+        if (assistantText) {
+          saveSessionEvent(memoryId, actorId, sessionId, [
+            { role: "user", content: userMessage },
+            { role: "assistant", content: assistantText },
+          ]).catch((err: unknown) => {
+            console.warn("[github-agent] Failed to save session event", {
+              err: err instanceof Error ? err.message : String(err),
+            });
+          });
+        }
+      }
     } catch (err) {
       console.error("[github-agent] Agent execution failed", {
         userId: installation.userId,
