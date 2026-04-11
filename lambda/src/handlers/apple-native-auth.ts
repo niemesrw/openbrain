@@ -248,20 +248,32 @@ async function linkAppleToExistingUser(username: string, appleSub: string, ident
     return; // Already linked
   }
 
-  await cognito.send(
-    new AdminLinkProviderForUserCommand({
-      UserPoolId: getUserPoolId(),
-      DestinationUser: {
-        ProviderName: "Cognito",
-        ProviderAttributeValue: username,
-      },
-      SourceUser: {
-        ProviderName: "SignInWithApple",
-        ProviderAttributeName: "Cognito_Subject",
-        ProviderAttributeValue: appleSub,
-      },
-    }),
-  );
+  try {
+    await cognito.send(
+      new AdminLinkProviderForUserCommand({
+        UserPoolId: getUserPoolId(),
+        DestinationUser: {
+          ProviderName: "Cognito",
+          ProviderAttributeValue: username,
+        },
+        SourceUser: {
+          ProviderName: "SignInWithApple",
+          ProviderAttributeName: "Cognito_Subject",
+          ProviderAttributeValue: appleSub,
+        },
+      }),
+    );
+  } catch (err: unknown) {
+    // Apple sub may already be linked to another user (e.g. an old
+    // EXTERNAL_PROVIDER user from a prior partial conversion). The link is
+    // not required for CUSTOM_AUTH token issuance, so skip gracefully.
+    const message = err instanceof Error ? err.message : String(err);
+    if (message.includes("already linked")) {
+      console.warn("Apple identity already linked to another user, skipping:", message);
+      return;
+    }
+    throw err;
+  }
 }
 
 /**
