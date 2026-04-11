@@ -161,22 +161,53 @@ interface FoundUser {
 
 async function findUserByAppleSub(appleSub: string): Promise<FoundUser | null> {
   // Search for a user that already has this Apple identity linked.
-  // Cognito stores linked providers in the "identities" attribute as JSON.
-  // The federated username format is "SignInWithApple_<sub>".
-  const result = await cognito.send(
+  // Apple identities can exist as standalone federated users (SignInWithApple_<sub>)
+  // or as linked identities on another user. Cognito's ListUsers filter can't
+  // search inside the "identities" attribute, so we check both:
+  // 1. Standalone federated user by username
+  // 2. Linked identity by scanning users' identities JSON
+
+  // Try standalone federated user first (fast path)
+  const standaloneResult = await cognito.send(
     new ListUsersCommand({
       UserPoolId: getUserPoolId(),
       Filter: `username = "SignInWithApple_${appleSub}"`,
       Limit: 1,
     }),
   );
-  const user = result.Users?.[0];
-  if (!user?.Username) return null;
-  return {
-    username: user.Username,
-    status: user.UserStatus ?? "UNKNOWN",
-    identities: user.Attributes?.find((a) => a.Name === "identities")?.Value,
-  };
+  const standalone = standaloneResult.Users?.[0];
+  if (standalone?.Username) {
+    return {
+      username: standalone.Username,
+      status: standalone.UserStatus ?? "UNKNOWN",
+      identities: standalone.Attributes?.find((a) => a.Name === "identities")?.Value,
+    };
+  }
+
+  // Scan for linked identity (needed when Apple is linked to a Google/native user)
+  let paginationToken: string | undefined;
+  do {
+    const page = await cognito.send(
+      new ListUsersCommand({
+        UserPoolId: getUserPoolId(),
+        Limit: 60,
+        PaginationToken: paginationToken,
+      }),
+    );
+    for (const user of page.Users ?? []) {
+      const identities = user.Attributes?.find((a) => a.Name === "identities")?.Value;
+      if (identities?.includes(`"userId":"${appleSub}"`)) {
+        return {
+          username: user.Username!,
+          status: user.UserStatus ?? "UNKNOWN",
+          identities,
+        };
+      }
+    }
+    paginationToken = page.PaginationToken;
+  } while (paginationToken);
+
+  return null;
 }
 
 async function findUserByEmail(email: string): Promise<FoundUser | null> {
