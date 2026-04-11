@@ -278,57 +278,12 @@ async function linkAppleToExistingUser(username: string, appleSub: string, ident
 }
 
 /**
- * Convert an EXTERNAL_PROVIDER user to a native Cognito user.
- * AdminInitiateAuth with CUSTOM_AUTH doesn't work against EXTERNAL_PROVIDER
- * users (e.g. those created via Google federated login). Creating a native
- * user with the same email and linking the existing provider identities to
- * it produces a user that supports CUSTOM_AUTH.
+ * Promote an EXTERNAL_PROVIDER user to support password-based auth in-place.
+ * AdminSetUserPassword on an EXTERNAL_PROVIDER user converts it to CONFIRMED
+ * while preserving the same `sub` — so brain data stays linked to the user.
  */
-async function convertToNativeUser(
-  email: string,
-  identities?: string,
-): Promise<string> {
-  const result = await cognito.send(
-    new AdminCreateUserCommand({
-      UserPoolId: getUserPoolId(),
-      Username: email,
-      UserAttributes: [
-        { Name: "email", Value: email },
-        { Name: "email_verified", Value: "true" },
-      ],
-      MessageAction: MessageActionType.SUPPRESS,
-    }),
-  );
-
-  const nativeUsername = result.User!.Username!;
-  await setRandomPassword(nativeUsername);
-
-  // Re-link any existing Google provider identity to the new native user
-  if (identities) {
-    try {
-      const parsed = JSON.parse(identities) as Array<{ providerName: string; userId: string }>;
-      for (const identity of parsed) {
-        await cognito.send(
-          new AdminLinkProviderForUserCommand({
-            UserPoolId: getUserPoolId(),
-            DestinationUser: {
-              ProviderName: "Cognito",
-              ProviderAttributeValue: nativeUsername,
-            },
-            SourceUser: {
-              ProviderName: identity.providerName,
-              ProviderAttributeName: "Cognito_Subject",
-              ProviderAttributeValue: identity.userId,
-            },
-          }),
-        );
-      }
-    } catch {
-      // If identity parsing fails, proceed — the native user is still usable
-    }
-  }
-
-  return nativeUsername;
+async function promoteExternalUser(username: string): Promise<void> {
+  await setRandomPassword(username);
 }
 
 /**
@@ -397,17 +352,14 @@ export async function handleAppleNativeAuth(body: AppleNativeAuthRequest): Promi
 
   let username: string;
   if (existing) {
+    username = existing.username;
     if (existing.status === "EXTERNAL_PROVIDER") {
-      // User was created via Google federated login — CUSTOM_AUTH won't work.
-      // Convert to a native user and re-link existing provider identities.
-      username = await convertToNativeUser(email, existing.identities);
-      console.log("Apple auth: converted to native user=%s", username);
-    } else {
-      username = existing.username;
-      if (existing.status === "FORCE_CHANGE_PASSWORD") {
-        // User was created by AdminCreateUser but never confirmed — fix it.
-        await setRandomPassword(username);
-      }
+      // Promote in-place so ADMIN_USER_PASSWORD_AUTH works while preserving
+      // the same sub/userId (and thus the user's brain data).
+      await promoteExternalUser(username);
+      console.log("Apple auth: promoted EXTERNAL_PROVIDER user=%s", username);
+    } else if (existing.status === "FORCE_CHANGE_PASSWORD") {
+      await setRandomPassword(username);
     }
     await linkAppleToExistingUser(username, payload.sub, existing.identities);
   } else {

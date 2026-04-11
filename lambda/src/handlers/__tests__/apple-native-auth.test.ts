@@ -165,7 +165,7 @@ describe("handleAppleNativeAuth", () => {
     expect(linkCall).toBeDefined();
   });
 
-  it("converts EXTERNAL_PROVIDER user to native before issuing tokens", async () => {
+  it("promotes EXTERNAL_PROVIDER user in-place before issuing tokens", async () => {
     const googleIdentities = JSON.stringify([{ providerName: "Google", userId: "google-123" }]);
     mockSend.mockImplementation((cmd: any) => {
       if (cmd._type === "ListUsers") return {
@@ -175,7 +175,6 @@ describe("handleAppleNativeAuth", () => {
           Attributes: [{ Name: "identities", Value: googleIdentities }],
         }],
       };
-      if (cmd._type === "AdminCreateUser") return { User: { Username: "native-user-456" } };
       if (cmd._type === "AdminLinkProviderForUser") return {};
       if (cmd._type === "AdminSetUserPassword") return {};
       if (cmd._type === "AdminInitiateAuth") return {
@@ -194,20 +193,17 @@ describe("handleAppleNativeAuth", () => {
 
     expect(result.idToken).toBe("id-token");
 
-    // Should have created a native user
+    // Should NOT create a new user — promotes existing one in-place
     const createCall = mockSend.mock.calls.find((c: any) => c[0]._type === "AdminCreateUser");
-    expect(createCall).toBeDefined();
-    expect(createCall[0].input.Username).toBe("test@example.com");
+    expect(createCall).toBeUndefined();
 
-    // Should have linked both Google and Apple providers
-    const linkCalls = mockSend.mock.calls.filter((c: any) => c[0]._type === "AdminLinkProviderForUser");
-    const providerNames = linkCalls.map((c: any) => c[0].input.SourceUser.ProviderName);
-    expect(providerNames).toContain("Google");
-    expect(providerNames).toContain("SignInWithApple");
+    // Should set a password to promote the EXTERNAL_PROVIDER user
+    const pwdCalls = mockSend.mock.calls.filter((c: any) => c[0]._type === "AdminSetUserPassword");
+    expect(pwdCalls.length).toBeGreaterThanOrEqual(1);
 
-    // Should auth against the native user, not the Google_ user
+    // Should auth against the same user (preserving sub/userId)
     const authCall = mockSend.mock.calls.find((c: any) => c[0]._type === "AdminInitiateAuth");
-    expect(authCall[0].input.AuthParameters.USERNAME).toBe("native-user-456");
+    expect(authCall[0].input.AuthParameters.USERNAME).toBe("Google_123");
   });
 
   it("rejects expired tokens", async () => {
