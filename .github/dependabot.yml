@@ -1,0 +1,42 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /cdk
+    schedule:
+      interval: daily
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: npm
+    directory: /cli
+    schedule:
+      interval: daily
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: npm
+    directory: /lambda
+    schedule:
+      interval: daily
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: npm
+    directory: /tests
+    schedule:
+      interval: daily
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: daily
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: pip
+    directory: /agents/github-agent
+    schedule:
+      interval: daily
+    open-pull-requests-limit: 3
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
