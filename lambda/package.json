@@ -21,7 +21,7 @@
     "@modelcontextprotocol/sdk": "^1.29.0",
     "ai": "^4.0.0",
     "aws-jwt-verify": "^4.0.1",
-    "libsodium-wrappers": "^0.8.2",
+    "libsodium-wrappers": "^0.8.3",
     "zod": "^3.23.8"
   },
   "devDependencies": {
