@@ -107,7 +107,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         if: steps.check.outputs.comment_count != '0' && steps.check.outputs.limit_reached == 'false'
         with:
           ref: ${{ github.event.pull_request.head.ref }}
