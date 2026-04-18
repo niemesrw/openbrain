@@ -18,7 +18,7 @@ jobs:
           node-version: 20
 
       # OIDC to management account
-      - uses: aws-actions/configure-aws-credentials@v5
+      - uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: arn:aws:iam::${{ vars.MANAGEMENT_ACCOUNT }}:role/GitHubActionsRole
           aws-region: us-east-1
