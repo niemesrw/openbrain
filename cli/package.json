@@ -14,7 +14,7 @@
   "dependencies": {
     "@aws-sdk/client-cognito-identity-provider": "^3.1030.0",
     "commander": "^14.0.3",
-    "inquirer": "^9.0.0"
+    "inquirer": "^13.4.1"
   },
   "devDependencies": {
     "@types/inquirer": "^9.0.9",
