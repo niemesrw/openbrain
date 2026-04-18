@@ -12,7 +12,7 @@
     "test": "jest"
   },
   "dependencies": {
-    "@aws-sdk/client-cognito-identity-provider": "^3.750.0",
+    "@aws-sdk/client-cognito-identity-provider": "^3.1030.0",
     "commander": "^13.0.0",
     "inquirer": "^9.0.0"
   },
