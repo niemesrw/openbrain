@@ -19,7 +19,7 @@
     "@aws-sdk/client-ssm": "^3.1029.0",
     "@aws-sdk/lib-dynamodb": "^3.1030.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "ai": "^4.0.0",
+    "ai": "^5.0.52",
     "aws-jwt-verify": "^4.0.1",
     "libsodium-wrappers": "^0.8.3",
     "zod": "^3.23.8"
