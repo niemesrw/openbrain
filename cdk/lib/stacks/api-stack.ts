@@ -20,6 +20,9 @@ import * as customResources from "aws-cdk-lib/custom-resources";
 import { Construct } from "constructs";
 import * as path from "path";
 
+const LAMBDA_ROOT = path.join(__dirname, "..", "..", "..", "lambda");
+const LAMBDA_LOCK = path.join(LAMBDA_ROOT, "package-lock.json");
+
 interface ApiStackProps extends cdk.StackProps {
   vectorBucketName: string;
   userPool: cognito.UserPool;
@@ -177,6 +180,8 @@ export class ApiStack extends cdk.Stack {
     // Main MCP handler Lambda
     this.handler = new lambdaNode.NodejsFunction(this, "McpHandler", {
       runtime: lambda.Runtime.NODEJS_22_X,
+      projectRoot: LAMBDA_ROOT,
+      depsLockFilePath: LAMBDA_LOCK,
       entry: path.join(__dirname, "..", "..", "..", "lambda", "src", "index.ts"),
       handler: "handler",
       memorySize: 512,
@@ -273,6 +278,8 @@ export class ApiStack extends cdk.Stack {
     // Chat handler Lambda (LLM + brain tools via Bedrock Converse)
     const chatHandler = new lambdaNode.NodejsFunction(this, "ChatHandler", {
       runtime: lambda.Runtime.NODEJS_22_X,
+      projectRoot: LAMBDA_ROOT,
+      depsLockFilePath: LAMBDA_LOCK,
       entry: path.join(__dirname, "..", "..", "..", "lambda", "src", "chat.ts"),
       handler: "handler",
       memorySize: 512,
@@ -354,6 +361,8 @@ export class ApiStack extends cdk.Stack {
     // Custom Lambda authorizer (supports both JWT and API key)
     const authorizerFn = new lambdaNode.NodejsFunction(this, "AuthorizerFn", {
       runtime: lambda.Runtime.NODEJS_22_X,
+      projectRoot: LAMBDA_ROOT,
+      depsLockFilePath: LAMBDA_LOCK,
       entry: path.join(
         __dirname,
         "..",
@@ -473,6 +482,8 @@ export class ApiStack extends cdk.Stack {
     // Brain chat Lambda — non-streaming JSON chat for native mobile/desktop apps
     const brainChatHandler = new lambdaNode.NodejsFunction(this, "BrainChatHandler", {
       runtime: lambda.Runtime.NODEJS_22_X,
+      projectRoot: LAMBDA_ROOT,
+      depsLockFilePath: LAMBDA_LOCK,
       entry: path.join(__dirname, "..", "..", "..", "lambda", "src", "brain-chat.ts"),
       handler: "handler",
       memorySize: 512,
@@ -547,6 +558,8 @@ export class ApiStack extends cdk.Stack {
     // OAuth handler Lambda (discovery, authorization proxy, DCR)
     const oauthHandler = new lambdaNode.NodejsFunction(this, "OAuthHandler", {
       runtime: lambda.Runtime.NODEJS_22_X,
+      projectRoot: LAMBDA_ROOT,
+      depsLockFilePath: LAMBDA_LOCK,
       entry: path.join(__dirname, "..", "..", "..", "lambda", "src", "oauth.ts"),
       handler: "handler",
       memorySize: 256,
@@ -625,6 +638,8 @@ export class ApiStack extends cdk.Stack {
     // Background agent runner (scheduled hourly)
     const agentRunner = new lambdaNode.NodejsFunction(this, "AgentRunner", {
       runtime: lambda.Runtime.NODEJS_22_X,
+      projectRoot: LAMBDA_ROOT,
+      depsLockFilePath: LAMBDA_LOCK,
       entry: path.join(__dirname, "..", "..", "..", "lambda", "src", "agent-runner.ts"),
       handler: "handler",
       memorySize: 512,
@@ -748,6 +763,8 @@ export class ApiStack extends cdk.Stack {
     // Webhook Lambda — public endpoint, validates GitHub HMAC, enqueues events
     const githubWebhookHandler = new lambdaNode.NodejsFunction(this, "GitHubWebhookHandler", {
       runtime: lambda.Runtime.NODEJS_22_X,
+      projectRoot: LAMBDA_ROOT,
+      depsLockFilePath: LAMBDA_LOCK,
       entry: path.join(__dirname, "..", "..", "..", "lambda", "src", "github-webhook.ts"),
       handler: "handler",
       memorySize: 256,
@@ -789,6 +806,8 @@ export class ApiStack extends cdk.Stack {
     // GitHub Agent Lambda — SQS consumer: LLM extraction + brain capture
     const githubAgentHandler = new lambdaNode.NodejsFunction(this, "GitHubAgentHandler", {
       runtime: lambda.Runtime.NODEJS_22_X,
+      projectRoot: LAMBDA_ROOT,
+      depsLockFilePath: LAMBDA_LOCK,
       entry: path.join(__dirname, "..", "..", "..", "lambda", "src", "github-agent.ts"),
       handler: "handler",
       memorySize: 512,
@@ -856,6 +875,8 @@ export class ApiStack extends cdk.Stack {
     // GitHub REST Lambda — authenticated endpoints for installation management
     const githubRestHandler = new lambdaNode.NodejsFunction(this, "GitHubRestHandler", {
       runtime: lambda.Runtime.NODEJS_22_X,
+      projectRoot: LAMBDA_ROOT,
+      depsLockFilePath: LAMBDA_LOCK,
       entry: path.join(__dirname, "..", "..", "..", "lambda", "src", "github.ts"),
       handler: "handler",
       memorySize: 256,
@@ -945,6 +966,8 @@ export class ApiStack extends cdk.Stack {
 
     const userHandler = new lambdaNode.NodejsFunction(this, "UserHandler", {
       runtime: lambda.Runtime.NODEJS_22_X,
+      projectRoot: LAMBDA_ROOT,
+      depsLockFilePath: LAMBDA_LOCK,
       entry: path.join(__dirname, "..", "..", "..", "lambda", "src", "user.ts"),
       handler: "handler",
       memorySize: 256,
@@ -1019,6 +1042,8 @@ export class ApiStack extends cdk.Stack {
 
     const tasksHandler = new lambdaNode.NodejsFunction(this, "TasksHandler", {
       runtime: lambda.Runtime.NODEJS_22_X,
+      projectRoot: LAMBDA_ROOT,
+      depsLockFilePath: LAMBDA_LOCK,
       entry: path.join(__dirname, "..", "..", "..", "lambda", "src", "tasks.ts"),
       handler: "handler",
       memorySize: 256,
@@ -1084,6 +1109,8 @@ export class ApiStack extends cdk.Stack {
     // Slack webhook Lambda — public endpoint, validates Slack HMAC, handles events
     const slackWebhookHandler = new lambdaNode.NodejsFunction(this, "SlackWebhookHandler", {
       runtime: lambda.Runtime.NODEJS_22_X,
+      projectRoot: LAMBDA_ROOT,
+      depsLockFilePath: LAMBDA_LOCK,
       entry: path.join(__dirname, "..", "..", "..", "lambda", "src", "slack-webhook.ts"),
       handler: "handler",
       memorySize: 256,
@@ -1108,6 +1135,8 @@ export class ApiStack extends cdk.Stack {
     // perform brain search/capture after the 200 ack has been returned to Slack.
     const slackDeferredHandler = new lambdaNode.NodejsFunction(this, "SlackDeferredHandler", {
       runtime: lambda.Runtime.NODEJS_22_X,
+      projectRoot: LAMBDA_ROOT,
+      depsLockFilePath: LAMBDA_LOCK,
       entry: path.join(__dirname, "..", "..", "..", "lambda", "src", "slack-deferred.ts"),
       handler: "handler",
       memorySize: 512,
@@ -1188,6 +1217,8 @@ export class ApiStack extends cdk.Stack {
 
     const slackNotifyHandler = new lambdaNode.NodejsFunction(this, "SlackNotifyHandler", {
       runtime: lambda.Runtime.NODEJS_22_X,
+      projectRoot: LAMBDA_ROOT,
+      depsLockFilePath: LAMBDA_LOCK,
       entry: path.join(__dirname, "..", "..", "..", "lambda", "src", "slack-notify.ts"),
       handler: "handler",
       memorySize: 256,
@@ -1232,6 +1263,8 @@ export class ApiStack extends cdk.Stack {
 
     const slackRestHandler = new lambdaNode.NodejsFunction(this, "SlackRestHandler", {
       runtime: lambda.Runtime.NODEJS_22_X,
+      projectRoot: LAMBDA_ROOT,
+      depsLockFilePath: LAMBDA_LOCK,
       entry: path.join(__dirname, "..", "..", "..", "lambda", "src", "slack.ts"),
       handler: "handler",
       memorySize: 256,
@@ -1313,6 +1346,8 @@ export class ApiStack extends cdk.Stack {
 
     const googleRestHandler = new lambdaNode.NodejsFunction(this, "GoogleRestHandler", {
       runtime: lambda.Runtime.NODEJS_22_X,
+      projectRoot: LAMBDA_ROOT,
+      depsLockFilePath: LAMBDA_LOCK,
       entry: path.join(__dirname, "..", "..", "..", "lambda", "src", "google.ts"),
       handler: "handler",
       memorySize: 512,

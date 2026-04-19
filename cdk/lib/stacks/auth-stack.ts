@@ -7,6 +7,9 @@ import * as fs from "fs";
 import * as path from "path";
 import { Construct } from "constructs";
 
+const LAMBDA_ROOT = path.join(__dirname, "../../../lambda");
+const LAMBDA_LOCK = path.join(LAMBDA_ROOT, "package-lock.json");
+
 interface AuthStackProps extends cdk.StackProps {
   googleClientId: string;
   googleClientSecretArn: string;
@@ -197,6 +200,8 @@ export class AuthStack extends cdk.Stack {
     // Pre-Signup trigger — links federated identities with same email to one user
     const preSignUpFn = new lambdaNode.NodejsFunction(this, "PreSignUpFn", {
       entry: path.join(__dirname, "../../../lambda/src/cognito-pre-signup.ts"),
+      projectRoot: LAMBDA_ROOT,
+      depsLockFilePath: LAMBDA_LOCK,
       handler: "handler",
       runtime: lambda.Runtime.NODEJS_22_X,
       timeout: cdk.Duration.seconds(10),
@@ -224,6 +229,8 @@ export class AuthStack extends cdk.Stack {
 
     const defineAuthFn = new lambdaNode.NodejsFunction(this, "DefineAuthChallengeFn", {
       entry: customAuthEntry,
+      projectRoot: LAMBDA_ROOT,
+      depsLockFilePath: LAMBDA_LOCK,
       handler: "defineAuthChallenge",
       runtime: lambda.Runtime.NODEJS_22_X,
       timeout: cdk.Duration.seconds(5),
@@ -232,6 +239,8 @@ export class AuthStack extends cdk.Stack {
 
     const createAuthFn = new lambdaNode.NodejsFunction(this, "CreateAuthChallengeFn", {
       entry: customAuthEntry,
+      projectRoot: LAMBDA_ROOT,
+      depsLockFilePath: LAMBDA_LOCK,
       handler: "createAuthChallenge",
       runtime: lambda.Runtime.NODEJS_22_X,
       timeout: cdk.Duration.seconds(5),
@@ -240,6 +249,8 @@ export class AuthStack extends cdk.Stack {
 
     const verifyAuthFn = new lambdaNode.NodejsFunction(this, "VerifyAuthChallengeFn", {
       entry: customAuthEntry,
+      projectRoot: LAMBDA_ROOT,
+      depsLockFilePath: LAMBDA_LOCK,
       handler: "verifyAuthChallenge",
       runtime: lambda.Runtime.NODEJS_22_X,
       timeout: cdk.Duration.seconds(5),
