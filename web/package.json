@@ -15,7 +15,7 @@
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "react-markdown": "^10.1.0",
-    "react-router-dom": "^7.0.0"
+    "react-router-dom": "^7.14.1"
   },
   "overrides": {
     "jsondiffpatch": "0.7.3"
