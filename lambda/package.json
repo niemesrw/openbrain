@@ -22,7 +22,7 @@
     "ai": "^4.0.0",
     "aws-jwt-verify": "^4.0.1",
     "libsodium-wrappers": "^0.8.3",
-    "zod": "^3.23.8"
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.147",
