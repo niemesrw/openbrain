@@ -1,5 +1,5 @@
 # AgentCore Runtime SDK
-bedrock-agentcore>=1.0.0
+bedrock-agentcore>=1.6.3
 
 # Strands agent framework (AWS)
 strands-agents>=0.1.0
