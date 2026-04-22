@@ -5,4 +5,4 @@ bedrock-agentcore>=1.0.0
 strands-agents>=0.1.0
 
 # AWS SDK — pin recent version for S3 Vectors support (service added mid-2025)
-boto3>=1.38.0
+boto3>=1.42.93
