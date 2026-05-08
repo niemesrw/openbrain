@@ -20,7 +20,7 @@
     "@types/inquirer": "^9.0.9",
     "@types/node": "^22.0.0",
     "@types/jest": "^30.0.0",
-    "jest": "^30.3.0",
+    "jest": "^30.4.0",
     "ts-jest": "^29.4.9",
     "ts-node": "^10.9.2",
     "typescript": "~6.0.3"
