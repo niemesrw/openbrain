@@ -16,7 +16,7 @@
     "aws-cdk": "^2.1118.2",
     "esbuild": "^0.28.0",
     "ts-node": "^10.9.2",
-    "typescript": "~6.0.3"
+    "typescript": "~7.0.2"
   },
   "dependencies": {
     "aws-cdk-lib": "^2.250.0",
